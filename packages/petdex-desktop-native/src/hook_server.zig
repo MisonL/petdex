@@ -348,12 +348,6 @@ pub fn start(allocator: std.mem.Allocator, home: []const u8) !void {
 }
 
 fn run(server: *Server) void {
-    writeRuntimeFile(server, "update-token", &server.token, 0o600) catch |err| {
-        std.debug.print("petdex: token write failed ({s})\n", .{@errorName(err)});
-        return;
-    };
-    mirrorState(server, "idle", 0) catch {};
-
     // This thread owns its Io for its whole life: the listener blocks
     // in accept() forever and must never touch the main thread's.
     var scope = plat.Scope.init();
@@ -363,7 +357,10 @@ fn run(server: *Server) void {
     const addr: std.Io.net.IpAddress = .{ .ip4 = .loopback(7777) };
     var listener = addr.listen(io, .{
         .kernel_backlog = 16,
-        .reuse_address = true,
+        // This endpoint is a single-owner service. Zig maps true to
+        // SO_REUSEPORT on POSIX, which would let a second desktop bind the
+        // same port and replace the first instance's token file.
+        .reuse_address = false,
         .mode = .stream,
         .protocol = .tcp,
     }) catch {
@@ -371,6 +368,16 @@ fn run(server: *Server) void {
         return;
     };
     defer listener.deinit(io);
+
+    // Bind before replacing the token file. A second desktop instance may
+    // fail to bind; it must not invalidate the token of the listener that is
+    // already serving hooks.
+    writeRuntimeFile(server, "update-token", &server.token, 0o600) catch |err| {
+        std.debug.print("petdex: token write failed ({s})\n", .{@errorName(err)});
+        return;
+    };
+    mirrorState(server, "idle", 0) catch {};
+
     // Installation is not connection. Each Petdex process requires a fresh
     // event from the plugin before Settings may show DSH as connected.
     deleteRuntimeFile(server, "dsh-handshake.json");

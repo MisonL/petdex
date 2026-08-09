@@ -23,6 +23,7 @@ import {
   pruneSessions,
   readStdin,
   rememberSessionTitle,
+  resolveAgentSource,
   sessionTitle,
   stateBody,
   stateForEvent,
@@ -247,6 +248,18 @@ describe("eventFromArgs - session-level", () => {
 
   test("missing phase returns null", () => {
     expect(eventFromArgs([], "")).toBeNull();
+  });
+});
+
+describe("resolveAgentSource", () => {
+  test("prefers the explicit command agent over stdin metadata", () => {
+    expect(resolveAgentSource("claude-code", "codex")).toBe("codex");
+  });
+
+  test("falls back to stdin metadata when the command has no agent", () => {
+    expect(resolveAgentSource("claude-code", null)).toBe("claude-code");
+    expect(resolveAgentSource("claude-code", "")).toBe("claude-code");
+    expect(resolveAgentSource(null, null)).toBeNull();
   });
 });
 

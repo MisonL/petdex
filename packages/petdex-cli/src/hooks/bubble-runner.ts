@@ -505,7 +505,7 @@ export async function runBubble(args: string[]): Promise<void> {
     transcriptPath,
     lastAssistantMessage,
   } = parseStdin(stdin);
-  const agentSource = stdinSource ?? argSource;
+  const agentSource = resolveAgentSource(stdinSource, argSource);
   if (
     sessionId &&
     prompt &&
@@ -565,4 +565,13 @@ export async function runBubble(args: string[]): Promise<void> {
     );
   }
   await Promise.all(tasks);
+}
+
+/// The command argument identifies the agent that invoked this runner. Stdin
+/// metadata is only a compatibility fallback for callers without that arg.
+export function resolveAgentSource(
+  stdinSource: string | null,
+  argSource: string | null,
+): string | null {
+  return argSource && argSource.length > 0 ? argSource : stdinSource;
 }
