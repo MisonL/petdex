@@ -181,13 +181,12 @@ function safeSessionId(raw: unknown): string | null {
 
 type HookStdin = Readable & { isTTY?: boolean };
 
-/** Return whether a retained prefix contains one complete JSON value. */
-function hasCompleteJsonPayload(prefix: Buffer): boolean {
-  const text = prefix.toString("utf8");
+/** Return the UTF-16 end offset of the first complete JSON value. */
+function completeJsonPayloadEnd(text: string): number | null {
   let start = 0;
   while (start < text.length && /\s/.test(text[start] ?? "")) start += 1;
   const root = text[start];
-  if (root !== "{" && root !== "[") return false;
+  if (root !== "{" && root !== "[") return null;
 
   const stack: string[] = [root === "{" ? "}" : "]"];
   let quoted = false;
@@ -209,19 +208,19 @@ function hasCompleteJsonPayload(prefix: Buffer): boolean {
       continue;
     }
     if (char !== "}" && char !== "]") continue;
-    if (stack.pop() !== char) return false;
+    if (stack.pop() !== char) return null;
     if (stack.length !== 0) continue;
 
     // Validate only the first complete value. A hook host may append a
     // newline or other drain-only bytes after the payload.
     try {
       JSON.parse(text.slice(start, i + 1));
-      return true;
+      return i + 1;
     } catch {
-      return false;
+      return null;
     }
   }
-  return false;
+  return null;
 }
 
 function requiredUtf8ContinuationBytes(byte: number): number | null {
@@ -352,7 +351,16 @@ export async function readStdin(
 
     const retainedText = () => {
       const retained = Buffer.concat(prefix, prefixBytes);
-      return retained.toString("utf8", 0, completeUtf8PrefixLength(retained));
+      const text = retained.toString(
+        "utf8",
+        0,
+        completeUtf8PrefixLength(retained),
+      );
+      const end = completeJsonPayloadEnd(text);
+      // A host may append logging or framing bytes after its JSON payload.
+      // Return only the value that made us settle so parseStdin never sees
+      // unrelated tail data.
+      return end === null ? text : text.slice(0, end);
     };
 
     const cleanup = () => {
@@ -390,7 +398,8 @@ export async function readStdin(
           const retained = Buffer.from(bytes.subarray(0, remaining));
           prefix.push(retained);
           prefixBytes += retained.length;
-          if (hasCompleteJsonPayload(Buffer.concat(prefix, prefixBytes))) {
+          const text = Buffer.concat(prefix, prefixBytes).toString("utf8");
+          if (completeJsonPayloadEnd(text) !== null) {
             settleComplete();
           }
         }

@@ -123,6 +123,13 @@ describe("readStdin", () => {
     await expect(reading).resolves.toBe('{"tool_name":"Read"}');
   });
 
+  test("returns only the first JSON value when the host appends tail bytes", async () => {
+    const input = new PassThrough();
+    const reading = readStdin(input);
+    input.end('{"tool_name":"Read"}\nagent-log');
+    await expect(reading).resolves.toBe('{"tool_name":"Read"}');
+  });
+
   test("keeps reading until a delayed hook payload reaches EOF", async () => {
     const input = new PassThrough();
     let settled = false;
