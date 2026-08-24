@@ -167,7 +167,7 @@ index 4dd7ecd..24fd947 100644
 +        case kShowContextMenuMessage:
 +            if (host) showAppContextMenu(host, hwnd);
 +            return 0;
-@@ -5942,0 +6029,59 @@ int native_sdk_windows_create_window(Host *host, uint64_t window_id, const char
+@@ -5942,0 +6029,65 @@ int native_sdk_windows_create_window(Host *host, uint64_t window_id, const char
 +int native_sdk_windows_move_window(Host *host, uint64_t window_id, double dx, double dy, int clamp, double *out_x, double *out_y, int *out_hit_x, int *out_hit_y, int *out_primary_down, double *out_cursor_x, double *out_cursor_y) {
 +    if (!host) return 0;
 +    auto found = host->windows.find(window_id);
@@ -212,10 +212,16 @@ index 4dd7ecd..24fd947 100644
 +        if (view.window_id != window_id || view.kind != kViewGpuSurface) continue;
 +        if (view.gpu_primary_latched > 0) {
 +            primary_down = 1;
-+            if (view.hwnd) {
-+                const double x = view.gpu_primary_latched == 2 ? view.gpu_primary_x : view.gpu_pointer_x;
-+                const double y = view.gpu_primary_latched == 2 ? view.gpu_primary_y : view.gpu_pointer_y;
-+                POINT sampled = { (LONG)lround(x * scale), (LONG)lround(y * scale) };
++            if (view.gpu_primary_latched == 2 && view.hwnd) {
++                /* Preserve the press point for the first app poll. A fast
++                 * synthetic drag can move the cursor to its endpoint before
++                 * the runtime sees the down edge; using the live cursor on
++                 * that first pulse would miss the pet hit test. From the
++                 * second pulse on, keep the GetCursorPos result above: the
++                 * child may not receive WM_MOUSEMOVE while a transparent,
++                 * borderless window is being dragged, but Win32 still owns
++                 * the authoritative global endpoint. */
++                POINT sampled = { (LONG)lround(view.gpu_primary_x * scale), (LONG)lround(view.gpu_primary_y * scale) };
 +                if (ClientToScreen(view.hwnd, &sampled)) cursor = sampled;
 +            }
 +            view.gpu_primary_latched--;
@@ -227,7 +233,7 @@ index 4dd7ecd..24fd947 100644
 +    return 1;
 +}
 +
-@@ -6272,0 +6418,25 @@ int native_sdk_windows_note_gpu_surface_input(Host *host, uint64_t window_id, co
+@@ -6272,0 +6424,25 @@ int native_sdk_windows_note_gpu_surface_input(Host *host, uint64_t window_id, co
 +int native_sdk_windows_show_context_menu(Host *host, uint64_t window_id, const char *label, size_t label_len, double x, double y, uint64_t token, const WindowsContextMenuItem *items, size_t count) {
 +    if (!host || !items || count == 0) return 0;
 +    auto found = host->windows.find(window_id);
