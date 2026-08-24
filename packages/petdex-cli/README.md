@@ -78,11 +78,11 @@ A spinner shows progress per pet; a summary lists failures with reasons. Slugs a
 ## Validation rules
 
 - `pet.json` and `spritesheet.webp` (or `.png`) must exist at the root.
-- Spritesheet must be an 8x9 grid (**1536x1872**) or a v2 8x11 grid (**1536x2288**).
-  A scaled sheet is valid only when rows and columns still land on integer
-  `192x208` cell boundaries. ChatGPT pet exports are already the v2 shape.
-- `spriteVersionNumber` must match the detected grid: omit it or use `1` for
-  v1, and use `2` for v2.
+- Spritesheet must preserve the 8x9 (**1536x1872**) or v2 8x11
+  (**1536x2288**) overall atlas ratio. The current `main` submission path does
+  not yet reject every fractional cell boundary or compare the version value
+  with the detected grid; keep both aligned because the viewer crops fixed
+  `192x208` cells. ChatGPT pet exports are already the v2 shape.
 - Rate limit: **10 submissions / 24h** per user. Admins bypass.
 
 ## Configuration
@@ -131,8 +131,8 @@ OMP profiles, and SSH remote limitations, see
 | `presign 401` | Bearer rejected by Clerk userinfo | `petdex logout && petdex login` |
 | `presign 429` | 20 CLI presign requests/hour exceeded | Wait for the retry window and retry the command |
 | `register 429` | 10 persisted submissions/24h exceeded | Wait 24h before submitting again |
-| `register 400 invalid_spritesheet` | Not an 8x9 or 8x11 grid, or fractional cell boundaries | Re-export at 1536x1872 or 1536x2288 |
-| `register 400 invalid_sprite_version` | `pet.json` version does not match the image grid | Set `spriteVersionNumber` to `2` for a v2 sheet, or omit it/use `1` for v1 |
+| `register 400 invalid_spritesheet` | Not an 8x9 or 8x11 overall atlas ratio | Re-export at 1536x1872 or 1536x2288 |
+| `register 400 invalid_sprite_version` | `pet.json` contains a value other than `1` or `2` | Omit the field, or use `1` / `2` |
 | `register 400 missing_field` | Folder missing `pet.json` or `spritesheet.{webp,png}` | Inspect folder contents, re-export the pet if needed |
 | `R2 PUT 403` | Presigned URL expired (60s TTL) | Retry the failed submission. CLI auto-presigns fresh URLs |
 
