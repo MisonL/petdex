@@ -139,7 +139,7 @@ my-pet/
 └── spritesheet.webp        8x9 or v2 8x11 frame grid of 192x208 px each (or .png)
 ```
 
-The native renderer supports nine state rows: `idle`, `running-right`, `running-left`, `waving`, `jumping`, `failed`, `waiting`, `running`, and `review`. Codex and the supported coding agents map their activity hooks to these states. v1 is `1536x1872` with `spriteVersionNumber` omitted or `1`; v2 is `1536x2288` and must declare `spriteVersionNumber: 2`. Scaled sheets must keep integer cell boundaries; see the [Chinese integration contract](./docs/integration-contracts.zh-CN.md) for the complete boundary and troubleshooting rules.
+The native renderer supports nine state rows: `idle`, `running-right`, `running-left`, `waving`, `jumping`, `failed`, `waiting`, `running`, and `review`. Codex and the supported coding agents map their activity hooks to these states. v1 is `1536x1872` with `spriteVersionNumber` omitted or `1`; v2 is `1536x2288` and must declare `spriteVersionNumber: 2`. See the [Chinese integration contract](./docs/integration-contracts.zh-CN.md) for the current validation boundary and troubleshooting rules.
 
 ## Contribute
 

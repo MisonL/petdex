@@ -47,6 +47,7 @@ const RETIRED_COMMANDS = new Map<string, string>([
   ["stop", DESKTOP_STOP_REDIRECT],
   ["toggle", "Toggle the mascot from the Petdex menu bar icon."],
   ["desktop", "The desktop app manages its own lifecycle."],
+  ["select", "Select pets from the Petdex desktop app."],
   ["update", "The desktop app updates itself automatically."],
   // Desktop Settings → Agents:
   // packages/petdex-desktop-native/src/settings_view.zig (`agentsSection`).

@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 function runCli(command: string): { exitCode: number; stderr: string } {
   const result = Bun.spawnSync({
-    cmd: [process.execPath, import.meta.dir + "/petdex.ts", command],
+    cmd: [process.execPath, `${import.meta.dir}/petdex.ts`, command],
     env: { ...process.env, NO_COLOR: "1" },
     stderr: "pipe",
     stdout: "pipe",
@@ -32,5 +32,14 @@ describe("retired command aliases", () => {
     expect(normalizeCommand(actual.stderr, alias)).toBe(
       normalizeCommand(expected.stderr, canonical),
     );
+  });
+
+  test("select points legacy users to the desktop app", () => {
+    const result = runCli("select");
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).not.toContain("Unknown command");
+    expect(result.stderr).toContain("petdex select");
+    expect(result.stderr).toContain("desktop app");
   });
 });
