@@ -40,6 +40,16 @@ function waitForClose(child: ReturnType<typeof spawn>): Promise<number | null> {
   return new Promise((resolve) => child.once("close", resolve));
 }
 
+async function waitForCloseWithin(
+  child: ReturnType<typeof spawn>,
+  timeoutMs: number,
+): Promise<number | null | "timeout"> {
+  return await Promise.race([
+    waitForClose(child),
+    delay(timeoutMs).then(() => "timeout" as const),
+  ]);
+}
+
 function waitForReady(child: ReturnType<typeof spawn>): Promise<void> {
   const output = child.stdout;
   if (!output) {
@@ -216,6 +226,51 @@ describe("readStdin", () => {
     } finally {
       if (child.exitCode === null && !child.killed) child.kill();
       rmSync(fakeHome, { recursive: true, force: true });
+    }
+  });
+
+  test("returns after a complete JSON payload even when stdin stays open", async () => {
+    const child = spawn(
+      process.execPath,
+      [
+        "-e",
+        'import("./src/hooks/bubble-runner.ts").then(async ({ runBubble }) => { const task = runBubble(["post", "codex"]); process.stdout.write("ready\\n"); await task; })',
+      ],
+      {
+        cwd: CLI_PACKAGE_DIR,
+        stdio: ["pipe", "pipe", "pipe"],
+        env: process.env,
+      },
+    );
+
+    try {
+      await waitForReady(child);
+      child.stdin?.write('{"tool_name":"Read"}');
+      expect(await waitForCloseWithin(child, 900)).toBe(0);
+    } finally {
+      if (child.exitCode === null && !child.killed) child.kill();
+    }
+  });
+
+  test("returns after a bounded wait when stdin never produces EOF", async () => {
+    const child = spawn(
+      process.execPath,
+      [
+        "-e",
+        'import("./src/hooks/bubble-runner.ts").then(async ({ runBubble }) => { const task = runBubble(["post", "codex"]); process.stdout.write("ready\\n"); await task; })',
+      ],
+      {
+        cwd: CLI_PACKAGE_DIR,
+        stdio: ["pipe", "pipe", "pipe"],
+        env: process.env,
+      },
+    );
+
+    try {
+      await waitForReady(child);
+      expect(await waitForCloseWithin(child, 900)).toBe(0);
+    } finally {
+      if (child.exitCode === null && !child.killed) child.kill();
     }
   });
 });

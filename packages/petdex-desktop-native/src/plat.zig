@@ -231,45 +231,99 @@ pub fn readStdin(buf: []u8) []const u8 {
     var scope = Scope.init();
     defer scope.deinit();
     const io = scope.io();
-    var read_buf: [4096]u8 = undefined;
-    var reader = std.Io.File.stdin().reader(io, &read_buf);
-    return readCappedAndDrain(&reader.interface, buf);
-}
+    const stdin = std.Io.File.stdin();
+    var storage: [1]std.Io.Operation.Storage = undefined;
+    var batch = std.Io.Batch.init(&storage);
+    defer batch.cancel(io);
 
-/// Keep the first `buf.len` bytes but drain the rest of the pipe. Hook
-/// hosts can still be writing a large payload after the useful prefix; an
-/// early close makes their writer see EPIPE/Broken pipe.
-fn readCappedAndDrain(reader: anytype, buf: []u8) []const u8 {
-    var total: usize = 0;
     var discard: [4096]u8 = undefined;
+    var target: [1][]u8 = undefined;
+    var total: usize = 0;
+    var complete = false;
+    var deadline = stdinDeadline(io, stdin_read_timeout_ms);
+
+    // One outstanding read at a time keeps the capture buffer bounded while
+    // Io.Batch supplies poll/overlapped implementations for POSIX and Windows.
     while (true) {
-        const target = if (total < buf.len) buf[total..] else &discard;
-        const n = reader.readSliceShort(target) catch break;
-        if (n == 0) break;
+        target[0] = if (total < buf.len) buf[total..] else discard[0..];
+        batch.addAt(0, .{ .file_read_streaming = .{ .file = stdin, .data = &target } });
+
+        batch.awaitConcurrent(io, .{ .deadline = deadline }) catch break;
+        const completion = batch.next() orelse break;
+        const n = completion.result.file_read_streaming catch return buf[0..total];
+        if (n == 0) return buf[0..total];
+
         if (total < buf.len) total += n;
+        if (!complete and hasCompleteJsonPayload(buf[0..total])) {
+            complete = true;
+            // Once the JSON value is complete, give the host a short bounded
+            // drain window for trailing/oversized bytes, then let the process
+            // close its read side instead of waiting for EOF forever.
+            deadline = stdinDeadline(io, stdin_drain_grace_ms);
+        }
     }
     return buf[0..total];
 }
 
-test "readCappedAndDrain keeps the cap and consumes the source" {
-    const Source = struct {
-        bytes: []const u8,
-        offset: usize = 0,
+const stdin_read_timeout_ms: u64 = 500;
+const stdin_drain_grace_ms: u64 = 300;
 
-        fn readSliceShort(self: *@This(), out: []u8) !usize {
-            if (self.offset >= self.bytes.len) return 0;
-            const n = @min(out.len, self.bytes.len - self.offset);
-            @memcpy(out[0..n], self.bytes[self.offset .. self.offset + n]);
-            self.offset += n;
-            return n;
+fn stdinDeadline(io: std.Io, milliseconds: u64) std.Io.Clock.Timestamp {
+    return std.Io.Clock.Timestamp.fromNow(io, .{
+        .clock = .awake,
+        .raw = std.Io.Duration.fromMilliseconds(@intCast(milliseconds)),
+    });
+}
+
+/// Return whether a retained prefix contains one balanced JSON value. The
+/// hook payload is parsed again by hook_runner; this scanner only decides when
+/// it is safe to stop waiting for EOF. Strings and escaped quotes are skipped
+/// so braces inside tool commands do not trigger an early return.
+fn hasCompleteJsonPayload(bytes: []const u8) bool {
+    var start: usize = 0;
+    while (start < bytes.len and (bytes[start] == ' ' or bytes[start] == '\t' or bytes[start] == '\r' or bytes[start] == '\n')) start += 1;
+    if (start == bytes.len) return false;
+    const root = bytes[start];
+    if (root != '{' and root != '[') return false;
+
+    var expected: [128]u8 = undefined;
+    var depth: usize = 1;
+    expected[0] = if (root == '{') '}' else ']';
+    var quoted = false;
+    var escaped = false;
+
+    var i = start + 1;
+    while (i < bytes.len) : (i += 1) {
+        const byte = bytes[i];
+        if (quoted) {
+            if (escaped) escaped = false else if (byte == '\\') escaped = true else if (byte == '"') quoted = false;
+            continue;
         }
-    };
+        if (byte == '"') {
+            quoted = true;
+            continue;
+        }
+        if (byte == '{' or byte == '[') {
+            if (depth == expected.len) return false;
+            expected[depth] = if (byte == '{') '}' else ']';
+            depth += 1;
+            continue;
+        }
+        if (byte != '}' and byte != ']') continue;
+        if (depth == 0 or expected[depth - 1] != byte) return false;
+        depth -= 1;
+        if (depth != 0) continue;
+        // The hook host may append whitespace; the first complete value is
+        // sufficient because later bytes are drained, not parsed.
+        return true;
+    }
+    return false;
+}
 
-    var source = Source{ .bytes = "0123456789" };
-    var kept: [4]u8 = undefined;
-    const captured = readCappedAndDrain(&source, &kept);
-    try std.testing.expectEqualStrings("0123", captured);
-    try std.testing.expectEqual(source.bytes.len, source.offset);
+test "complete JSON detection ignores braces inside strings" {
+    try std.testing.expect(hasCompleteJsonPayload("{\"command\":\"echo {still-open}\\\"\"}"));
+    try std.testing.expect(!hasCompleteJsonPayload("{\"command\":\"echo"));
+    try std.testing.expect(!hasCompleteJsonPayload("{\"command\":["));
 }
 
 // ------------------------------------------------------------------ clock
