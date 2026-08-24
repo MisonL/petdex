@@ -396,19 +396,23 @@ jobs:
             Xvfb :99 -screen 0 1280x800x24 &
             sleep 3
           }
-          # The hook-server step owns and reaps its app instances. Refuse to
-          # mask a lifecycle regression with a broad process kill: the
-          # listener must be free before this isolated D-Bus scenario starts.
-          for _ in $(seq 1 10); do
-            if ! curl -fsS --connect-timeout 1 --max-time 2 http://127.0.0.1:7777/health >/dev/null 2>&1; then
-              break
-            fi
+          # The hook-server step owns and reaps its app instances. A health
+          # probe alone cannot see a closed listener in TIME_WAIT, while the
+          # server deliberately disables address reuse to protect token
+          # ownership. Probe an actual bind so this scenario waits for the
+          # kernel to release the endpoint without masking a live process.
+          port_is_free() {
+            python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 7777)); s.close()'
+          }
+          for _ in $(seq 1 60); do
+            port_is_free && break
             sleep 1
           done
-          if curl -fsS --connect-timeout 1 --max-time 2 http://127.0.0.1:7777/health >/dev/null 2>&1; then
-            echo "FAIL: hook server did not release its endpoint before deep-link scenario"
+          port_is_free || {
+            echo "FAIL: hook server endpoint remained unavailable before deep-link scenario"
+            command -v ss >/dev/null 2>&1 && ss -ltnp '( sport = :7777 )' || true
             exit 1
-          fi
+          }
 
           cat > /tmp/deeplink.sh <<'SCENARIO'
           set -euo pipefail
@@ -758,18 +762,21 @@ jobs:
           JSON
 
           # The preceding desktop smoke steps own and reap their processes.
-          # Refuse to mask a lifecycle regression with a broad process kill:
-          # a listener here must belong to this step's app instance.
-          for _ in $(seq 1 10); do
-            if ! curl -fsS --connect-timeout 1 --max-time 2 http://127.0.0.1:7777/health >/dev/null 2>&1; then
-              break
-            fi
+          # Probe an actual bind rather than only health: after a clean app
+          # exit, accepted hook connections can leave 7777 in TIME_WAIT while
+          # the server deliberately keeps address reuse disabled.
+          port_is_free() {
+            python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 7777)); s.close()'
+          }
+          for _ in $(seq 1 60); do
+            port_is_free && break
             sleep 1
           done
-          if curl -fsS --connect-timeout 1 --max-time 2 http://127.0.0.1:7777/health >/dev/null 2>&1; then
-            echo "FAIL: hook server did not release its endpoint before remote writeback"
+          port_is_free || {
+            echo "FAIL: hook server endpoint remained unavailable before remote writeback"
+            command -v ss >/dev/null 2>&1 && ss -ltnp '( sport = :7777 )' || true
             exit 1
-          fi
+          }
           export DISPLAY=:99
           xdpyinfo -display :99 >/dev/null 2>&1 || { Xvfb :99 -screen 0 1280x800x24 & sleep 3; }
           PETDEX_PET=ci-pet ./zig-out/bin/petdex-desktop-native > remote.log 2>&1 &
