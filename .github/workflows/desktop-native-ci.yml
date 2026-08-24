@@ -307,6 +307,7 @@ jobs:
           sleep 10
           import -window root /tmp/linux-screen-cairo.png || true
           kill "$CAIRO_PID" || true
+          wait "$CAIRO_PID" 2>/dev/null || true
           tail -20 cairo.log
 
       # Deep links were verified by hand on macOS only. GTK's ::open path
@@ -395,18 +396,32 @@ jobs:
             Xvfb :99 -screen 0 1280x800x24 &
             sleep 3
           }
-          # That step also leaves its own app instance behind. GApplication
-          # is single-instance per app id, so a survivor would answer the
-          # link from OUTSIDE this D-Bus session, where the scenario below
-          # can neither see it nor assert on it.
-          pkill -f petdex-desktop-native || true
-          sleep 2
+          # The hook-server step owns and reaps its app instances. Refuse to
+          # mask a lifecycle regression with a broad process kill: the
+          # listener must be free before this isolated D-Bus scenario starts.
+          for _ in $(seq 1 10); do
+            if ! curl -fsS --connect-timeout 1 --max-time 2 http://127.0.0.1:7777/health >/dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
+          if curl -fsS --connect-timeout 1 --max-time 2 http://127.0.0.1:7777/health >/dev/null 2>&1; then
+            echo "FAIL: hook server did not release its endpoint before deep-link scenario"
+            exit 1
+          fi
 
           cat > /tmp/deeplink.sh <<'SCENARIO'
           set -euo pipefail
           export PATH="$HOME/.local/bin:$PATH"
           PETDEX_PET=ci-pet petdex-desktop-native > /tmp/deeplink-run.log 2>&1 &
           APP_PID=$!
+          cleanup_deeplink_app() {
+            if [ -n "${APP_PID:-}" ]; then
+              kill "$APP_PID" 2>/dev/null || true
+              wait "$APP_PID" 2>/dev/null || true
+            fi
+          }
+          trap cleanup_deeplink_app EXIT
           sleep 10
           kill -0 "$APP_PID" || { echo "app died before the link"; cat /tmp/deeplink-run.log; exit 1; }
 
@@ -703,7 +718,10 @@ jobs:
           set -euo pipefail
           sudo apt-get install -y xvfb
           cleanup_remote_smoke() {
-            if [ -n "${APP_PID:-}" ]; then kill "$APP_PID" 2>/dev/null || true; fi
+            if [ -n "${APP_PID:-}" ]; then
+              kill "$APP_PID" 2>/dev/null || true
+              wait "$APP_PID" 2>/dev/null || true
+            fi
             docker rm -f petdex-ssh >/dev/null 2>&1 || true
           }
           trap cleanup_remote_smoke EXIT
@@ -739,10 +757,19 @@ jobs:
               "hermes":{"enabled":true,"home":"~/.hermes-ci"}}}]}
           JSON
 
-          # Any earlier instance booted without this config and would not
-          # re-run the sync.
-          pkill -f petdex-desktop-native || true
-          sleep 2
+          # The preceding desktop smoke steps own and reap their processes.
+          # Refuse to mask a lifecycle regression with a broad process kill:
+          # a listener here must belong to this step's app instance.
+          for _ in $(seq 1 10); do
+            if ! curl -fsS --connect-timeout 1 --max-time 2 http://127.0.0.1:7777/health >/dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
+          if curl -fsS --connect-timeout 1 --max-time 2 http://127.0.0.1:7777/health >/dev/null 2>&1; then
+            echo "FAIL: hook server did not release its endpoint before remote writeback"
+            exit 1
+          fi
           export DISPLAY=:99
           xdpyinfo -display :99 >/dev/null 2>&1 || { Xvfb :99 -screen 0 1280x800x24 & sleep 3; }
           PETDEX_PET=ci-pet ./zig-out/bin/petdex-desktop-native > remote.log 2>&1 &
@@ -973,6 +1000,7 @@ jobs:
           fi
 
           kill "$APP_PID" 2>/dev/null || true
+          wait "$APP_PID" 2>/dev/null || true
 
       - name: Upload the screenshot
         if: always() && matrix.platform != 'macos'
