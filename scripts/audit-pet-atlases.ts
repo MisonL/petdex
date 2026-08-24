@@ -153,6 +153,33 @@ async function fetchJson<T>(url: string): Promise<T> {
   return (await response.json()) as T;
 }
 
+/** Read an asset without allowing a chunked response to exceed the audit cap. */
+export async function readResponseBodyBounded(
+  response: Response,
+  maxBytes: number,
+): Promise<Buffer> {
+  if (!response.body) throw new Error("asset response has no body");
+  const reader = response.body.getReader();
+  const chunks: Buffer[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel("asset exceeds audit limit");
+        throw new Error("asset exceeds audit limit");
+      }
+      chunks.push(Buffer.from(value));
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  return Buffer.concat(chunks, total);
+}
+
 async function fetchOldestWindow(limit: number): Promise<AuditPet[]> {
   const first = await fetchJson<{
     total?: number;
@@ -211,9 +238,7 @@ async function auditOne(pet: AuditPet): Promise<AtlasAuditEntry> {
     const contentLength = Number(response.headers.get("content-length"));
     if (contentLength > MAX_FETCH_BYTES)
       throw new Error("asset exceeds audit limit");
-    const buffer = Buffer.from(await response.arrayBuffer());
-    if (buffer.length > MAX_FETCH_BYTES)
-      throw new Error("asset exceeds audit limit");
+    const buffer = await readResponseBodyBounded(response, MAX_FETCH_BYTES);
     const metadata = await sharp(buffer).metadata();
     const layout = detectSpriteAtlas(metadata.width, metadata.height);
     if (!layout || !metadata.width || !metadata.height) {
