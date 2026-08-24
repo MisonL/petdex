@@ -53,6 +53,9 @@ troubleshooting.
 
 ## Remote agents (SSH)
 
+The complete cross-platform and OMP contract is documented in
+[`../../docs/integration-contracts.zh-CN.md`](../../docs/integration-contracts.zh-CN.md).
+
 Agents running on other machines can drive the same pet. Declare remotes in
 `~/.petdex/remote-agents.json`:
 
