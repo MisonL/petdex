@@ -149,10 +149,15 @@ index 4dd7ecd..24fd947 100644
 +    PostMessageW(hwnd, WM_NULL, 0, 0);
 +}
 +
-@@ -2928,0 +3001,6 @@ static LRESULT CALLBACK gpuSurfaceProc(HWND hwnd, UINT message, WPARAM wparam, L
+@@ -2928,0 +3001,11 @@ static LRESULT CALLBACK gpuSurfaceProc(HWND hwnd, UINT message, WPARAM wparam, L
 +            if (message == WM_LBUTTONDOWN) {
 +                view->gpu_primary_down = 1;
-+                view->gpu_primary_latched = 2;
++                /* Keep three app polls alive: the first exposes the real
++                 * press point for hit testing, the second carries the
++                 * global endpoint while still pressed, and the third
++                 * reports release. Fast synthetic drags can deliver the
++                 * whole gesture before the runtime's first poll. */
++                view->gpu_primary_latched = 3;
 +                view->gpu_primary_x = x;
 +                view->gpu_primary_y = y;
 +            }
@@ -167,7 +172,7 @@ index 4dd7ecd..24fd947 100644
 +        case kShowContextMenuMessage:
 +            if (host) showAppContextMenu(host, hwnd);
 +            return 0;
-@@ -5942,0 +6029,65 @@ int native_sdk_windows_create_window(Host *host, uint64_t window_id, const char
+@@ -5942,0 +6029,70 @@ int native_sdk_windows_create_window(Host *host, uint64_t window_id, const char
 +int native_sdk_windows_move_window(Host *host, uint64_t window_id, double dx, double dy, int clamp, double *out_x, double *out_y, int *out_hit_x, int *out_hit_y, int *out_primary_down, double *out_cursor_x, double *out_cursor_y) {
 +    if (!host) return 0;
 +    auto found = host->windows.find(window_id);
@@ -211,16 +216,21 @@ index 4dd7ecd..24fd947 100644
 +        NativeView &view = entry.second;
 +        if (view.window_id != window_id || view.kind != kViewGpuSurface) continue;
 +        if (view.gpu_primary_latched > 0) {
-+            primary_down = 1;
-+            if (view.gpu_primary_latched == 2 && view.hwnd) {
++            /* 3 = press point/down, 2 = global endpoint/down,
++             * 1 = global endpoint/release only after WM_LBUTTONUP.
++             * If the button is still held, the final latched pulse stays
++             * down and subsequent polls use the live state. */
++            primary_down = (view.gpu_primary_latched > 1 || view.gpu_primary_down) ? 1 : 0;
++            if (view.gpu_primary_latched == 3 && view.hwnd) {
 +                /* Preserve the press point for the first app poll. A fast
 +                 * synthetic drag can move the cursor to its endpoint before
 +                 * the runtime sees the down edge; using the live cursor on
-+                 * that first pulse would miss the pet hit test. From the
-+                 * second pulse on, keep the GetCursorPos result above: the
-+                 * child may not receive WM_MOUSEMOVE while a transparent,
-+                 * borderless window is being dragged, but Win32 still owns
-+                 * the authoritative global endpoint. */
++                 * that first pulse would miss the pet hit test. The second
++                 * pulse uses the GetCursorPos result above while still
++                 * reporting down; the third reports the same endpoint with
++                 * release. The child may not receive WM_MOUSEMOVE while a
++                 * transparent, borderless window is being dragged, but
++                 * Win32 still owns the authoritative global endpoint. */
 +                POINT sampled = { (LONG)lround(view.gpu_primary_x * scale), (LONG)lround(view.gpu_primary_y * scale) };
 +                if (ClientToScreen(view.hwnd, &sampled)) cursor = sampled;
 +            }
