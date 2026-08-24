@@ -374,6 +374,7 @@
         "unreadableSpritesheet": "No se puede leer la imagen del spritesheet.",
         "tooSmall": "El spritesheet parece muy pequeño ({width}×{height}). Usa una grilla de 8×9 frames (recomendado {recommendedWidth}×{recommendedHeight}).",
         "badGrid": "La grilla del spritesheet es {width}×{height}, que no coincide con la grilla 8×9 (1536×1872) ni la v2 8×11 (1536×2288), así que los frames se verían desalineados.",
+        "spriteVersionMismatch": "Las dimensiones del spritesheet usan v{detected}, pero pet.json declara v{declared}. Actualiza spriteVersionNumber antes de enviarlo.",
         "spritesheetMissingPetInfo": "No se encontró pet.json junto a este spritesheet, así que se generó un nombre/descripción de relleno. Completa el nombre y la descripción abajo antes de enviar."
       }
     }

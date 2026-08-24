@@ -18,6 +18,7 @@ import { useTranslations } from "next-intl";
 
 import { petStates } from "@/lib/pet-states";
 import { deriveSlug } from "@/lib/slug";
+import { detectSpriteAtlas } from "@/lib/sprite-atlas";
 import { parseSpriteVersionNumber } from "@/lib/sprite-version";
 import { PET_ASSET_MAX_BYTES } from "@/lib/upload-limits";
 
@@ -312,8 +313,7 @@ export function PetSubmitForm() {
       let height = 0;
       if (spritesheetUrl) {
         ({ width, height } = await measureImage(spritesheetUrl));
-        const isClassicGrid = width * 1872 === height * 1536;
-        const isV2Grid = width * 2288 === height * 1536;
+        const atlas = detectSpriteAtlas(width, height);
         if (width === 0 || height === 0) {
           issues.push(t("issues.unreadableSpritesheet"));
         } else if (width < 256 || height < 256) {
@@ -325,10 +325,20 @@ export function PetSubmitForm() {
               recommendedHeight: REQUIRED.height,
             }),
           );
-        } else if (!isClassicGrid && !isV2Grid) {
+        } else if (!atlas) {
           // Mirror the server-side grid check so the preview never says
           // "ready" for a sheet /api/submit will reject.
           issues.push(t("issues.badGrid", { width, height }));
+        } else if (
+          spriteVersion.ok &&
+          atlas.version !== spriteVersion.version
+        ) {
+          issues.push(
+            t("issues.spriteVersionMismatch", {
+              detected: atlas.version,
+              declared: spriteVersion.version,
+            }),
+          );
         }
       }
 
