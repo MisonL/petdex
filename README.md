@@ -76,6 +76,7 @@ makes.
 | Join the community | [Discord](https://discord.gg/byhubdyBTe) |
 
 Full CLI reference: [`packages/petdex-cli/README.md`](./packages/petdex-cli/README.md).
+中文集成与排障契约：[`docs/integration-contracts.zh-CN.md`](./docs/integration-contracts.zh-CN.md)。
 
 ## For builders
 
@@ -138,7 +139,7 @@ my-pet/
 └── spritesheet.webp        8x9 or v2 8x11 frame grid of 192x208 px each (or .png)
 ```
 
-The native renderer supports nine state rows: `idle`, `running-right`, `running-left`, `waving`, `jumping`, `failed`, `waiting`, `running`, and `review`. Codex and the supported coding agents map their activity hooks to these states. The v2 8x11 atlas leaves two additional rows available to the consuming client.
+The native renderer supports nine state rows: `idle`, `running-right`, `running-left`, `waving`, `jumping`, `failed`, `waiting`, `running`, and `review`. Codex and the supported coding agents map their activity hooks to these states. v1 is `1536x1872` with `spriteVersionNumber` omitted or `1`; v2 is `1536x2288` and must declare `spriteVersionNumber: 2`. See the [Chinese integration contract](./docs/integration-contracts.zh-CN.md) for the current validation boundary and troubleshooting rules.
 
 ## Contribute
 

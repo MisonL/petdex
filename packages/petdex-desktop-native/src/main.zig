@@ -432,6 +432,12 @@ pub const InstallState = struct {
     /// install either succeeded or never ran.
     error_text: [96]u8 = @splat(0),
     error_len: usize = 0,
+    /// The compact endpoint is preferred. A failed request gets one
+    /// retry against the legacy endpoint for older mirrors.
+    manifest_fallback_attempted: bool = false,
+    /// Resolved v2 asset URLs must outlive the helper that schedules the
+    /// downloader effect, so keep their scratch storage in the model.
+    asset_url_buffers: [2][1024]u8 = @splat(@splat(0)),
     installed_ok: usize = 0,
 
     pub fn currentSlug(self: *const InstallState) []const u8 {
@@ -518,6 +524,7 @@ fn startInstallQueue(model: *Model, fx: *Effects) void {
     model.install.current = 0;
     model.install.installed_ok = 0;
     model.install.error_len = 0;
+    model.install.manifest_fallback_attempted = false;
     fx.spawn(.{
         .key = manifest_key,
         .argv = installer.downloadArgv(which, &argv_buf, installer.manifest_url, dest),
@@ -546,10 +553,18 @@ fn beginCurrentPet(model: *Model, fx: *Effects) bool {
         model.install.setError("{s} is not in the catalog", .{slug});
         return false;
     };
+    const pet_json = urls.resolvePetJson(model.install.asset_url_buffers[0][0..]) orelse {
+        model.install.setError("{s} has an invalid pet.json URL", .{slug});
+        return false;
+    };
+    const spritesheet = urls.resolveSpritesheet(model.install.asset_url_buffers[1][0..]) orelse {
+        model.install.setError("{s} has an invalid spritesheet URL", .{slug});
+        return false;
+    };
     // The host check happens before a single byte is requested: an
     // approved-but-stale row could carry a URL off the asset origin,
     // and the app must not write those bytes to a pet directory.
-    if (!installer.isTrustedAssetUrl(urls.pet_json) or !installer.isTrustedAssetUrl(urls.spritesheet)) {
+    if (!installer.isTrustedAssetUrl(pet_json) or !installer.isTrustedAssetUrl(spritesheet)) {
         model.install.setError("{s} has an untrusted asset host", .{slug});
         return false;
     }
@@ -563,7 +578,7 @@ fn beginCurrentPet(model: *Model, fx: *Effects) bool {
     model.install.phase = .pet_json;
     fx.spawn(.{
         .key = pet_json_key,
-        .argv = installer.downloadArgv(which, &argv_buf, urls.pet_json, dest),
+        .argv = installer.downloadArgv(which, &argv_buf, pet_json, dest),
         .output = .collect,
         .on_exit = Effects.exitMsg(.pet_json_done),
     });
@@ -581,7 +596,8 @@ fn beginSpritesheet(model: *Model, fx: *Effects) bool {
     const manifest = plat.readFileAlloc(boot_allocator, manifest_path, max_manifest_bytes) orelse return false;
     defer boot_allocator.free(manifest);
     const urls = installer.findPetUrls(manifest, slug) orelse return false;
-    if (!installer.isTrustedAssetUrl(urls.spritesheet)) return false;
+    const spritesheet = urls.resolveSpritesheet(model.install.asset_url_buffers[1][0..]) orelse return false;
+    if (!installer.isTrustedAssetUrl(spritesheet)) return false;
 
     var name_buf: [32]u8 = undefined;
     const name = std.fmt.bufPrint(&name_buf, "spritesheet.{s}", .{urls.spritesheetExt()}) catch return false;
@@ -592,7 +608,7 @@ fn beginSpritesheet(model: *Model, fx: *Effects) bool {
     model.install.phase = .spritesheet;
     fx.spawn(.{
         .key = spritesheet_key,
-        .argv = installer.downloadArgv(which, &argv_buf, urls.spritesheet, dest),
+        .argv = installer.downloadArgv(which, &argv_buf, spritesheet, dest),
         .output = .collect,
         .on_exit = Effects.exitMsg(.spritesheet_done),
     });
@@ -1964,6 +1980,25 @@ pub fn update(model: *Model, msg: Msg, fx: *Effects) void {
             // there is nothing to resolve any slug against: the whole
             // queue ends here rather than failing pet by pet.
             if (exit.reason != .exited or exit.code != 0) {
+                if (!model.install.manifest_fallback_attempted) {
+                    model.install.manifest_fallback_attempted = true;
+                    var path_buf: [512]u8 = undefined;
+                    const path = manifestTmpPath(&path_buf) orelse {
+                        model.install.setError("Could not reach petdex.dev", .{});
+                        model.install.phase = .idle;
+                        model.install.queued = 0;
+                        return;
+                    };
+                    const which = installer.detect() orelse return;
+                    var argv_buf: [installer.max_argv][]const u8 = undefined;
+                    fx.spawn(.{
+                        .key = manifest_key,
+                        .argv = installer.downloadArgv(which, &argv_buf, installer.legacy_manifest_url, path),
+                        .output = .collect,
+                        .on_exit = Effects.exitMsg(.manifest_done),
+                    });
+                    return;
+                }
                 model.install.setError("Could not reach petdex.dev", .{});
                 model.install.phase = .idle;
                 model.install.queued = 0;
