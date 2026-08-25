@@ -197,6 +197,18 @@ jobs:
           "$NATIVE_CLI" build -Dcpu=baseline -Dtrace=off
           ls -lh zig-out/bin/
 
+      - name: Verify native hook exits without stdin EOF
+        working-directory: packages/petdex-desktop-native
+        shell: bash
+        run: |
+          set -euo pipefail
+          if command -v python3 >/dev/null 2>&1; then
+            PYTHON=python3
+          else
+            PYTHON=python
+          fi
+          "$PYTHON" tests/hook_stdin_test.py ./zig-out/bin/petdex-desktop-native
+
       - name: Run the test suite
         # The suite ran on nobody's machine until the root aggregator
         # existed: `zig build test` collects tests from the root module
