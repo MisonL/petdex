@@ -10,7 +10,10 @@ import {
 } from "@/lib/sprite-atlas";
 
 const POLICY_BACKGROUND = { r: 120, g: 120, b: 120 };
-const MAX_POLICY_SOURCE_DIMENSION = 4096;
+// Preserve the largest integer-cell atlas accepted by sprite-atlas.ts. The
+// v2 contract allows a 2x 8x11 sheet (3072x4576), whose height is above the
+// old 4096px guard and must still reach the visual review stage.
+const MAX_POLICY_SOURCE_DIMENSION = 4576;
 const MAX_POLICY_SOURCE_PIXELS = 16_777_216;
 const MAX_POLICY_OUTPUT_CHARS = 2 * 1024 * 1024;
 

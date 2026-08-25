@@ -680,6 +680,23 @@ describe("submission policy contact sheet", () => {
     ]);
   });
 
+  it("accepts a 2x v2 atlas within the supported review dimensions", async () => {
+    const sprite = await sharp({
+      create: {
+        width: 3072,
+        height: 4576,
+        channels: 4,
+        background: { r: 0, g: 0, b: 0, alpha: 0 },
+      },
+    })
+      .png()
+      .toBuffer();
+
+    await expect(preparePolicyReviewImage(sprite)).resolves.toMatchObject({
+      ok: true,
+    });
+  });
+
   it("holds contact sheets that exceed the model payload budget with a specific reason", async () => {
     const width = 8 * 192;
     const height = 9 * 208;
