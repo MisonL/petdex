@@ -19,6 +19,8 @@ const TRUSTED_ASSET_HOST = "assets.petdex.dev";
 const MAX_FETCH_BYTES = 8 * 1024 * 1024;
 const DEFAULT_WINDOW = 64;
 const MAX_WINDOW = 500;
+const MAX_NETWORK_ATTEMPTS = 3;
+const RETRY_DELAY_MS = 250;
 
 type AuditPet = {
   slug: string;
@@ -57,6 +59,7 @@ export type AtlasAuditEntry = {
   bytes: number | null;
   summary: AtlasPixelSummary | null;
   error: string | null;
+  errorKind: "network" | "asset" | null;
 };
 
 function valueAfter(args: string[], flag: string): string | null {
@@ -153,10 +156,39 @@ export function summarizeAtlasPixels(
   };
 }
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function isRetryableNetworkError(error: unknown): boolean {
+  return /socket|timed out|timeout|fetch failed|network|connection|request failed \((408|429|5\d\d)\)/i.test(
+    errorMessage(error),
+  );
+}
+
+async function waitBeforeRetry(attempt: number): Promise<void> {
+  await new Promise((resolve) =>
+    setTimeout(resolve, RETRY_DELAY_MS * 2 ** (attempt - 1)),
+  );
+}
+
 async function fetchJson<T>(url: string): Promise<T> {
-  const response = await fetch(url, { signal: AbortSignal.timeout(15_000) });
-  if (!response.ok) throw new Error(`request failed (${response.status})`);
-  return (await response.json()) as T;
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= MAX_NETWORK_ATTEMPTS; attempt++) {
+    try {
+      const response = await fetch(url, {
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!response.ok) throw new Error(`request failed (${response.status})`);
+      return (await response.json()) as T;
+    } catch (error) {
+      lastError = error;
+      if (!isRetryableNetworkError(error) || attempt === MAX_NETWORK_ATTEMPTS)
+        throw error;
+      await waitBeforeRetry(attempt);
+    }
+  }
+  throw lastError;
 }
 
 /** Read an asset without allowing a chunked response to exceed the audit cap. */
@@ -332,15 +364,28 @@ export function resolveManifestAsset(
 
 async function auditOne(pet: AuditPet): Promise<AtlasAuditEntry> {
   try {
-    const response = await fetch(pet.spritesheetUrl, {
-      signal: AbortSignal.timeout(15_000),
-    });
-    if (!response.ok)
-      throw new Error(`asset request failed (${response.status})`);
-    const contentLength = Number(response.headers.get("content-length"));
-    if (contentLength > MAX_FETCH_BYTES)
-      throw new Error("asset exceeds audit limit");
-    const buffer = await readResponseBodyBounded(response, MAX_FETCH_BYTES);
+    let buffer: Buffer | undefined;
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= MAX_NETWORK_ATTEMPTS; attempt++) {
+      try {
+        const response = await fetch(pet.spritesheetUrl, {
+          signal: AbortSignal.timeout(15_000),
+        });
+        if (!response.ok)
+          throw new Error(`asset request failed (${response.status})`);
+        const contentLength = Number(response.headers.get("content-length"));
+        if (contentLength > MAX_FETCH_BYTES)
+          throw new Error("asset exceeds audit limit");
+        buffer = await readResponseBodyBounded(response, MAX_FETCH_BYTES);
+        break;
+      } catch (error) {
+        lastError = error;
+        if (!isRetryableNetworkError(error) || attempt === MAX_NETWORK_ATTEMPTS)
+          throw error;
+        await waitBeforeRetry(attempt);
+      }
+    }
+    if (!buffer) throw lastError ?? new Error("asset download failed");
     const metadata = await sharp(buffer).metadata();
     const layout = detectSpriteAtlas(metadata.width, metadata.height);
     if (!layout || !metadata.width || !metadata.height) {
@@ -354,6 +399,7 @@ async function auditOne(pet: AuditPet): Promise<AtlasAuditEntry> {
         bytes: buffer.length,
         summary: null,
         error: "unsupported atlas dimensions",
+        errorKind: "asset",
       };
     }
     const canonical = canonicalSpriteDimensions(layout.version);
@@ -380,6 +426,7 @@ async function auditOne(pet: AuditPet): Promise<AtlasAuditEntry> {
         layout.version === pet.spriteVersionNumber
           ? null
           : "atlas dimensions disagree with declared sprite version",
+      errorKind: layout.version === pet.spriteVersionNumber ? null : "asset",
     };
   } catch (error) {
     return {
@@ -391,7 +438,8 @@ async function auditOne(pet: AuditPet): Promise<AtlasAuditEntry> {
       height: null,
       bytes: null,
       summary: null,
-      error: error instanceof Error ? error.message : "audit failed",
+      error: errorMessage(error),
+      errorKind: isRetryableNetworkError(error) ? "network" : "asset",
     };
   }
 }
@@ -425,6 +473,10 @@ async function main() {
     requested: selected.length,
     summary: {
       errors: results.filter((entry) => entry.error !== null).length,
+      networkErrors: results.filter((entry) => entry.errorKind === "network")
+        .length,
+      assetErrors: results.filter((entry) => entry.errorKind === "asset")
+        .length,
       unsupportedDimensions: results.filter(
         (entry) => entry.error === "unsupported atlas dimensions",
       ).length,
