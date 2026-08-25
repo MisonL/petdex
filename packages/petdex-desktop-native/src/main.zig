@@ -185,6 +185,15 @@ pub const Model = struct {
     /// the top of the screen for the expanded height to fit. Flipped,
     /// the front card is the TOP one and the stack grows downward.
     bubble_flipped: bool = false,
+    /// A constrained placement probe can prove that the above candidate is
+    /// outside the current display's visible frame. Keep that result until
+    /// the pet moves to another display/position or the bubble is resized;
+    /// otherwise every frame would try the rejected side again and cause
+    /// visible jitter at a monitor edge.
+    bubble_above_blocked: bool = false,
+    bubble_above_blocked_x: f64 = 0,
+    bubble_above_blocked_y: f64 = 0,
+    bubble_above_blocked_h: f32 = 0,
     // Drag + momentum, the old desktop's "Codex parity" physics: the
     // frame clock samples the window origin and the primary button
     // through fx.moveWindow(0,0); a down->up edge computes the release
@@ -3406,6 +3415,7 @@ fn clearBubble(model: *Model) void {
     model.bubbles = @splat(.{});
     model.bubbles_len = 0;
     model.bubble_expires_at_ms = @splat(-1);
+    model.bubble_above_blocked = false;
     hook_server.mailbox.clearBubbles();
 }
 
@@ -3560,6 +3570,16 @@ const BubbleMovePlan = struct {
     dy: f64,
 };
 
+const bubble_probe_position_epsilon: f64 = 4;
+
+fn bubbleAboveProbeStale(model: *const Model, bubble_h: f32) bool {
+    if (!model.bubble_above_blocked) return false;
+    if (@abs(model.pet_x - model.bubble_above_blocked_x) > bubble_probe_position_epsilon) return true;
+    if (@abs(model.pet_y - model.bubble_above_blocked_y) > bubble_probe_position_epsilon) return true;
+    if (@abs(bubble_h - model.bubble_above_blocked_h) > 0.5) return true;
+    return false;
+}
+
 /// Calculate a global-coordinate move without applying a display clamp.
 /// The caller applies the destination display's visible-frame constraint
 /// only after this move has crossed any monitor boundary.
@@ -3578,6 +3598,44 @@ fn bubbleClampCorrection(actual_x: f64, actual_y: f64, settled_x: f64, settled_y
     return bubbleMovePlan(actual_x, actual_y, settled_x, settled_y);
 }
 
+/// Apply the destination display's visible-frame clamp and reconcile hosts
+/// that report the clamped origin without moving the actual window. The
+/// probe is also used when the bubble is already at its target: taskbar,
+/// display-layout, and display-scale changes can invalidate a previously
+/// valid origin without changing the requested coordinates.
+fn settleBubbleWindow(model: *Model, fx: *Effects, bubble_h: f32, want_x: f64) bool {
+    var settled = fx.moveWindow("bubble", 0, 0, true) orelse return false;
+    var actual = fx.moveWindow("bubble", 0, 0, false) orelse return false;
+    // A negative global y is valid on a monitor above the primary screen,
+    // so the initial direction deliberately stays above. If the above
+    // candidate is clipped by the destination display, flip below and make
+    // a second bounded pass.
+    if (!model.bubble_flipped and settled.hit_y) {
+        model.bubble_flipped = true;
+        model.bubble_above_blocked = true;
+        model.bubble_above_blocked_x = model.pet_x;
+        model.bubble_above_blocked_y = model.pet_y;
+        model.bubble_above_blocked_h = bubble_h;
+        const flipped_y = bubbleWantY(model, bubble_h);
+        if (bubbleMovePlan(actual.x, actual.y, want_x, flipped_y)) |flip_plan| {
+            _ = fx.moveWindow("bubble", flip_plan.dx, flip_plan.dy, false) orelse return false;
+        }
+        // Re-probe even when the flipped target is already at the current
+        // origin; the display may still clamp the candidate after the side
+        // changes, and the readback must describe that final placement.
+        settled = fx.moveWindow("bubble", 0, 0, true) orelse return false;
+        actual = fx.moveWindow("bubble", 0, 0, false) orelse return false;
+    }
+    if (!model.bubble_flipped and !settled.hit_y) model.bubble_above_blocked = false;
+    if (bubbleClampCorrection(actual.x, actual.y, settled.x, settled.y)) |correction| {
+        const corrected = fx.moveWindow("bubble", correction.dx, correction.dy, false) orelse return false;
+        recordPetCenterLocal(model, corrected.x);
+    } else {
+        recordPetCenterLocal(model, actual.x);
+    }
+    return true;
+}
+
 /// Keep the bubble window glued above the pet and sized to its content:
 /// read both origins and close the gap. Self-correcting, so drags,
 /// throws, scale changes, and text-size changes all need no
@@ -3586,7 +3644,11 @@ fn syncBubbleWindow(model: *Model, fx: *Effects) void {
     // Linux uses a parent-local compositor popup. Its descriptor drives
     // size and anchoring, so application-side global moves are both
     // unnecessary and invalid on Wayland.
-    if (builtin.target.os.tag == .linux or !bubbleActive(model)) return;
+    if (builtin.target.os.tag == .linux) return;
+    if (!bubbleActive(model)) {
+        model.bubble_above_blocked = false;
+        return;
+    }
     // The flip is decided HERE, in the function that consumes it, rather
     // than by each caller beforehand. bubbleWantY below reads the flag,
     // so a caller that moved the pet and forgot to refresh it first would
@@ -3594,9 +3656,13 @@ fn syncBubbleWindow(model: *Model, fx: *Effects) void {
     // what the throw branch did: it drives its own moveWindow and returns
     // before the cursor poll, so it never reached the frame clock's
     // update and flew the whole arc with a stale flag.
-    model.bubble_flipped = bubbleShouldFlip(model, model.pet_y, @floatCast(bubbleWindowHeight(model)));
     const bubble_w = bubbleWindowWidth(model);
     const bubble_h = bubbleWindowHeight(model);
+    if (bubbleAboveProbeStale(model, bubble_h)) model.bubble_above_blocked = false;
+    model.bubble_flipped = if (model.bubble_above_blocked)
+        true
+    else
+        bubbleShouldFlip(model, model.pet_y, @floatCast(bubble_h));
     // Resize before moving: the move centers on the new width, so doing
     // it the other way round centers on the old one and leaves the
     // bubble offset by half the delta.
@@ -3614,24 +3680,11 @@ fn syncBubbleWindow(model: *Model, fx: *Effects) void {
         // window. It cannot be used for the first leg of a cross-display
         // move: the bubble would remain trapped on the old display.
         _ = fx.moveWindow("bubble", plan.dx, plan.dy, false) orelse return;
-        // The global move has reached the target display. A zero-distance
-        // constrained move now lets that display apply its visible-frame
-        // correction, including negative coordinates and taskbar insets.
-        const settled = fx.moveWindow("bubble", 0, 0, true) orelse return;
-        // The pre-fix macOS host returned the clamped origin here but did
-        // not call setFrameOrigin when dx/dy were zero. Read the actual
-        // origin back and reconcile that legacy behavior explicitly; this
-        // also makes the app robust while an SDK fix is rolling out.
-        const actual = fx.moveWindow("bubble", 0, 0, false) orelse return;
-        if (bubbleClampCorrection(actual.x, actual.y, settled.x, settled.y)) |correction| {
-            const corrected = fx.moveWindow("bubble", correction.dx, correction.dy, false) orelse return;
-            recordPetCenterLocal(model, corrected.x);
-        } else {
-            recordPetCenterLocal(model, actual.x);
-        }
-        return;
     }
-    recordPetCenterLocal(model, cur.x);
+    // Always run the constrained probe, including a zero-distance target:
+    // taskbar/display-layout changes can invalidate an otherwise unchanged
+    // origin and must be reconciled before recording the local anchor.
+    if (!settleBubbleWindow(model, fx, bubble_h, want_x)) return;
 }
 
 /// Project the pet's center into the stack container's coordinates.
@@ -3668,6 +3721,11 @@ fn bubbleWantY(model: *const Model, bubble_h: f32) f64 {
 /// that threshold plus a margin to come back up.
 fn bubbleShouldFlip(model: *const Model, space_above: f64, needed: f64) bool {
     const required = needed + bubble_pet_clearance;
+    // Screen coordinates are global across the desktop. A monitor above
+    // the primary screen legitimately reports negative y, which is not
+    // evidence that there is no room above the pet. The destination
+    // monitor's constrained move supplies that fact through hit_y.
+    if (space_above < 0) return false;
     if (model.bubble_flipped) return space_above < required + bubble_flip_hysteresis;
     return space_above < required;
 }
@@ -4945,6 +5003,38 @@ test "the flip has hysteresis so a pet on the threshold does not flap" {
     try std.testing.expect(!bubbleShouldFlip(&model, needed + bubble_pet_clearance + bubble_flip_hysteresis + 1, needed));
 }
 
+test "a pet above the primary screen keeps the first bubble candidate above" {
+    var model: Model = .{};
+    model.pet_y = -640;
+    model.bubble_flipped = false;
+    const needed: f64 = @floatCast(bubbleWindowHeight(&model));
+
+    // The host reports negative top-left y coordinates for monitors above
+    // the primary screen. The first candidate must therefore be above; the
+    // later clamp probe will flip it below only when that monitor has no
+    // room for the expanded bubble.
+    try std.testing.expect(!bubbleShouldFlip(&model, model.pet_y, needed));
+    model.bubble_flipped = true;
+    try std.testing.expect(!bubbleShouldFlip(&model, model.pet_y, needed));
+}
+
+test "a blocked above probe stays sticky until position or size changes" {
+    var model: Model = .{};
+    model.bubble_above_blocked = true;
+    model.bubble_above_blocked_x = 100;
+    model.bubble_above_blocked_y = -640;
+    model.bubble_above_blocked_h = 300;
+    model.pet_x = 100;
+    model.pet_y = -640;
+    try std.testing.expect(!bubbleAboveProbeStale(&model, 300));
+    model.pet_x += bubble_probe_position_epsilon + 1;
+    try std.testing.expect(bubbleAboveProbeStale(&model, 300));
+    model.pet_x = 100;
+    model.pet_y = -640;
+    try std.testing.expect(!bubbleAboveProbeStale(&model, 300));
+    try std.testing.expect(bubbleAboveProbeStale(&model, 301));
+}
+
 test "a flipped stack grows downward and is hit tested from the top" {
     var model: Model = .{};
     testPushBubble(&model, "alpha", "older", false, -1);
@@ -5066,15 +5156,23 @@ test "bubble movement crosses displays before applying target bounds" {
     const src = @embedFile("main.zig");
     const sync_start = std.mem.indexOf(u8, src, "fn syncBubbleWindow").?;
     const sync = src[sync_start..];
+    const settle_start = std.mem.indexOf(u8, src, "fn settleBubbleWindow").?;
+    const settle = src[settle_start..sync_start];
     const unbounded = std.mem.indexOf(u8, sync, "fx.moveWindow(\"bubble\", plan.dx, plan.dy, false)");
-    const bounded = std.mem.indexOf(u8, sync, "fx.moveWindow(\"bubble\", 0, 0, true)");
-    const readback = std.mem.indexOf(u8, sync, "const actual = fx.moveWindow(\"bubble\", 0, 0, false)");
-    const correction = std.mem.indexOf(u8, sync, "fx.moveWindow(\"bubble\", correction.dx, correction.dy, false)");
+    const sync_settle = std.mem.indexOf(u8, sync, "settleBubbleWindow(model, fx, bubble_h, want_x)");
+    const no_move_boundary = std.mem.indexOf(u8, sync, "    }\n    // Always run the constrained probe");
+    const flip_reprobe = std.mem.indexOf(u8, settle, "        }\n        // Re-probe even when the flipped target");
+    const bounded = std.mem.indexOf(u8, settle, "fx.moveWindow(\"bubble\", 0, 0, true)");
+    const readback = std.mem.indexOf(u8, settle, "var actual = fx.moveWindow(\"bubble\", 0, 0, false)");
+    const correction = std.mem.indexOf(u8, settle, "fx.moveWindow(\"bubble\", correction.dx, correction.dy, false)");
     try std.testing.expect(unbounded != null);
+    try std.testing.expect(sync_settle != null);
+    try std.testing.expect(no_move_boundary != null);
+    try std.testing.expect(sync_settle.? > no_move_boundary.?);
+    try std.testing.expect(flip_reprobe != null);
     try std.testing.expect(bounded != null);
     try std.testing.expect(readback != null);
     try std.testing.expect(correction != null);
-    try std.testing.expect(unbounded.? < bounded.?);
     try std.testing.expect(bounded.? < readback.?);
     try std.testing.expect(readback.? < correction.?);
 }
