@@ -87,7 +87,13 @@ pub const Urls = struct {
     }
 
     fn resolve(self: Urls, raw: []const u8, buf: []u8) ?[]const u8 {
-        if (std.mem.startsWith(u8, raw, "https://")) return raw;
+        if (std.mem.startsWith(u8, raw, "https://")) {
+            return if (isTrustedAssetUrl(raw)) raw else null;
+        }
+        // Never reinterpret another absolute URL (including http:// and
+        // protocol-relative //host paths) as a relative asset key under the
+        // trusted base. The manifest is untrusted input at this boundary.
+        if (std.mem.startsWith(u8, raw, "//") or std.mem.indexOf(u8, raw, "://") != null) return null;
         if (self.asset_base.len == 0 or !isTrustedAssetUrl(self.asset_base)) return null;
         if (raw.len == 0 or raw[0] == '/' or std.mem.indexOf(u8, raw, "..") != null) return null;
         var base_len = self.asset_base.len;
@@ -398,6 +404,30 @@ test "manifest lookup picks the exact slug, not a prefix" {
     try std.testing.expectEqualStrings("png", second.spritesheetExt());
 
     try std.testing.expect(findPetUrls(manifest, "nonexistent") == null);
+}
+
+test "legacy manifest asset URLs stay host-bound during resolution" {
+    const manifest =
+        \\{"generatedAt":"x","total":1,"pets":[{"slug":"evil","displayName":"Evil","kind":"character","submittedBy":null,"spritesheetUrl":"https://evil.example/sprite.webp","petJsonUrl":"https://assets.petdex.dev/pets/evil/pet.json","zipUrl":null}]}
+    ;
+    const urls = findPetUrls(manifest, "evil").?;
+    var buf: [512]u8 = undefined;
+    try std.testing.expect(urls.resolveSpritesheet(buf[0..]) == null);
+    try std.testing.expectEqualStrings(
+        "https://assets.petdex.dev/pets/evil/pet.json",
+        urls.resolvePetJson(buf[0..]).?,
+    );
+}
+
+test "relative resolution rejects absolute non-https keys" {
+    const urls = Urls{
+        .pet_json = "http://evil.example/pet.json",
+        .spritesheet = "//evil.example/sprite.webp",
+        .asset_base = "https://assets.petdex.dev",
+    };
+    var buf: [512]u8 = undefined;
+    try std.testing.expect(urls.resolvePetJson(buf[0..]) == null);
+    try std.testing.expect(urls.resolveSpritesheet(buf[0..]) == null);
 }
 
 test "compact manifest resolves relative asset keys" {
