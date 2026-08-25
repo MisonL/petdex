@@ -228,6 +228,11 @@ pub fn forEachEntry(
 }
 
 pub fn readStdin(buf: []u8) []const u8 {
+    if (comptime builtin.os.tag == .windows) return readStdinWindows(buf);
+    return readStdinPortable(buf);
+}
+
+fn readStdinPortable(buf: []u8) []const u8 {
     var scope = Scope.init();
     defer scope.deinit();
     const io = scope.io();
@@ -263,6 +268,106 @@ pub fn readStdin(buf: []u8) []const u8 {
         }
     }
     return buf[0..total];
+}
+
+/// Windows' inherited stdin is a synchronous pipe. Zig 0.16's `std.Io`
+/// implementation sends that handle through `NtReadFile`; when the pipe is
+/// still open after a short payload, Windows returns `PENDING` and the
+/// synchronous path aborts at `unreachable`. Use the Win32 synchronous
+/// `ReadFile` API on a short-lived worker instead. The caller can then keep
+/// the same bounded JSON/drain deadlines without ever handing a caller-owned
+/// stack buffer to a potentially detached reader.
+const WindowsStdinTask = if (builtin.os.tag == .windows) struct {
+    handle: std.os.windows.HANDLE,
+    buffer: []u8,
+    written: std.atomic.Value(usize) = .init(0),
+    finished: std.atomic.Value(bool) = .init(false),
+} else void;
+
+const windows_stdin_api = if (builtin.os.tag == .windows) struct {
+    extern "kernel32" fn ReadFile(
+        handle: std.os.windows.HANDLE,
+        buffer: std.os.windows.LPVOID,
+        bytes_to_read: std.os.windows.DWORD,
+        bytes_read: *std.os.windows.DWORD,
+        overlapped: ?*anyopaque,
+    ) callconv(.winapi) std.os.windows.BOOL;
+} else struct {};
+
+fn windowsStdinWorker(task: *WindowsStdinTask) void {
+    if (comptime builtin.os.tag != .windows) return;
+
+    var offset: usize = 0;
+    while (offset < task.buffer.len) {
+        var bytes_read: std.os.windows.DWORD = 0;
+        const ok = windows_stdin_api.ReadFile(
+            task.handle,
+            @ptrCast(task.buffer.ptr + offset),
+            1,
+            &bytes_read,
+            null,
+        );
+        if (ok == .FALSE or bytes_read == 0) break;
+        offset += @min(@as(usize, @intCast(bytes_read)), task.buffer.len - offset);
+        task.written.store(offset, .release);
+    }
+    task.finished.store(true, .release);
+}
+
+fn readStdinWindows(buf: []u8) []const u8 {
+    if (buf.len == 0) return buf[0..0];
+
+    const allocator = std.heap.page_allocator;
+    const task = allocator.create(WindowsStdinTask) catch return buf[0..0];
+    task.* = .{
+        .handle = std.Io.File.stdin().handle,
+        .buffer = allocator.alloc(u8, buf.len) catch {
+            allocator.destroy(task);
+            return buf[0..0];
+        },
+    };
+
+    const thread = std.Thread.spawn(.{}, windowsStdinWorker, .{task}) catch {
+        allocator.free(task.buffer);
+        allocator.destroy(task);
+        return buf[0..0];
+    };
+
+    var scope = Scope.init();
+    defer scope.deinit();
+    const io = scope.io();
+    const read_deadline = stdinDeadline(io, stdin_read_timeout_ms);
+    var deadline = read_deadline;
+    var complete = false;
+
+    while (true) {
+        const count = task.written.load(.acquire);
+        if (!complete and count > 0 and hasCompleteJsonPayload(task.buffer[0..count])) {
+            complete = true;
+            deadline = stdinDeadline(io, stdin_drain_grace_ms);
+        }
+
+        if (task.finished.load(.acquire)) {
+            thread.join();
+            const final_count = @min(task.written.load(.acquire), buf.len);
+            @memcpy(buf[0..final_count], task.buffer[0..final_count]);
+            allocator.free(task.buffer);
+            allocator.destroy(task);
+            return buf[0..final_count];
+        }
+
+        if (deadline.durationFromNow(io).raw.toNanoseconds() <= 0) {
+            const final_count = @min(task.written.load(.acquire), buf.len);
+            @memcpy(buf[0..final_count], task.buffer[0..final_count]);
+            // The worker owns only heap storage and the hook process exits
+            // immediately after this function, so detaching is safe when a
+            // host deliberately leaves stdin open forever.
+            thread.detach();
+            return buf[0..final_count];
+        }
+
+        io.sleep(.fromMilliseconds(1), .awake) catch {};
+    }
 }
 
 const stdin_read_timeout_ms: u64 = 500;
