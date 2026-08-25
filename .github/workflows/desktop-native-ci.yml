@@ -226,7 +226,7 @@ jobs:
             const response = await fetch("https://petdex.dev/api/manifest/v2");
             if (!response.ok) throw new Error(`manifest ${response.status}`);
             const manifest = await response.json();
-            const row = manifest.pets.find((pet) => pet[0] === "homelander") ?? manifest.pets[0];
+            const row = manifest.pets.find((pet) => pet[0] === "boba") ?? manifest.pets[0];
             if (!row) throw new Error("manifest has no pets");
             const sprite = new URL(row[4], manifest.assetBase);
             if (sprite.protocol !== "https:" || sprite.hostname !== "assets.petdex.dev") throw new Error("untrusted sprite host");
@@ -253,7 +253,7 @@ jobs:
           # Keep Windows on the same compact v2 manifest contract as Unix;
           # the old /api/install-pet route is no longer a reliable fixture.
           $manifest = Invoke-RestMethod -Uri "https://petdex.dev/api/manifest/v2"
-          $row = @($manifest.pets | Where-Object { $_[0] -eq "homelander" } | Select-Object -First 1)
+          $row = @($manifest.pets | Where-Object { $_[0] -eq "boba" } | Select-Object -First 1)
           if ($row.Count -eq 0) { $row = @($manifest.pets[0]) }
           if ($row.Count -eq 0) { throw "manifest has no pets" }
           $sprite = [Uri]::new([Uri]$manifest.assetBase, [string]$row[0][4])
