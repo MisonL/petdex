@@ -51,6 +51,13 @@ type FrameBounds = {
   column: number;
   width: number;
   height: number;
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+  centerX: number;
+  centerY: number;
+  aspectRatio: number;
   touchesEdge: boolean;
 };
 
@@ -59,7 +66,21 @@ export type AtlasPixelSummary = {
   emptyFrames: number;
   touchingFrames: number;
   geometryOutliers: number;
-  rowMedians: Array<{ row: number; width: number; height: number }>;
+  proportionOutliers: number;
+  continuityOutliers: number;
+  rowProportionOutliers: number;
+  edgeTouches: {
+    left: number;
+    right: number;
+    top: number;
+    bottom: number;
+  };
+  rowMedians: Array<{
+    row: number;
+    width: number;
+    height: number;
+    aspectRatio: number;
+  }>;
 };
 
 export type AtlasAuditEntry = {
@@ -74,6 +95,55 @@ export type AtlasAuditEntry = {
   error: string | null;
   errorKind: "network" | "asset" | null;
 };
+
+export type MachineAuditFlag =
+  | "network-error"
+  | "asset-error"
+  | "unsupported-dimensions"
+  | "version-mismatch"
+  | "empty-frame"
+  | "edge-touch"
+  | "left-edge-touch"
+  | "right-edge-touch"
+  | "top-edge-touch"
+  | "bottom-edge-touch"
+  | "geometry-outlier"
+  | "flattened-proportion"
+  | "frame-continuity"
+  | "row-proportion";
+
+/**
+ * Turn numeric audit findings into stable review queue labels. These labels
+ * describe machine-detected risk only; visual approval still requires the
+ * separate manualReview record.
+ */
+export function classifyAuditEntry(
+  entry: Pick<AtlasAuditEntry, "error" | "errorKind" | "summary">,
+): MachineAuditFlag[] {
+  const flags: MachineAuditFlag[] = [];
+  if (entry.errorKind === "network") flags.push("network-error");
+  if (entry.errorKind === "asset") flags.push("asset-error");
+  if (entry.error === "unsupported atlas dimensions") {
+    flags.push("unsupported-dimensions");
+  }
+  if (entry.error?.includes("declared sprite version")) {
+    flags.push("version-mismatch");
+  }
+
+  const summary = entry.summary;
+  if (!summary) return flags;
+  if (summary.emptyFrames > 0) flags.push("empty-frame");
+  if (summary.touchingFrames > 0) flags.push("edge-touch");
+  if (summary.edgeTouches.left > 0) flags.push("left-edge-touch");
+  if (summary.edgeTouches.right > 0) flags.push("right-edge-touch");
+  if (summary.edgeTouches.top > 0) flags.push("top-edge-touch");
+  if (summary.edgeTouches.bottom > 0) flags.push("bottom-edge-touch");
+  if (summary.geometryOutliers > 0) flags.push("geometry-outlier");
+  if (summary.proportionOutliers > 0) flags.push("flattened-proportion");
+  if (summary.continuityOutliers > 0) flags.push("frame-continuity");
+  if (summary.rowProportionOutliers > 0) flags.push("row-proportion");
+  return flags;
+}
 
 export type ManualReviewRecord = {
   status: "pending";
@@ -131,16 +201,25 @@ export function summarizeAtlasPixels(
           maxY = Math.max(maxY, y);
         }
       }
+      const visible = maxX >= 0;
       frames.push({
         row,
         column,
-        width: maxX >= 0 ? maxX - minX + 1 : 0,
-        height: maxY >= 0 ? maxY - minY + 1 : 0,
+        width: visible ? maxX - minX + 1 : 0,
+        height: visible ? maxY - minY + 1 : 0,
+        minX: visible ? minX : 0,
+        minY: visible ? minY : 0,
+        maxX: visible ? maxX : 0,
+        maxY: visible ? maxY : 0,
+        centerX: visible ? (minX + maxX) / 2 : 0,
+        centerY: visible ? (minY + maxY) / 2 : 0,
+        aspectRatio: visible ? (maxX - minX + 1) / (maxY - minY + 1) : 0,
         touchesEdge:
-          minX === 0 ||
-          minY === 0 ||
-          maxX === SPRITE_FRAME_WIDTH - 1 ||
-          maxY === SPRITE_FRAME_HEIGHT - 1,
+          visible &&
+          (minX === 0 ||
+            minY === 0 ||
+            maxX === SPRITE_FRAME_WIDTH - 1 ||
+            maxY === SPRITE_FRAME_HEIGHT - 1),
       });
     }
   }
@@ -148,12 +227,18 @@ export function summarizeAtlasPixels(
   const visible = frames.filter((frame) => frame.width > 0 && frame.height > 0);
   const medianWidth = median(visible.map((frame) => frame.width));
   const medianHeight = median(visible.map((frame) => frame.height));
+  const medianAspectRatio = median(visible.map((frame) => frame.aspectRatio));
   const geometryOutliers = visible.filter(
     (frame) =>
       frame.width < Math.max(8, medianWidth * 0.45) ||
       frame.width > medianWidth * 1.8 ||
       frame.height < Math.max(8, medianHeight * 0.45) ||
       frame.height > medianHeight * 1.8,
+  ).length;
+  const proportionOutliers = visible.filter(
+    (frame) =>
+      frame.aspectRatio < Math.max(0.1, medianAspectRatio * 0.5) ||
+      frame.aspectRatio > medianAspectRatio * 2,
   ).length;
 
   const rowMedians = Array.from({ length: rows }, (_, row) => {
@@ -162,14 +247,67 @@ export function summarizeAtlasPixels(
       row,
       width: median(rowFrames.map((frame) => frame.width)),
       height: median(rowFrames.map((frame) => frame.height)),
+      aspectRatio: median(rowFrames.map((frame) => frame.aspectRatio)),
     };
   });
+
+  const rowProportionOutliers = rowMedians.filter(
+    (row) =>
+      row.aspectRatio > 0 &&
+      (row.aspectRatio < Math.max(0.1, medianAspectRatio * 0.5) ||
+        row.aspectRatio > medianAspectRatio * 2),
+  ).length;
+
+  let continuityOutliers = 0;
+  for (let row = 0; row < rows; row++) {
+    const rowFrames = visible
+      .filter((frame) => frame.row === row)
+      .sort((a, b) => a.column - b.column);
+    const transitions = rowFrames.flatMap((frame, index) => {
+      const previous = rowFrames[index - 1];
+      if (!previous || frame.column !== previous.column + 1) return [];
+      const travel = Math.hypot(
+        frame.centerX - previous.centerX,
+        frame.centerY - previous.centerY,
+      );
+      const scaleDelta = Math.max(
+        Math.abs(frame.width / previous.width - 1),
+        Math.abs(frame.height / previous.height - 1),
+      );
+      return [{ travel, scaleDelta }];
+    });
+    if (transitions.length === 0) continue;
+    const medianTravel = median(
+      transitions.map((transition) => transition.travel),
+    );
+    const medianScaleDelta = median(
+      transitions.map((transition) => transition.scaleDelta),
+    );
+    continuityOutliers += transitions.filter(
+      (transition) =>
+        transition.travel > Math.max(24, medianTravel * 3) ||
+        transition.scaleDelta > Math.max(0.35, medianScaleDelta * 3),
+    ).length;
+  }
+
+  const edgeTouches = {
+    left: visible.filter((frame) => frame.minX === 0).length,
+    right: visible.filter((frame) => frame.maxX === SPRITE_FRAME_WIDTH - 1)
+      .length,
+    top: visible.filter((frame) => frame.minY === 0).length,
+    bottom: visible.filter((frame) => frame.maxY === SPRITE_FRAME_HEIGHT - 1)
+      .length,
+  };
 
   return {
     expectedFrames: frames.length,
     emptyFrames: frames.filter((frame) => frame.width === 0).length,
     touchingFrames: visible.filter((frame) => frame.touchesEdge).length,
     geometryOutliers,
+    proportionOutliers,
+    continuityOutliers,
+    rowProportionOutliers,
+    edgeTouches,
     rowMedians,
   };
 }
@@ -487,11 +625,19 @@ async function main() {
 
   const entries = results.map((entry) => ({
     ...entry,
+    machineFlags: classifyAuditEntry(entry),
     manualReview: {
       status: "pending" as const,
       checks: MANUAL_REVIEW_CHECKS,
     } satisfies ManualReviewRecord,
   }));
+  const machineFlagCounts = entries.reduce<
+    Partial<Record<MachineAuditFlag, number>>
+  >((counts, entry) => {
+    for (const flag of entry.machineFlags)
+      counts[flag] = (counts[flag] ?? 0) + 1;
+    return counts;
+  }, {});
   const report = {
     generatedAt: new Date().toISOString(),
     scope: oldest ? "oldest-approved-window" : "manifest",
@@ -516,6 +662,28 @@ async function main() {
         (sum, entry) => sum + (entry.summary?.geometryOutliers ?? 0),
         0,
       ),
+      proportionOutliers: results.reduce(
+        (sum, entry) => sum + (entry.summary?.proportionOutliers ?? 0),
+        0,
+      ),
+      continuityOutliers: results.reduce(
+        (sum, entry) => sum + (entry.summary?.continuityOutliers ?? 0),
+        0,
+      ),
+      rowProportionOutliers: results.reduce(
+        (sum, entry) => sum + (entry.summary?.rowProportionOutliers ?? 0),
+        0,
+      ),
+      edgeTouches: results.reduce(
+        (sum, entry) => ({
+          left: sum.left + (entry.summary?.edgeTouches.left ?? 0),
+          right: sum.right + (entry.summary?.edgeTouches.right ?? 0),
+          top: sum.top + (entry.summary?.edgeTouches.top ?? 0),
+          bottom: sum.bottom + (entry.summary?.edgeTouches.bottom ?? 0),
+        }),
+        { left: 0, right: 0, top: 0, bottom: 0 },
+      ),
+      machineFlagCounts,
       manualReviewPending: entries.length,
     },
     manualReviewRequired: MANUAL_REVIEW_CHECKS,

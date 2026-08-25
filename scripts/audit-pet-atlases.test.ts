@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import {
+  classifyAuditEntry,
   MANUAL_REVIEW_CHECKS,
   parseCompactManifest,
   parseLegacyManifest,
@@ -82,6 +83,116 @@ describe("atlas audit geometry", () => {
     expect(result.expectedFrames).toBe(73);
     expect(result.emptyFrames).toBe(72);
   });
+
+  function drawOpaqueRect(
+    data: Buffer,
+    width: number,
+    row: number,
+    column: number,
+    x: number,
+    y: number,
+    rectWidth: number,
+    rectHeight: number,
+  ) {
+    for (let dy = 0; dy < rectHeight; dy++) {
+      for (let dx = 0; dx < rectWidth; dx++) {
+        const offset =
+          ((row * 208 + y + dy) * width + column * 192 + x + dx) * 4;
+        data[offset + 3] = 255;
+      }
+    }
+  }
+
+  it("reports aspect-ratio outliers instead of hiding flattened frames in geometry", () => {
+    const width = 1536;
+    const data = Buffer.alloc(width * 1872 * 4);
+    for (let column = 0; column < 6; column++) {
+      drawOpaqueRect(data, width, 0, column, 60, 60, 40, 40);
+    }
+    drawOpaqueRect(data, width, 0, 5, 60, 60, 12, 100);
+
+    const result = summarizeAtlasPixels(data, width, 1);
+
+    expect(result.proportionOutliers).toBe(1);
+  });
+
+  it("reports abrupt frame-to-frame jumps while tolerating steady motion", () => {
+    const width = 1536;
+    const data = Buffer.alloc(width * 1872 * 4);
+    drawOpaqueRect(data, width, 0, 0, 60, 60, 40, 40);
+    drawOpaqueRect(data, width, 0, 1, 62, 60, 40, 40);
+    drawOpaqueRect(data, width, 0, 2, 142, 60, 40, 40);
+    drawOpaqueRect(data, width, 0, 3, 144, 60, 40, 40);
+
+    const result = summarizeAtlasPixels(data, width, 1);
+
+    expect(result.continuityOutliers).toBeGreaterThan(0);
+  });
+
+  it("reports row-level proportion drift and directional edge contacts", () => {
+    const width = 1536;
+    const data = Buffer.alloc(width * 1872 * 4);
+    for (let row = 0; row < 9; row++) {
+      drawOpaqueRect(data, width, row, 0, 40, 60, 40, 40);
+    }
+    drawOpaqueRect(data, width, 8, 1, 0, 60, 100, 40);
+
+    const result = summarizeAtlasPixels(data, width, 1);
+
+    expect(result.rowProportionOutliers).toBeGreaterThan(0);
+    expect(result.edgeTouches.left).toBe(1);
+  });
+});
+
+it("classifies machine findings without treating manual review as approval", () => {
+  const flags = classifyAuditEntry({
+    error: "atlas dimensions disagree with declared sprite version",
+    errorKind: "asset",
+    summary: {
+      expectedFrames: 57,
+      emptyFrames: 1,
+      touchingFrames: 2,
+      geometryOutliers: 3,
+      proportionOutliers: 4,
+      continuityOutliers: 5,
+      rowProportionOutliers: 1,
+      edgeTouches: { left: 1, right: 0, top: 0, bottom: 1 },
+      rowMedians: [],
+    },
+  });
+
+  expect(flags).toEqual([
+    "asset-error",
+    "version-mismatch",
+    "empty-frame",
+    "edge-touch",
+    "left-edge-touch",
+    "bottom-edge-touch",
+    "geometry-outlier",
+    "flattened-proportion",
+    "frame-continuity",
+    "row-proportion",
+  ]);
+});
+
+it("returns no machine flags for a clean asset while manual review stays separate", () => {
+  expect(
+    classifyAuditEntry({
+      error: null,
+      errorKind: null,
+      summary: {
+        expectedFrames: 57,
+        emptyFrames: 0,
+        touchingFrames: 0,
+        geometryOutliers: 0,
+        proportionOutliers: 0,
+        continuityOutliers: 0,
+        rowProportionOutliers: 0,
+        edgeTouches: { left: 0, right: 0, top: 0, bottom: 0 },
+        rowMedians: [],
+      },
+    }),
+  ).toEqual([]);
 });
 
 describe("manifest parsing", () => {
