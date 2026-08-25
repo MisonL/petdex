@@ -67,6 +67,8 @@ def main() -> int:
         return 2
 
     binary = Path(sys.argv[1])
+    if not binary.is_file() and Path(f"{binary}.exe").is_file():
+        binary = Path(f"{binary}.exe")
     if not binary.is_file():
         print("native hook binary is missing", file=sys.stderr)
         return 2
