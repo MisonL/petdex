@@ -36,6 +36,8 @@ npx -y petdex install <slug>
 
 CLI 要求 Node.js 20+，也可使用 Bun。安装会同时写入 `~/.petdex/pets/<slug>/` 和 `~/.codex/pets/<slug>/`。登录、提交和编辑使用 CLI；桌面应用从自身 Settings 安装 Agent Hook。
 
+CLI 会优先读取 `/api/manifest/v2` 的紧凑图鉴；该接口不可用时才回退 `/api/manifest`。两种格式都会严格校验图鉴结构、HTTPS 资源地址和 `assets.petdex.dev` 主机，两个接口都失败时才终止安装或列表请求。
+
 ### `codex://` 的限制
 
 Petdex 生成的 Codex 链接形状是：

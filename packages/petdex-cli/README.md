@@ -146,7 +146,7 @@ install path is just `fetch a JSON manifest, write two files to
 | --- | --- | --- |
 | Hangs at `Need to install the following packages: petdex@x` | `npx`'s own confirmation prompt, not a hang. Press `y` or auto-confirm | `npx -y petdex install <slug>` |
 | `npm ERR! engine Unsupported engine` | Node < 20 | Upgrade Node to 20+ (`nvm install 20` is the easiest path) |
-| `manifest fetch 5xx` / network timeout | Slow connection or corporate/national firewall blocking `petdex.dev` | Set a proxy: `HTTPS_PROXY=http://your.proxy:port npx petdex install <slug>` |
+| `manifest unavailable` / network timeout | Both the compact v2 and legacy manifest endpoints failed | Check access to `petdex.dev` and `assets.petdex.dev`, then retry with `HTTPS_PROXY=http://your.proxy:port npx petdex install <slug>` |
 | `EACCES: permission denied … ~/.petdex/pets/` | Pets dir owned by another user | `sudo chown -R "$USER" ~/.petdex` or remove the dir and retry |
 | Windows: `'sh' is not recognized` | CLI version older than 0.1.1 piped through `curl … \| sh` | Upgrade: `npm i -g petdex@latest` or `npx petdex@latest install <slug>` |
 
