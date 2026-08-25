@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 
 import {
   classifyAuditEntry,
+  createAuditEntry,
   MANUAL_REVIEW_CHECKS,
   parseCompactManifest,
   parseLegacyManifest,
@@ -9,6 +10,30 @@ import {
   resolveManifestAsset,
   summarizeAtlasPixels,
 } from "./audit-pet-atlases";
+
+it("keeps the trusted public asset URL in each report entry", () => {
+  const entry = createAuditEntry(
+    {
+      slug: "demo",
+      approvedAt: null,
+      spritesheetUrl: "https://assets.petdex.dev/pets/demo/spritesheet.webp",
+    },
+    {
+      declaredVersion: 1,
+      detectedVersion: 1,
+      width: 1536,
+      height: 1872,
+      bytes: 42,
+      summary: null,
+      error: null,
+      errorKind: null,
+    },
+  );
+
+  expect(entry.spritesheetUrl).toBe(
+    "https://assets.petdex.dev/pets/demo/spritesheet.webp",
+  );
+});
 
 it("keeps every required visual review category explicit", () => {
   expect(MANUAL_REVIEW_CHECKS).toEqual([

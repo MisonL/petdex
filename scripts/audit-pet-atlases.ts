@@ -86,6 +86,7 @@ export type AtlasPixelSummary = {
 export type AtlasAuditEntry = {
   slug: string;
   approvedAt: string | null;
+  spritesheetUrl: string;
   declaredVersion: 1 | 2;
   detectedVersion: 1 | 2 | null;
   width: number | null;
@@ -95,6 +96,18 @@ export type AtlasAuditEntry = {
   error: string | null;
   errorKind: "network" | "asset" | null;
 };
+
+type AuditEntryDetails = Omit<
+  AtlasAuditEntry,
+  "slug" | "approvedAt" | "spritesheetUrl"
+>;
+
+export function createAuditEntry(
+  pet: Pick<AuditPet, "slug" | "approvedAt" | "spritesheetUrl">,
+  details: AuditEntryDetails,
+): AtlasAuditEntry {
+  return { ...pet, ...details };
+}
 
 export type MachineAuditFlag =
   | "network-error"
@@ -545,9 +558,7 @@ async function auditOne(pet: AuditPet): Promise<AtlasAuditEntry> {
     const metadata = await sharp(buffer).metadata();
     const layout = detectSpriteAtlas(metadata.width, metadata.height);
     if (!layout || !metadata.width || !metadata.height) {
-      return {
-        slug: pet.slug,
-        approvedAt: pet.approvedAt,
+      return createAuditEntry(pet, {
         declaredVersion: pet.spriteVersionNumber,
         detectedVersion: null,
         width: metadata.width ?? null,
@@ -556,7 +567,7 @@ async function auditOne(pet: AuditPet): Promise<AtlasAuditEntry> {
         summary: null,
         error: "unsupported atlas dimensions",
         errorKind: "asset",
-      };
+      });
     }
     const canonical = canonicalSpriteDimensions(layout.version);
     const raw = await sharp(buffer)
@@ -569,9 +580,7 @@ async function auditOne(pet: AuditPet): Promise<AtlasAuditEntry> {
       })
       .raw()
       .toBuffer({ resolveWithObject: true });
-    return {
-      slug: pet.slug,
-      approvedAt: pet.approvedAt,
+    return createAuditEntry(pet, {
       declaredVersion: pet.spriteVersionNumber,
       detectedVersion: layout.version,
       width: metadata.width,
@@ -583,11 +592,9 @@ async function auditOne(pet: AuditPet): Promise<AtlasAuditEntry> {
           ? null
           : "atlas dimensions disagree with declared sprite version",
       errorKind: layout.version === pet.spriteVersionNumber ? null : "asset",
-    };
+    });
   } catch (error) {
-    return {
-      slug: pet.slug,
-      approvedAt: pet.approvedAt,
+    return createAuditEntry(pet, {
       declaredVersion: pet.spriteVersionNumber,
       detectedVersion: null,
       width: null,
@@ -596,7 +603,7 @@ async function auditOne(pet: AuditPet): Promise<AtlasAuditEntry> {
       summary: null,
       error: errorMessage(error),
       errorKind: isRetryableNetworkError(error) ? "network" : "asset",
-    };
+    });
   }
 }
 
