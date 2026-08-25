@@ -1,7 +1,10 @@
 import { describe, expect, it } from "bun:test";
 
 import {
+  parseCompactManifest,
+  parseLegacyManifest,
   readResponseBodyBounded,
+  resolveManifestAsset,
   summarizeAtlasPixels,
 } from "./audit-pet-atlases";
 
@@ -55,5 +58,57 @@ describe("atlas audit geometry", () => {
     const result = summarizeAtlasPixels(data, width, 2);
     expect(result.expectedFrames).toBe(73);
     expect(result.emptyFrames).toBe(72);
+  });
+});
+
+describe("manifest parsing", () => {
+  it("parses the compact v2 manifest and resolves relative assets", () => {
+    const pets = parseCompactManifest({
+      assetBase: "https://assets.petdex.dev",
+      pets: [
+        [
+          "demo",
+          "Demo",
+          "character",
+          null,
+          "pets/demo/sprite.webp",
+          "pets/demo/pet.json",
+          null,
+          2,
+        ],
+      ],
+    });
+    expect(pets).toEqual([
+      {
+        slug: "demo",
+        approvedAt: null,
+        spritesheetUrl: "https://assets.petdex.dev/pets/demo/sprite.webp",
+        spriteVersionNumber: 2,
+      },
+    ]);
+  });
+
+  it("keeps the legacy manifest fallback strict and host-bound", () => {
+    const pets = parseLegacyManifest({
+      pets: [
+        {
+          slug: "demo",
+          spritesheetUrl: "https://assets.petdex.dev/pets/demo/sprite.webp",
+        },
+      ],
+    });
+    expect(pets[0]?.spriteVersionNumber).toBe(1);
+    expect(() =>
+      resolveManifestAsset(undefined, "https://example.test/sprite.webp"),
+    ).toThrow("untrusted spritesheet host");
+  });
+
+  it("rejects malformed compact entries instead of defaulting their version", () => {
+    expect(() =>
+      parseCompactManifest({
+        assetBase: "https://assets.petdex.dev",
+        pets: [["demo", "Demo", "character", null, "pets/demo/sprite.webp"]],
+      }),
+    ).toThrow("invalid compact manifest pet");
   });
 });

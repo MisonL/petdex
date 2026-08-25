@@ -13,7 +13,9 @@ import {
 } from "../src/lib/sprite-atlas";
 
 const SEARCH_URL = "https://petdex.dev/api/pets/search";
-const MANIFEST_URL = "https://petdex.dev/api/manifest";
+const MANIFEST_V2_URL = "https://petdex.dev/api/manifest/v2";
+const LEGACY_MANIFEST_URL = "https://petdex.dev/api/manifest";
+const TRUSTED_ASSET_HOST = "assets.petdex.dev";
 const MAX_FETCH_BYTES = 8 * 1024 * 1024;
 const DEFAULT_WINDOW = 64;
 const MAX_WINDOW = 500;
@@ -24,6 +26,10 @@ type AuditPet = {
   spritesheetUrl: string;
   spriteVersionNumber: 1 | 2;
 };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
 
 type FrameBounds = {
   row: number;
@@ -213,19 +219,87 @@ async function fetchOldestWindow(limit: number): Promise<AuditPet[]> {
 }
 
 async function fetchManifest(): Promise<AuditPet[]> {
-  const manifest = await fetchJson<{
-    pets: Array<{
-      slug: string;
-      spritesheetUrl: string;
-      spriteVersionNumber?: 1 | 2;
-    }>;
-  }>(MANIFEST_URL);
-  return manifest.pets.map((pet) => ({
-    slug: pet.slug,
-    approvedAt: null,
-    spritesheetUrl: pet.spritesheetUrl,
-    spriteVersionNumber: pet.spriteVersionNumber === 2 ? 2 : 1,
-  }));
+  let compactManifest: unknown;
+  try {
+    compactManifest = await fetchJson<unknown>(MANIFEST_V2_URL);
+  } catch {
+    const legacyManifest = await fetchJson<unknown>(LEGACY_MANIFEST_URL);
+    return parseLegacyManifest(legacyManifest);
+  }
+  return parseCompactManifest(compactManifest);
+}
+
+export function parseCompactManifest(input: unknown): AuditPet[] {
+  if (
+    !isRecord(input) ||
+    typeof input.assetBase !== "string" ||
+    !Array.isArray(input.pets)
+  ) {
+    throw new Error("invalid compact manifest");
+  }
+  const assetBase = input.assetBase;
+  return input.pets.map((rawPet, index) => {
+    if (
+      !Array.isArray(rawPet) ||
+      typeof rawPet[0] !== "string" ||
+      typeof rawPet[4] !== "string" ||
+      (rawPet[7] !== 1 && rawPet[7] !== 2)
+    ) {
+      throw new Error(`invalid compact manifest pet at index ${index}`);
+    }
+    const slug = rawPet[0];
+    const spritesheet = rawPet[4];
+    const version = rawPet[7];
+    return {
+      slug,
+      approvedAt: null,
+      spritesheetUrl: resolveManifestAsset(assetBase, spritesheet),
+      spriteVersionNumber: version,
+    };
+  });
+}
+
+export function parseLegacyManifest(input: unknown): AuditPet[] {
+  if (!isRecord(input) || !Array.isArray(input.pets)) {
+    throw new Error("invalid legacy manifest");
+  }
+  return input.pets.map((rawPet, index) => {
+    if (
+      !isRecord(rawPet) ||
+      typeof rawPet.slug !== "string" ||
+      typeof rawPet.spritesheetUrl !== "string" ||
+      (rawPet.spriteVersionNumber !== undefined &&
+        rawPet.spriteVersionNumber !== 1 &&
+        rawPet.spriteVersionNumber !== 2)
+    ) {
+      throw new Error(`invalid legacy manifest pet at index ${index}`);
+    }
+    return {
+      slug: rawPet.slug,
+      approvedAt: null,
+      spritesheetUrl: resolveManifestAsset(undefined, rawPet.spritesheetUrl),
+      spriteVersionNumber: rawPet.spriteVersionNumber === 2 ? 2 : 1,
+    };
+  });
+}
+
+export function resolveManifestAsset(
+  assetBase: string | undefined,
+  raw: string,
+): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(
+      raw,
+      assetBase ? `${assetBase.replace(/\/$/, "")}/` : undefined,
+    );
+  } catch {
+    throw new Error("manifest contains an invalid spritesheet URL");
+  }
+  if (parsed.protocol !== "https:" || parsed.host !== TRUSTED_ASSET_HOST) {
+    throw new Error("manifest contains an untrusted spritesheet host");
+  }
+  return parsed.toString();
 }
 
 async function auditOne(pet: AuditPet): Promise<AtlasAuditEntry> {
