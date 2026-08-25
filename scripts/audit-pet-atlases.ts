@@ -22,6 +22,19 @@ const MAX_WINDOW = 500;
 const MAX_NETWORK_ATTEMPTS = 3;
 const RETRY_DELAY_MS = 250;
 
+/**
+ * Checks that still require a human or Petdex edit/review workflow. Keep
+ * these explicit so every manifest entry carries the same review contract.
+ */
+export const MANUAL_REVIEW_CHECKS = [
+  "idle eye-open default state",
+  "action continuity and direction consistency",
+  "transparent edge bounds and left/right clipping",
+  "sprite scale consistency and flattened proportions",
+  "state-row proportion and frame-to-frame continuity",
+  "compression artifacts and visual integrity",
+] as const;
+
 type AuditPet = {
   slug: string;
   approvedAt: string | null;
@@ -60,6 +73,11 @@ export type AtlasAuditEntry = {
   summary: AtlasPixelSummary | null;
   error: string | null;
   errorKind: "network" | "asset" | null;
+};
+
+export type ManualReviewRecord = {
+  status: "pending";
+  checks: readonly string[];
 };
 
 function valueAfter(args: string[], flag: string): string | null {
@@ -467,6 +485,13 @@ async function main() {
     }),
   );
 
+  const entries = results.map((entry) => ({
+    ...entry,
+    manualReview: {
+      status: "pending" as const,
+      checks: MANUAL_REVIEW_CHECKS,
+    } satisfies ManualReviewRecord,
+  }));
   const report = {
     generatedAt: new Date().toISOString(),
     scope: oldest ? "oldest-approved-window" : "manifest",
@@ -491,13 +516,10 @@ async function main() {
         (sum, entry) => sum + (entry.summary?.geometryOutliers ?? 0),
         0,
       ),
+      manualReviewPending: entries.length,
     },
-    manualReviewRequired: [
-      "idle eye-open default state",
-      "action continuity and direction consistency",
-      "visual proportion and compression artifacts",
-    ],
-    entries: results,
+    manualReviewRequired: MANUAL_REVIEW_CHECKS,
+    entries,
   };
 
   const output = valueAfter(args, "--output");

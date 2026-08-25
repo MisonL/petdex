@@ -1,12 +1,24 @@
 import { describe, expect, it } from "bun:test";
 
 import {
+  MANUAL_REVIEW_CHECKS,
   parseCompactManifest,
   parseLegacyManifest,
   readResponseBodyBounded,
   resolveManifestAsset,
   summarizeAtlasPixels,
 } from "./audit-pet-atlases";
+
+it("keeps every required visual review category explicit", () => {
+  expect(MANUAL_REVIEW_CHECKS).toEqual([
+    "idle eye-open default state",
+    "action continuity and direction consistency",
+    "transparent edge bounds and left/right clipping",
+    "sprite scale consistency and flattened proportions",
+    "state-row proportion and frame-to-frame continuity",
+    "compression artifacts and visual integrity",
+  ]);
+});
 
 function responseFromChunks(chunks: Uint8Array[]): Response {
   return new Response(
