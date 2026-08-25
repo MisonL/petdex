@@ -35,7 +35,8 @@
       "left-edge-touch": 76,
       "right-edge-touch": 79,
       "unsupported-dimensions": 17
-    }
+    },
+    "manualReviewPending": 4579
   },
   "manualReview": {
     "status": "pending",
