@@ -215,11 +215,20 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p ~/.petdex/pets/ci-pet
-          # A known-good v2 atlas from the live catalog, so a decode
-          # failure here is the platform codec, never a bad fixture.
-          curl -fsSL -o ~/.petdex/pets/ci-pet/spritesheet.webp \
-            "$(curl -fsSL https://petdex.dev/api/install-pet/boba | sed -n 's/.*"spritesheetUrl":"\([^"]*\)".*/\1/p')"
-          printf '{"id":"ci-pet","displayName":"CI Pet","description":"ci","spritesheetPath":"spritesheet.webp"}' \
+          # Read the compact v2 manifest instead of the retired install-pet
+          # route. This keeps the fixture on the same public contract as
+          # the catalog clients and fails clearly when the catalog is unavailable.
+          curl -fsSL -o ~/.petdex/pets/ci-pet/spritesheet.png \
+            "$(bun -e '
+              const m = await (await fetch("https://petdex.dev/api/manifest/v2")).json();
+              const f = Object.fromEntries(m.fields.map((name, index) => [name, index]));
+              const row = m.pets.find((pet) => Number(pet[f.spriteVersionNumber]) === 2 && String(pet[f.spritesheet] ?? "").split("?", 1)[0].toLowerCase().endsWith(".png"));
+              if (!row) throw new Error("manifest has no v2 PNG fixture");
+              const u = new URL(row[f.spritesheet], m.assetBase);
+              if (u.protocol !== "https:" || u.hostname !== "assets.petdex.dev") throw new Error("untrusted sprite host");
+              console.log(u.href);
+            ' )"
+          printf '{"id":"ci-pet","displayName":"CI Pet","description":"ci","spriteVersionNumber":2,"spritesheetPath":"spritesheet.png"}' \
             > ~/.petdex/pets/ci-pet/pet.json
           ls -lh ~/.petdex/pets/ci-pet/
 
@@ -233,9 +242,20 @@ jobs:
         run: |
           $dir = "$env:USERPROFILE\.petdex\pets\ci-pet"
           New-Item -ItemType Directory -Force -Path $dir | Out-Null
-          $meta = Invoke-RestMethod -Uri "https://petdex.dev/api/install-pet/gf-sd"
-          Invoke-WebRequest -Uri $meta.pet.spritesheetUrl -OutFile "$dir\spritesheet.png"
-          '{"id":"ci-pet","displayName":"CI Pet","description":"ci","spritesheetPath":"spritesheet.png"}' |
+          # Keep Windows on the same compact v2 manifest contract as Unix;
+          # the old /api/install-pet route is no longer a reliable fixture.
+          $manifest = Invoke-RestMethod -Uri "https://petdex.dev/api/manifest/v2"
+          $fields = @{}
+          for ($i = 0; $i -lt $manifest.fields.Count; $i++) { $fields[[string]$manifest.fields[$i]] = $i }
+          $row = @($manifest.pets | Where-Object {
+            $path = ([string]$_[$fields["spritesheet"]]).Split("?", 2)[0].ToLowerInvariant()
+            [int]$_[$fields["spriteVersionNumber"]] -eq 2 -and $path.EndsWith(".png")
+          } | Select-Object -First 1)
+          if ($row.Count -eq 0) { throw "manifest has no v2 PNG fixture" }
+          $sprite = [Uri]::new([Uri]$manifest.assetBase, [string]$row[0][$fields["spritesheet"]])
+          if ($sprite.Scheme -ne "https" -or $sprite.Host -ne "assets.petdex.dev") { throw "untrusted sprite host" }
+          Invoke-WebRequest -Uri $sprite.AbsoluteUri -OutFile "$dir\spritesheet.png"
+          '{"id":"ci-pet","displayName":"CI Pet","description":"ci","spriteVersionNumber":2,"spritesheetPath":"spritesheet.png"}' |
             Set-Content -Path "$dir\pet.json" -NoNewline
           Get-ChildItem $dir | Select-Object Name, Length | Format-Table -AutoSize
 
