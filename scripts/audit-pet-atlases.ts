@@ -163,25 +163,53 @@ async function fetchJson<T>(url: string): Promise<T> {
 export async function readResponseBodyBounded(
   response: Response,
   maxBytes: number,
+  timeoutMs = 15_000,
 ): Promise<Buffer> {
   if (!response.body) throw new Error("asset response has no body");
   const reader = response.body.getReader();
   const chunks: Buffer[] = [];
   let total = 0;
+  const deadline = Date.now() + timeoutMs;
+  let timedOut = false;
   try {
     while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (!value) continue;
-      total += value.byteLength;
-      if (total > maxBytes) {
-        await reader.cancel("asset exceeds audit limit");
-        throw new Error("asset exceeds audit limit");
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) {
+        timedOut = true;
+        throw new Error("asset read timed out");
       }
-      chunks.push(Buffer.from(value));
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        const { done, value } = await Promise.race([
+          reader.read(),
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(() => {
+              timedOut = true;
+              reject(new Error("asset read timed out"));
+            }, remaining);
+          }),
+        ]);
+        if (done) break;
+        if (!value) continue;
+        total += value.byteLength;
+        if (total > maxBytes) {
+          await reader.cancel("asset exceeds audit limit");
+          throw new Error("asset exceeds audit limit");
+        }
+        chunks.push(Buffer.from(value));
+      } finally {
+        if (timer !== undefined) clearTimeout(timer);
+      }
     }
+  } catch (error) {
+    if (timedOut) void reader.cancel("asset read timed out");
+    throw error;
   } finally {
-    reader.releaseLock();
+    try {
+      reader.releaseLock();
+    } catch {
+      // A timed-out pending read can still hold the stream lock briefly.
+    }
   }
   return Buffer.concat(chunks, total);
 }

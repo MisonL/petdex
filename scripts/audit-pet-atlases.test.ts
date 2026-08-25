@@ -36,6 +36,17 @@ describe("bounded asset reads", () => {
       ),
     ).rejects.toThrow("asset exceeds audit limit");
   });
+
+  it("cancels a body that stops producing chunks", async () => {
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array([1]));
+      },
+    });
+    await expect(
+      readResponseBodyBounded(new Response(body), 4, 20),
+    ).rejects.toThrow("asset read timed out");
+  });
 });
 
 describe("atlas audit geometry", () => {
