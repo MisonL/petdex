@@ -36,6 +36,10 @@ concurrency:
 jobs:
   publish:
     name: Publish pet previews
+    # This workflow owns production database/R2 credentials. Scheduled runs
+    # on forks cannot receive those secrets and would otherwise fail before
+    # the publisher starts; only the upstream production repository may run it.
+    if: github.repository == 'crafter-station/petdex'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: manifest-snapshot
