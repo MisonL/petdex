@@ -233,7 +233,7 @@ it("projects only the stable public fields and redacts raw audit errors", () => 
     height: null,
     bytes: null,
     summary: null,
-    error: "asset request failed (403) at /private/user/path",
+    error: "asset request failed (403) internal-detail-marker",
     errorKind: "asset",
   });
 
@@ -253,7 +253,7 @@ it("projects only the stable public fields and redacts raw audit errors", () => 
       checks: MANUAL_REVIEW_CHECKS,
     },
   });
-  expect(JSON.stringify(publicEntry)).not.toContain("private/user/path");
+  expect(JSON.stringify(publicEntry)).not.toContain("internal-detail-marker");
   expect(JSON.stringify(publicEntry)).not.toContain("403");
 });
 
@@ -288,7 +288,7 @@ it("builds a public review report without internal error text", () => {
         height: null,
         bytes: null,
         summary: null,
-        error: "asset request failed (500) /Users/example/private",
+        error: "asset request failed (500) internal-detail-marker",
         errorKind: "asset",
       },
     ],
@@ -303,7 +303,7 @@ it("builds a public review report without internal error text", () => {
   expect(report.entries).toHaveLength(1);
   expect(report.entries[0]?.errorCode).toBe("asset-error");
   expect(report.entries[0]?.summary).toBeNull();
-  expect(JSON.stringify(report)).not.toContain("/Users/example/private");
+  expect(JSON.stringify(report)).not.toContain("internal-detail-marker");
 });
 
 it("rejects an untrusted asset URL at the public projection boundary", () => {
