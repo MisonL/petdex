@@ -177,6 +177,117 @@ export type ManualReviewRecord = {
   checks: readonly string[];
 };
 
+export type PublicAuditErrorCode =
+  | "network-error"
+  | "asset-error"
+  | "asset-size-limit"
+  | "asset-read-timeout"
+  | "unsupported-atlas-dimensions"
+  | "version-mismatch";
+
+/**
+ * The committed review queue is public repository data. Keep this type
+ * deliberately smaller than AtlasAuditEntry so raw fetch/decode errors and
+ * implementation details never leave the audit process.
+ */
+export type PublicAuditReviewEntry = {
+  slug: string;
+  spritesheetUrl: string;
+  declaredVersion: 1 | 2;
+  detectedVersion: 1 | 2 | null;
+  width: number | null;
+  height: number | null;
+  bytes: number | null;
+  summary: PublicAtlasPixelSummary | null;
+  machineFlags: MachineAuditFlag[];
+  errorCode: PublicAuditErrorCode | null;
+  manualReview: ManualReviewRecord;
+};
+
+export type PublicAtlasPixelSummary = Omit<AtlasPixelSummary, "rowMedians">;
+
+function toPublicAtlasPixelSummary(
+  summary: AtlasPixelSummary | null,
+): PublicAtlasPixelSummary | null {
+  if (!summary) return null;
+  return {
+    expectedFrames: summary.expectedFrames,
+    emptyFrames: summary.emptyFrames,
+    touchingFrames: summary.touchingFrames,
+    geometryOutliers: summary.geometryOutliers,
+    proportionOutliers: summary.proportionOutliers,
+    continuityOutliers: summary.continuityOutliers,
+    rowProportionOutliers: summary.rowProportionOutliers,
+    edgeTouches: summary.edgeTouches,
+  };
+}
+
+function publicAuditErrorCode(
+  entry: Pick<AtlasAuditEntry, "error" | "errorKind">,
+): PublicAuditErrorCode | null {
+  if (!entry.error) return null;
+  if (entry.errorKind === "network") return "network-error";
+  if (entry.error === "asset exceeds audit limit") return "asset-size-limit";
+  if (entry.error === "asset read timed out") return "asset-read-timeout";
+  if (entry.error === "unsupported atlas dimensions") {
+    return "unsupported-atlas-dimensions";
+  }
+  if (entry.error.includes("declared sprite version")) {
+    return "version-mismatch";
+  }
+  return "asset-error";
+}
+
+/** Project an internal audit result into the stable, public review contract. */
+export function toPublicAuditReviewEntry(
+  entry: AtlasAuditEntry,
+): PublicAuditReviewEntry {
+  const spritesheetUrl = resolveManifestAsset(undefined, entry.spritesheetUrl);
+  return {
+    slug: entry.slug,
+    spritesheetUrl,
+    declaredVersion: entry.declaredVersion,
+    detectedVersion: entry.detectedVersion,
+    width: entry.width,
+    height: entry.height,
+    bytes: entry.bytes,
+    summary: toPublicAtlasPixelSummary(entry.summary),
+    machineFlags: classifyAuditEntry(entry),
+    errorCode: publicAuditErrorCode(entry),
+    manualReview: {
+      status: "pending",
+      checks: MANUAL_REVIEW_CHECKS,
+    },
+  };
+}
+
+export type PublicAuditReviewReport = {
+  generatedAt: string;
+  scope: "oldest-approved-window" | "manifest";
+  source: string;
+  assetHost: typeof TRUSTED_ASSET_HOST;
+  requested: number;
+  manualReviewRequired: readonly string[];
+  entries: PublicAuditReviewEntry[];
+};
+
+export function buildPublicAuditReviewReport(
+  entries: AtlasAuditEntry[],
+  scope: PublicAuditReviewReport["scope"],
+  generatedAt: string,
+  source: string,
+): PublicAuditReviewReport {
+  return {
+    generatedAt,
+    scope,
+    source,
+    assetHost: TRUSTED_ASSET_HOST,
+    requested: entries.length,
+    manualReviewRequired: MANUAL_REVIEW_CHECKS,
+    entries: entries.map(toPublicAuditReviewEntry),
+  };
+}
+
 function valueAfter(args: string[], flag: string): string | null {
   const index = args.indexOf(flag);
   return index >= 0 ? (args[index + 1] ?? null) : null;
@@ -461,15 +572,26 @@ async function fetchOldestWindow(limit: number): Promise<AuditPet[]> {
   return pets.slice(-limit).reverse();
 }
 
-async function fetchManifest(): Promise<AuditPet[]> {
+type ManifestAuditInput = {
+  pets: AuditPet[];
+  source: string;
+};
+
+async function fetchManifest(): Promise<ManifestAuditInput> {
   let compactManifest: unknown;
   try {
     compactManifest = await fetchJson<unknown>(MANIFEST_V2_URL);
   } catch {
     const legacyManifest = await fetchJson<unknown>(LEGACY_MANIFEST_URL);
-    return parseLegacyManifest(legacyManifest);
+    return {
+      pets: parseLegacyManifest(legacyManifest),
+      source: LEGACY_MANIFEST_URL,
+    };
   }
-  return parseCompactManifest(compactManifest);
+  return {
+    pets: parseCompactManifest(compactManifest),
+    source: MANIFEST_V2_URL,
+  };
 }
 
 export function parseCompactManifest(input: unknown): AuditPet[] {
@@ -658,7 +780,10 @@ async function main() {
   const concurrency = Math.min(numberArg(args, "--concurrency", 4), 12);
   const auditAll = args.includes("--all");
   const oldest = !auditAll;
-  const pets = oldest ? await fetchOldestWindow(limit) : await fetchManifest();
+  const auditInput = oldest
+    ? { pets: await fetchOldestWindow(limit), source: SEARCH_URL }
+    : await fetchManifest();
+  const pets = auditInput.pets;
   const selected = pets.slice(0, oldest ? limit : undefined);
   const results: AtlasAuditEntry[] = [];
   let next = 0;
@@ -672,14 +797,7 @@ async function main() {
     }),
   );
 
-  const entries = results.map((entry) => ({
-    ...entry,
-    machineFlags: classifyAuditEntry(entry),
-    manualReview: {
-      status: "pending" as const,
-      checks: MANUAL_REVIEW_CHECKS,
-    } satisfies ManualReviewRecord,
-  }));
+  const entries = results.map(toPublicAuditReviewEntry);
   const machineFlagCounts = entries.reduce<
     Partial<Record<MachineAuditFlag, number>>
   >((counts, entry) => {
@@ -687,9 +805,12 @@ async function main() {
       counts[flag] = (counts[flag] ?? 0) + 1;
     return counts;
   }, {});
+  const generatedAt = new Date().toISOString();
   const report = {
-    generatedAt: new Date().toISOString(),
+    generatedAt,
     scope: oldest ? "oldest-approved-window" : "manifest",
+    source: auditInput.source,
+    assetHost: TRUSTED_ASSET_HOST,
     requested: selected.length,
     summary: {
       errors: results.filter((entry) => entry.error !== null).length,
@@ -736,13 +857,31 @@ async function main() {
       manualReviewPending: entries.length,
     },
     manualReviewRequired: MANUAL_REVIEW_CHECKS,
-    entries,
+    manualReview: {
+      status: "pending" as const,
+      entries: entries.length,
+      checks: MANUAL_REVIEW_CHECKS,
+    },
   };
 
   const output = valueAfter(args, "--output");
+  const reviewOutput = valueAfter(args, "--review-output");
   const serialized = `${JSON.stringify(report, null, 2)}\n`;
   if (output) await writeFile(output, serialized, "utf8");
   else process.stdout.write(serialized);
+  if (reviewOutput) {
+    const reviewReport = buildPublicAuditReviewReport(
+      results,
+      oldest ? "oldest-approved-window" : "manifest",
+      generatedAt,
+      auditInput.source,
+    );
+    await writeFile(
+      reviewOutput,
+      `${JSON.stringify(reviewReport, null, 2)}\n`,
+      "utf8",
+    );
+  }
 }
 
 if (import.meta.main) await main();

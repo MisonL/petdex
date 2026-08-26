@@ -1,0 +1,61 @@
+{
+  "generatedAt": "2026-08-26T08:57:31.415Z",
+  "scope": "manifest",
+  "source": "https://petdex.dev/api/manifest/v2",
+  "assetHost": "assets.petdex.dev",
+  "requested": 4579,
+  "summary": {
+    "errors": 680,
+    "networkErrors": 0,
+    "assetErrors": 680,
+    "unsupportedDimensions": 17,
+    "versionMismatches": 663,
+    "touchingFrames": 3989,
+    "geometryOutliers": 766,
+    "proportionOutliers": 1737,
+    "continuityOutliers": 1393,
+    "rowProportionOutliers": 146,
+    "edgeTouches": {
+      "left": 1179,
+      "right": 1286,
+      "top": 1902,
+      "bottom": 2462
+    },
+    "machineFlagCounts": {
+      "flattened-proportion": 663,
+      "frame-continuity": 978,
+      "asset-error": 680,
+      "version-mismatch": 663,
+      "geometry-outlier": 242,
+      "edge-touch": 223,
+      "top-edge-touch": 151,
+      "row-proportion": 102,
+      "bottom-edge-touch": 118,
+      "empty-frame": 27,
+      "left-edge-touch": 76,
+      "right-edge-touch": 79,
+      "unsupported-dimensions": 17
+    },
+    "manualReviewPending": 4579
+  },
+  "manualReviewRequired": [
+    "idle eye-open default state",
+    "action continuity and direction consistency",
+    "transparent edge bounds and left/right clipping",
+    "sprite scale consistency and flattened proportions",
+    "state-row proportion and frame-to-frame continuity",
+    "compression artifacts and visual integrity"
+  ],
+  "manualReview": {
+    "status": "pending",
+    "entries": 4579,
+    "checks": [
+      "idle eye-open default state",
+      "action continuity and direction consistency",
+      "transparent edge bounds and left/right clipping",
+      "sprite scale consistency and flattened proportions",
+      "state-row proportion and frame-to-frame continuity",
+      "compression artifacts and visual integrity"
+    ]
+  }
+}

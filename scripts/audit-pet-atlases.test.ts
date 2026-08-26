@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import {
+  buildPublicAuditReviewReport,
   classifyAuditEntry,
   createAuditEntry,
   MANUAL_REVIEW_CHECKS,
@@ -9,6 +10,7 @@ import {
   readResponseBodyBounded,
   resolveManifestAsset,
   summarizeAtlasPixels,
+  toPublicAuditReviewEntry,
 } from "./audit-pet-atlases";
 
 it("keeps the trusted public asset URL in each report entry", () => {
@@ -218,6 +220,146 @@ it("returns no machine flags for a clean asset while manual review stays separat
       },
     }),
   ).toEqual([]);
+});
+
+it("projects only the stable public fields and redacts raw audit errors", () => {
+  const publicEntry = toPublicAuditReviewEntry({
+    slug: "demo",
+    approvedAt: null,
+    spritesheetUrl: "https://assets.petdex.dev/pets/demo/sprite.webp",
+    declaredVersion: 1,
+    detectedVersion: null,
+    width: null,
+    height: null,
+    bytes: null,
+    summary: null,
+    error: "asset request failed (403) at /private/user/path",
+    errorKind: "asset",
+  });
+
+  expect(publicEntry).toEqual({
+    slug: "demo",
+    spritesheetUrl: "https://assets.petdex.dev/pets/demo/sprite.webp",
+    declaredVersion: 1,
+    detectedVersion: null,
+    width: null,
+    height: null,
+    bytes: null,
+    summary: null,
+    machineFlags: ["asset-error"],
+    errorCode: "asset-error",
+    manualReview: {
+      status: "pending",
+      checks: MANUAL_REVIEW_CHECKS,
+    },
+  });
+  expect(JSON.stringify(publicEntry)).not.toContain("private/user/path");
+  expect(JSON.stringify(publicEntry)).not.toContain("403");
+});
+
+it("keeps known audit failures on stable error codes", () => {
+  const entry = {
+    slug: "demo",
+    approvedAt: null,
+    spritesheetUrl: "https://assets.petdex.dev/pets/demo/sprite.webp",
+    declaredVersion: 2 as const,
+    detectedVersion: null,
+    width: null,
+    height: null,
+    bytes: null,
+    summary: null,
+    error: "asset read timed out",
+    errorKind: "asset" as const,
+  };
+
+  expect(toPublicAuditReviewEntry(entry).errorCode).toBe("asset-read-timeout");
+});
+
+it("builds a public review report without internal error text", () => {
+  const report = buildPublicAuditReviewReport(
+    [
+      {
+        slug: "demo",
+        approvedAt: null,
+        spritesheetUrl: "https://assets.petdex.dev/pets/demo/sprite.webp",
+        declaredVersion: 1,
+        detectedVersion: null,
+        width: null,
+        height: null,
+        bytes: null,
+        summary: null,
+        error: "asset request failed (500) /Users/example/private",
+        errorKind: "asset",
+      },
+    ],
+    "manifest",
+    "2026-08-26T00:00:00.000Z",
+    "https://petdex.dev/api/manifest/v2",
+  );
+
+  expect(report.requested).toBe(1);
+  expect(report.source).toBe("https://petdex.dev/api/manifest/v2");
+  expect(report.assetHost).toBe("assets.petdex.dev");
+  expect(report.entries).toHaveLength(1);
+  expect(report.entries[0]?.errorCode).toBe("asset-error");
+  expect(report.entries[0]?.summary).toBeNull();
+  expect(JSON.stringify(report)).not.toContain("/Users/example/private");
+});
+
+it("rejects an untrusted asset URL at the public projection boundary", () => {
+  expect(() =>
+    toPublicAuditReviewEntry({
+      slug: "demo",
+      approvedAt: null,
+      spritesheetUrl: "https://example.test/demo.webp",
+      declaredVersion: 1,
+      detectedVersion: null,
+      width: null,
+      height: null,
+      bytes: null,
+      summary: null,
+      error: null,
+      errorKind: null,
+    }),
+  ).toThrow("untrusted spritesheet host");
+});
+
+it("omits unstable row median details from the public entry summary", () => {
+  const entry = toPublicAuditReviewEntry({
+    slug: "demo",
+    approvedAt: null,
+    spritesheetUrl: "https://assets.petdex.dev/pets/demo/sprite.webp",
+    declaredVersion: 1,
+    detectedVersion: 1,
+    width: 1536,
+    height: 1872,
+    bytes: 42,
+    summary: {
+      expectedFrames: 57,
+      emptyFrames: 0,
+      touchingFrames: 0,
+      geometryOutliers: 1,
+      proportionOutliers: 2,
+      continuityOutliers: 3,
+      rowProportionOutliers: 4,
+      edgeTouches: { left: 0, right: 0, top: 0, bottom: 0 },
+      rowMedians: [{ row: 0, width: 1, height: 2, aspectRatio: 0.5 }],
+    },
+    error: null,
+    errorKind: null,
+  });
+
+  expect(entry.summary).toEqual({
+    expectedFrames: 57,
+    emptyFrames: 0,
+    touchingFrames: 0,
+    geometryOutliers: 1,
+    proportionOutliers: 2,
+    continuityOutliers: 3,
+    rowProportionOutliers: 4,
+    edgeTouches: { left: 0, right: 0, top: 0, bottom: 0 },
+  });
+  expect(JSON.stringify(entry)).not.toContain("rowMedians");
 });
 
 describe("manifest parsing", () => {
