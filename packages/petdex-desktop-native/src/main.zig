@@ -609,19 +609,28 @@ fn beginSpritesheet(model: *Model, fx: *Effects) bool {
 /// Copy the finished pet into the second root. The CLI downloads each
 /// asset twice; copying the bytes already on disk costs one read
 /// instead of a second round trip over the network.
-fn mirrorToCodexRoot(slug: []const u8, ext_png: bool) void {
-    const home = env_home orelse return;
+fn mirrorToCodexRoot(slug: []const u8, ext_png: bool) bool {
+    const home = env_home orelse return false;
     var name_buf: [32]u8 = undefined;
-    const sheet_name = std.fmt.bufPrint(&name_buf, "spritesheet.{s}", .{if (ext_png) "png" else "webp"}) catch return;
+    const sheet_name = std.fmt.bufPrint(&name_buf, "spritesheet.{s}", .{if (ext_png) "png" else "webp"}) catch return false;
+    // Do not rely on the download side having created the second root. A
+    // first install can race a stale/partial directory tree, and a failed
+    // mkdir must not be converted into a successful half-install.
+    var dir_buf: [512]u8 = undefined;
+    const dir = installer.petDir(&dir_buf, home, installer.install_roots[1], slug) orelse return false;
+    plat.makeDir(dir);
+    var copied: usize = 0;
     for ([_][]const u8{ "pet.json", sheet_name }) |name| {
         var src_buf: [512]u8 = undefined;
         var dst_buf: [512]u8 = undefined;
-        const src = installer.petFile(&src_buf, home, installer.install_roots[0], slug, name) orelse continue;
-        const dst = installer.petFile(&dst_buf, home, installer.install_roots[1], slug, name) orelse continue;
-        const bytes = plat.readFileAlloc(boot_allocator, src, max_sheet_file_bytes) orelse continue;
+        const src = installer.petFile(&src_buf, home, installer.install_roots[0], slug, name) orelse return false;
+        const dst = installer.petFile(&dst_buf, home, installer.install_roots[1], slug, name) orelse return false;
+        const bytes = plat.readFileAlloc(boot_allocator, src, max_sheet_file_bytes) orelse return false;
         defer boot_allocator.free(bytes);
-        _ = plat.writeFile(dst, bytes);
+        if (!plat.writeFile(dst, bytes)) return false;
+        copied += 1;
     }
+    return copied == 2;
 }
 
 /// Add a freshly installed pet to the in-memory catalog. A rescan would
@@ -2018,7 +2027,11 @@ pub fn update(model: *Model, msg: Msg, fx: *Effects) void {
                 advanceInstallQueue(model, fx);
                 return;
             }
-            mirrorToCodexRoot(slug, model.install.ext_png);
+            if (!mirrorToCodexRoot(slug, model.install.ext_png)) {
+                model.install.setError("{s}: failed to mirror into Codex pets", .{slug});
+                advanceInstallQueue(model, fx);
+                return;
+            }
             model.install.installed_ok += 1;
             // The pet is only usable once the catalog knows it; a fresh
             // thumbnail pass picks it up the next time settings is open.
