@@ -3,6 +3,7 @@ import { writeFile } from "node:fs/promises";
 import sharp from "sharp";
 
 import { petStates } from "../src/lib/pet-states";
+import { readResponseBodyBounded as readSharedResponseBodyBounded } from "../src/lib/response-body";
 import {
   canonicalSpriteDimensions,
   detectSpriteAtlas,
@@ -491,53 +492,21 @@ export async function readResponseBodyBounded(
   maxBytes: number,
   timeoutMs = 15_000,
 ): Promise<Buffer> {
-  if (!response.body) throw new Error("asset response has no body");
-  const reader = response.body.getReader();
-  const chunks: Buffer[] = [];
-  let total = 0;
-  const deadline = Date.now() + timeoutMs;
-  let timedOut = false;
   try {
-    while (true) {
-      const remaining = deadline - Date.now();
-      if (remaining <= 0) {
-        timedOut = true;
-        throw new Error("asset read timed out");
-      }
-      let timer: ReturnType<typeof setTimeout> | undefined;
-      try {
-        const { done, value } = await Promise.race([
-          reader.read(),
-          new Promise<never>((_, reject) => {
-            timer = setTimeout(() => {
-              timedOut = true;
-              reject(new Error("asset read timed out"));
-            }, remaining);
-          }),
-        ]);
-        if (done) break;
-        if (!value) continue;
-        total += value.byteLength;
-        if (total > maxBytes) {
-          await reader.cancel("asset exceeds audit limit");
-          throw new Error("asset exceeds audit limit");
-        }
-        chunks.push(Buffer.from(value));
-      } finally {
-        if (timer !== undefined) clearTimeout(timer);
-      }
-    }
+    return await readSharedResponseBodyBounded(response, maxBytes, timeoutMs);
   } catch (error) {
-    if (timedOut) void reader.cancel("asset read timed out");
-    throw error;
-  } finally {
-    try {
-      reader.releaseLock();
-    } catch {
-      // A timed-out pending read can still hold the stream lock briefly.
+    if (!(error instanceof Error)) throw error;
+    if (error.message === "response body exceeds limit") {
+      throw new Error("asset exceeds audit limit");
     }
+    if (error.message === "response body read timed out") {
+      throw new Error("asset read timed out");
+    }
+    if (error.message === "response body is empty") {
+      throw new Error("asset response has no body");
+    }
+    throw error;
   }
-  return Buffer.concat(chunks, total);
 }
 
 async function fetchOldestWindow(limit: number): Promise<AuditPet[]> {

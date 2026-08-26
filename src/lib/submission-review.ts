@@ -18,6 +18,7 @@ import {
   scanPetManifestsSecurity,
   scanPetSecurity,
 } from "@/lib/pet-security";
+import { readResponseBodyBounded } from "@/lib/response-body";
 import { detectSpriteAtlas } from "@/lib/sprite-atlas";
 import { decideAutomatedReview } from "@/lib/submission-review-decision";
 import { preparePolicyReviewImage } from "@/lib/submission-review-image";
@@ -983,12 +984,24 @@ async function fetchAllowedBuffer(
         reason: `${label} exceeds the maximum allowed size.`,
       };
     }
-    const buffer = Buffer.from(await res.arrayBuffer());
-    if (buffer.byteLength > maxBytes) {
-      return {
-        ok: false,
-        reason: `${label} exceeds the maximum allowed size.`,
-      };
+    let buffer: Buffer;
+    try {
+      buffer = await readResponseBodyBounded(
+        res,
+        maxBytes,
+        REVIEW_FETCH_TIMEOUT_MS,
+      );
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message === "response body exceeds limit"
+      ) {
+        return {
+          ok: false,
+          reason: `${label} exceeds the maximum allowed size.`,
+        };
+      }
+      throw error;
     }
     return { ok: true, buffer };
   } catch {
