@@ -124,9 +124,16 @@ pub fn findPetUrls(manifest: []const u8, slug: []const u8) ?Urls {
 }
 
 fn isCompactManifest(manifest: []const u8) bool {
-    const head = manifest[0..@min(manifest.len, 1024)];
-    return std.mem.indexOf(u8, head, "\"assetBase\"") != null and
-        std.mem.indexOf(u8, head, "\"fields\"") != null;
+    // Do not classify a legacy object manifest because a pet's display name
+    // happens to contain the words `assetBase` and `fields`. The compact
+    // contract has an explicit version marker and a fixed field declaration;
+    // both are checked before any tuple positions are interpreted.
+    const head = manifest[0..@min(manifest.len, 4096)];
+    const compact_fields =
+        "\"fields\":[\"slug\",\"displayName\",\"kind\",\"submittedBy\",\"spritesheet\",\"petJson\",\"zip\",\"spriteVersionNumber\"]";
+    return std.mem.indexOf(u8, head, "\"v\":2") != null and
+        std.mem.indexOf(u8, head, "\"assetBase\"") != null and
+        std.mem.indexOf(u8, head, compact_fields) != null;
 }
 
 fn findLegacyPetUrls(manifest: []const u8, slug: []const u8) ?Urls {
@@ -443,6 +450,25 @@ test "compact manifest resolves relative asset keys" {
     try std.testing.expectEqualStrings("https://assets.petdex.dev/pets/homelander/pet.json", json);
     try std.testing.expectEqualStrings("webp", urls.spritesheetExt());
     try std.testing.expect(findPetUrls(manifest, "missing") == null);
+}
+
+test "legacy marker words do not switch the parser to compact mode" {
+    const manifest =
+        \\{"generatedAt":"x","total":1,"pets":[{"slug":"legacy","displayName":"assetBase fields v:2","kind":"character","submittedBy":null,"spritesheetUrl":"https://assets.petdex.dev/pets/legacy/sprite.webp","petJsonUrl":"https://assets.petdex.dev/pets/legacy/pet.json","zipUrl":null}]}
+    ;
+    const urls = findPetUrls(manifest, "legacy").?;
+    try std.testing.expectEqualStrings("", urls.asset_base);
+    try std.testing.expectEqualStrings(
+        "https://assets.petdex.dev/pets/legacy/sprite.webp",
+        urls.spritesheet,
+    );
+}
+
+test "compact parser requires the declared v2 field contract" {
+    const manifest =
+        \\{"assetBase":"https://assets.petdex.dev","fields":["slug","displayName"],"pets":[["demo","Demo"]]}
+    ;
+    try std.testing.expect(findPetUrls(manifest, "demo") == null);
 }
 
 test "download argv passes the url as its own argument" {
