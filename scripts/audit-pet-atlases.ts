@@ -21,6 +21,16 @@ const DEFAULT_WINDOW = 64;
 const MAX_WINDOW = 500;
 const MAX_NETWORK_ATTEMPTS = 3;
 const RETRY_DELAY_MS = 250;
+const COMPACT_FIELDS = [
+  "slug",
+  "displayName",
+  "kind",
+  "submittedBy",
+  "spritesheet",
+  "petJson",
+  "zip",
+  "spriteVersionNumber",
+] as const;
 
 /**
  * Checks that still require a human or Petdex edit/review workflow. Keep
@@ -44,6 +54,10 @@ type AuditPet = {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function isNullableString(value: unknown): value is string | null {
+  return value === null || typeof value === "string";
 }
 
 type FrameBounds = {
@@ -459,19 +473,38 @@ async function fetchManifest(): Promise<AuditPet[]> {
 }
 
 export function parseCompactManifest(input: unknown): AuditPet[] {
-  if (
-    !isRecord(input) ||
-    typeof input.assetBase !== "string" ||
-    !Array.isArray(input.pets)
-  ) {
+  if (!isRecord(input) || input.v !== 2 || !Array.isArray(input.pets)) {
     throw new Error("invalid compact manifest");
   }
+  if (
+    typeof input.assetBase !== "string" ||
+    !isTrustedManifestBase(input.assetBase)
+  ) {
+    throw new Error("invalid compact manifest assetBase");
+  }
+  if (
+    !Array.isArray(input.fields) ||
+    input.fields.length !== COMPACT_FIELDS.length ||
+    input.fields.some((field, index) => field !== COMPACT_FIELDS[index])
+  ) {
+    throw new Error("invalid compact manifest fields");
+  }
+  if (input.total !== undefined && input.total !== input.pets.length) {
+    throw new Error("compact manifest total does not match its entries");
+  }
+
   const assetBase = input.assetBase;
   return input.pets.map((rawPet, index) => {
     if (
       !Array.isArray(rawPet) ||
+      rawPet.length !== COMPACT_FIELDS.length ||
       typeof rawPet[0] !== "string" ||
+      typeof rawPet[1] !== "string" ||
+      typeof rawPet[2] !== "string" ||
+      !isNullableString(rawPet[3]) ||
       typeof rawPet[4] !== "string" ||
+      typeof rawPet[5] !== "string" ||
+      !isNullableString(rawPet[6]) ||
       (rawPet[7] !== 1 && rawPet[7] !== 2)
     ) {
       throw new Error(`invalid compact manifest pet at index ${index}`);
@@ -486,6 +519,15 @@ export function parseCompactManifest(input: unknown): AuditPet[] {
       spriteVersionNumber: version,
     };
   });
+}
+
+function isTrustedManifestBase(raw: string): boolean {
+  try {
+    const parsed = new URL(raw);
+    return parsed.protocol === "https:" && parsed.host === TRUSTED_ASSET_HOST;
+  } catch {
+    return false;
+  }
 }
 
 export function parseLegacyManifest(input: unknown): AuditPet[] {

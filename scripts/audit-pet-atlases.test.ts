@@ -223,6 +223,18 @@ it("returns no machine flags for a clean asset while manual review stays separat
 describe("manifest parsing", () => {
   it("parses the compact v2 manifest and resolves relative assets", () => {
     const pets = parseCompactManifest({
+      v: 2,
+      total: 1,
+      fields: [
+        "slug",
+        "displayName",
+        "kind",
+        "submittedBy",
+        "spritesheet",
+        "petJson",
+        "zip",
+        "spriteVersionNumber",
+      ],
       assetBase: "https://assets.petdex.dev",
       pets: [
         [
@@ -265,9 +277,67 @@ describe("manifest parsing", () => {
   it("rejects malformed compact entries instead of defaulting their version", () => {
     expect(() =>
       parseCompactManifest({
+        v: 2,
+        total: 1,
+        fields: [
+          "slug",
+          "displayName",
+          "kind",
+          "submittedBy",
+          "spritesheet",
+          "petJson",
+          "zip",
+          "spriteVersionNumber",
+        ],
         assetBase: "https://assets.petdex.dev",
         pets: [["demo", "Demo", "character", null, "pets/demo/sprite.webp"]],
       }),
     ).toThrow("invalid compact manifest pet");
+  });
+
+  it("rejects compact schema drift before reading fixed tuple positions", () => {
+    const base = {
+      v: 2,
+      total: 1,
+      fields: [
+        "slug",
+        "displayName",
+        "kind",
+        "submittedBy",
+        "spritesheet",
+        "petJson",
+        "zip",
+        "spriteVersionNumber",
+      ],
+      assetBase: "https://assets.petdex.dev",
+      pets: [
+        [
+          "demo",
+          "Demo",
+          "character",
+          null,
+          "pets/demo/sprite.webp",
+          "pets/demo/pet.json",
+          null,
+          2,
+        ],
+      ],
+    };
+
+    expect(() => parseCompactManifest({ ...base, v: 3 })).toThrow(
+      "invalid compact manifest",
+    );
+    expect(() =>
+      parseCompactManifest({
+        ...base,
+        fields: [...base.fields.slice(0, -1), "version"],
+      }),
+    ).toThrow("invalid compact manifest fields");
+    expect(() => parseCompactManifest({ ...base, total: 2 })).toThrow(
+      "compact manifest total",
+    );
+    expect(() =>
+      parseCompactManifest({ ...base, assetBase: "https://example.test" }),
+    ).toThrow("invalid compact manifest assetBase");
   });
 });
