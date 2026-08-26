@@ -21,6 +21,10 @@ import {
   type ManifestPet,
 } from "../src/manifest.js";
 import {
+  formatRetiredCommand,
+  RETIRED_COMMANDS,
+} from "../src/retired-commands.js";
+import {
   emit,
   getStatus,
   maybeShowFirstRunNotice,
@@ -32,33 +36,6 @@ const PETDEX_URL = process.env.PETDEX_URL ?? "https://petdex.dev";
 const PETDEX_REFERER = `${PETDEX_URL.replace(/\/+$/, "")}/`;
 const DOWNLOAD_URL = `${PETDEX_URL.replace(/\/+$/, "")}/download`;
 
-// Every command the desktop app absorbed. Value is the sentence that
-// replaces it, so the user learns where the capability went instead of
-// hunting for a flag that no longer exists. Declared here, above the
-// top-level main() call, so the lookup is not in the temporal dead zone.
-const DESKTOP_START_REDIRECT =
-  "The desktop app runs on its own. Launch Petdex from Applications.";
-const DESKTOP_STOP_REDIRECT = "Quit Petdex from its menu bar icon to stop it.";
-
-const RETIRED_COMMANDS = new Map<string, string>([
-  // Desktop Settings → Agents:
-  // packages/petdex-desktop-native/src/settings_view.zig (`agentsSection`).
-  ["init", "The desktop app installs its own agent hooks from Settings."],
-  ["up", DESKTOP_START_REDIRECT],
-  ["start", DESKTOP_START_REDIRECT],
-  ["restart", DESKTOP_START_REDIRECT],
-  ["down", DESKTOP_STOP_REDIRECT],
-  ["stop", DESKTOP_STOP_REDIRECT],
-  ["toggle", "Toggle the mascot from the Petdex menu bar icon."],
-  ["desktop", "The desktop app manages its own lifecycle."],
-  ["select", "Select pets from the Petdex desktop app."],
-  ["update", "The desktop app updates itself automatically."],
-  // Desktop Settings → Agents:
-  // packages/petdex-desktop-native/src/settings_view.zig (`agentsSection`).
-  // This view renders agent/hook status and the Install/Update actions.
-  ["doctor", "Petdex Settings shows agent and hook status directly."],
-  ["hooks", "Install agent hooks from Petdex Settings, one click per agent."],
-]);
 let _auth: ClerkCliAuth | null = null;
 async function getAuth({
   warnOnFallback = true,
@@ -176,18 +153,13 @@ async function main() {
 }
 
 function printRetired(cmd: string): void {
-  const detail = RETIRED_COMMANDS.get(cmd) ?? "";
   console.error(
-    [
-      "",
-      `  ${pc.yellow("!")} ${pc.bold(`petdex ${cmd}`)} was removed in v${VERSION.split(".")[0]}.`,
-      "",
-      `  ${detail}`,
-      `  Get the app: ${pc.underline(DOWNLOAD_URL)}`,
-      "",
-      `  This CLI now manages the pet catalog: ${pc.cyan("petdex list")}, ${pc.cyan("petdex install <slug>")}.`,
-      "",
-    ].join("\n"),
+    formatRetiredCommand(cmd, VERSION, DOWNLOAD_URL, {
+      yellow: pc.yellow,
+      bold: pc.bold,
+      underline: pc.underline,
+      cyan: pc.cyan,
+    }),
   );
 }
 
