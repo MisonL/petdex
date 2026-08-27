@@ -418,13 +418,10 @@ pub const InstallState = struct {
     phase: InstallPhase = .idle,
     queue: [max_install_queue][64]u8 = @splat(@splat(0)),
     queue_len: [max_install_queue]usize = @splat(0),
+    activate: [max_install_queue]bool = @splat(false),
     queued: usize = 0,
     /// Index into `queue` of the pet being downloaded right now.
     current: usize = 0,
-    /// Set when the deep link was `petdex://<slug>` rather than
-    /// `petdex://install?…`: that form means "use this pet", so the
-    /// install activates it on completion.
-    activate_when_done: bool = false,
     /// Chosen once per install so pet.json and the spritesheet land
     /// under matching names (`spritesheet.png` vs `.webp`).
     ext_png: bool = false,
@@ -447,18 +444,47 @@ pub const InstallState = struct {
         return self.phase != .idle;
     }
 
+    pub fn currentActivates(self: *const InstallState) bool {
+        if (self.current >= self.queued) return false;
+        return self.activate[self.current];
+    }
+
     /// Copy a slug off a borrowed URL slice. Rejected slugs never enter
     /// the queue, so nothing downstream has to re-validate a path.
-    pub fn enqueue(self: *InstallState, slug: []const u8) bool {
-        if (self.queued >= max_install_queue) return false;
+    ///
+    /// A repeated request is merged rather than dropped. This matters
+    /// when a bare `petdex://slug` arrives while the same slug is already
+    /// downloading: the second request upgrades the existing work to an
+    /// activating request without starting a duplicate download.
+    pub fn enqueueRequest(self: *InstallState, slug: []const u8, activate: bool) bool {
         if (!installer.slugOk(slug)) return false;
         for (0..self.queued) |i| {
-            if (std.mem.eql(u8, self.queue[i][0..self.queue_len[i]], slug)) return false;
+            if (std.mem.eql(u8, self.queue[i][0..self.queue_len[i]], slug)) {
+                self.activate[i] = self.activate[i] or activate;
+                return true;
+            }
         }
+        if (self.queued >= max_install_queue) return false;
         @memcpy(self.queue[self.queued][0..slug.len], slug);
         self.queue_len[self.queued] = slug.len;
+        self.activate[self.queued] = activate;
         self.queued += 1;
         return true;
+    }
+
+    pub fn enqueue(self: *InstallState, slug: []const u8) bool {
+        return self.enqueueRequest(slug, false);
+    }
+
+    pub fn removeAt(self: *InstallState, index: usize) void {
+        if (index >= self.queued) return;
+        var i = index;
+        while (i + 1 < self.queued) : (i += 1) {
+            self.queue[i] = self.queue[i + 1];
+            self.queue_len[i] = self.queue_len[i + 1];
+            self.activate[i] = self.activate[i + 1];
+        }
+        self.queued -= 1;
     }
 
     pub fn setError(self: *InstallState, comptime fmt: []const u8, args: anytype) void {
@@ -682,6 +708,48 @@ const url_scheme_prefix = "petdex://";
 var pending_install: InstallState = .{};
 var pending_ready: bool = false;
 
+fn stagePendingInstall(slug: []const u8, activate: bool) bool {
+    if (!pending_install.enqueueRequest(slug, activate)) return false;
+    pending_ready = true;
+    return true;
+}
+
+/// Merge staged requests into the active queue without starting a second
+/// run. This is called from the app's update loop, so it is safe to append
+/// while a manifest or asset effect is in flight; `advanceInstallQueue`
+/// will visit the appended entries after the current one. If the active
+/// fixed-size queue is full, the unmerged tail stays staged for the next
+/// poll instead of being discarded.
+fn mergePendingInstall(model: *Model) ?u32 {
+    if (!pending_ready) return null;
+    var immediate_selection: ?u32 = null;
+    var i: usize = 0;
+    while (i < pending_install.queued) {
+        const slug = pending_install.queue[i][0..pending_install.queue_len[i]];
+        // A bare deep link means "use this pet". If the pet finished
+        // downloading between the URL callback and this merge, select the
+        // catalog entry instead of downloading it a second time. Explicit
+        // `petdex://install` requests keep their existing install semantics.
+        if (pending_install.activate[i]) {
+            if (catalogIndexOf(slug)) |index| {
+                immediate_selection = @intCast(index);
+                pending_install.removeAt(i);
+                continue;
+            }
+        }
+        if (!model.install.enqueueRequest(slug, pending_install.activate[i])) {
+            i += 1;
+            continue;
+        }
+        pending_install.removeAt(i);
+    }
+    if (pending_install.queued == 0) {
+        pending_install = .{};
+        pending_ready = false;
+    }
+    return immediate_selection;
+}
+
 /// `petdex://<slug>` selects a pet, installing it first when it is not
 /// on disk; `petdex://install?slug=a&slug=b` installs without
 /// selecting (petdex-desktop-link.ts builds both forms).
@@ -690,6 +758,8 @@ var pending_ready: bool = false;
 /// callback, so the common case keeps its immediate swap and never
 /// touches the network.
 fn onUrlsOpened(urls: []const []const u8) ?Msg {
+    var staged = false;
+    var immediate_selection: ?u32 = null;
     for (urls) |url| {
         if (!std.mem.startsWith(u8, url, url_scheme_prefix)) continue;
         const rest = url[url_scheme_prefix.len..];
@@ -697,29 +767,30 @@ fn onUrlsOpened(urls: []const []const u8) ?Msg {
 
         if (std.mem.eql(u8, host, "install")) {
             const query = std.mem.indexOfScalar(u8, rest, '?') orelse continue;
-            pending_install = .{};
             var it = std.mem.splitScalar(u8, rest[query + 1 ..], '&');
             while (it.next()) |pair| {
                 if (!std.mem.startsWith(u8, pair, "slug=")) continue;
                 var value = pair["slug=".len..];
                 if (std.mem.indexOfScalar(u8, value, '#')) |cut| value = value[0..cut];
-                _ = pending_install.enqueue(value);
+                staged = stagePendingInstall(value, false) or staged;
             }
-            if (pending_install.queued == 0) continue;
-            pending_install.activate_when_done = false;
-            pending_ready = true;
-            return .noop;
+            continue;
         }
 
         // NSURL hands back the absoluteString, and a bare host round
         // trips as `petdex://slug/`.
-        if (catalogIndexOf(host)) |index| return .{ .select_pet = @intCast(index) };
-        pending_install = .{};
-        if (!pending_install.enqueue(host)) continue;
-        pending_install.activate_when_done = true;
-        pending_ready = true;
-        return .noop;
+        if (catalogIndexOf(host)) |index| {
+            // Process every URL in the callback. If a batch contains
+            // both an already-installed pet and a new one, the immediate
+            // selection is returned while the new install remains staged.
+            immediate_selection = @intCast(index);
+            continue;
+        }
+        staged = stagePendingInstall(host, true) or staged;
     }
+
+    if (immediate_selection) |index| return .{ .select_pet = index };
+    if (staged) return .noop;
     return null;
 }
 
@@ -727,14 +798,15 @@ fn onUrlsOpened(urls: []const []const u8) ?Msg {
 /// `update`, the first place with an `fx` to spawn on.
 fn drainPendingInstall(model: *Model, fx: *Effects) void {
     if (!pending_ready) return;
-    pending_ready = false;
-    if (model.install.busy()) return;
-    const activate = pending_install.activate_when_done;
-    model.install.queued = 0;
-    for (0..pending_install.queued) |i| {
-        _ = model.install.enqueue(pending_install.queue[i][0..pending_install.queue_len[i]]);
+    const immediate_selection = mergePendingInstall(model);
+    if (immediate_selection) |index| {
+        update(model, .{ .select_pet = index }, fx);
     }
-    model.install.activate_when_done = activate;
+    // The staged entries are now part of the active queue. Do not reset or
+    // restart it while an effect is still running; the next poll will retry
+    // only any tail that did not fit.
+    if (model.install.busy()) return;
+    if (model.install.queued == 0) return;
     startInstallQueue(model, fx);
     // A deep-link install arrives from the browser with no Petdex window
     // in front of the user, so the progress banner would render into a
@@ -1954,8 +2026,7 @@ pub fn update(model: *Model, msg: Msg, fx: *Effects) void {
             // takes the identical path.
             if (model.install.busy()) return;
             model.install.error_len = 0;
-            _ = model.install.enqueue(default_pet_slug);
-            model.install.activate_when_done = true;
+            _ = model.install.enqueueRequest(default_pet_slug, true);
             startInstallQueue(model, fx);
         },
         .manifest_done => |exit| {
@@ -1998,7 +2069,7 @@ pub fn update(model: *Model, msg: Msg, fx: *Effects) void {
             // thumbnail pass picks it up the next time settings is open.
             const index = catalogAppend(slug, model.active_pet);
             thumbs_built = @min(thumbs_built, catalog_mod.catalog_len);
-            if (model.install.activate_when_done) {
+            if (model.install.currentActivates()) {
                 if (index) |i| {
                     // Deliberately routed through the same Msg the
                     // settings list uses, so activation after an install
@@ -4439,6 +4510,100 @@ test "activating index 0 works before any sheet is loaded" {
     const would_skip_now = 0 == fresh.active_pet and fresh.sheet_loaded;
     try std.testing.expect(would_skip_before);
     try std.testing.expect(!would_skip_now);
+}
+
+test "deep-link install requests merge into a busy queue" {
+    // URL callbacks can arrive while a manifest or asset download is in
+    // flight. New requests must join the active run without resetting its
+    // current item or dropping the activation bit for any queued pet.
+    pending_install = .{};
+    pending_ready = false;
+    defer {
+        pending_install = .{};
+        pending_ready = false;
+    }
+
+    _ = onUrlsOpened(&.{"petdex://install?slug=queue-a"});
+    _ = onUrlsOpened(&.{"petdex://queue-b"});
+    try std.testing.expect(pending_ready);
+    try std.testing.expectEqual(@as(usize, 2), pending_install.queued);
+    try std.testing.expect(!pending_install.activate[0]);
+    try std.testing.expect(pending_install.activate[1]);
+
+    var model: Model = .{};
+    try std.testing.expect(model.install.enqueueRequest("active", false));
+    model.install.phase = .manifest;
+    try std.testing.expect(mergePendingInstall(&model) == null);
+    try std.testing.expect(!pending_ready);
+    try std.testing.expectEqual(@as(usize, 3), model.install.queued);
+    try std.testing.expectEqualStrings("active", model.install.queue[0][0..model.install.queue_len[0]]);
+    try std.testing.expectEqualStrings("queue-a", model.install.queue[1][0..model.install.queue_len[1]]);
+    try std.testing.expectEqualStrings("queue-b", model.install.queue[2][0..model.install.queue_len[2]]);
+    try std.testing.expect(!model.install.activate[0]);
+    try std.testing.expect(!model.install.activate[1]);
+    try std.testing.expect(model.install.activate[2]);
+
+    // A full active queue may only consume the prefix that fits. The
+    // remaining staged tail keeps the ready signal until the next poll.
+    pending_install = .{};
+    pending_ready = false;
+    _ = onUrlsOpened(&.{"petdex://install?slug=queue-c&slug=queue-d"});
+    var full_model: Model = .{};
+    for (0..max_install_queue - 1) |i| {
+        var slug_buf: [16]u8 = undefined;
+        const slug = std.fmt.bufPrint(&slug_buf, "active-{d}", .{i}) catch unreachable;
+        try std.testing.expect(full_model.install.enqueue(slug));
+    }
+    full_model.install.phase = .spritesheet;
+    try std.testing.expect(mergePendingInstall(&full_model) == null);
+    try std.testing.expectEqual(@as(usize, 1), pending_install.queued);
+    try std.testing.expect(pending_ready);
+    try std.testing.expectEqualStrings("queue-d", pending_install.queue[0][0..pending_install.queue_len[0]]);
+    try std.testing.expectEqual(@as(usize, max_install_queue), full_model.install.queued);
+
+    full_model.install.removeAt(0);
+    try std.testing.expect(mergePendingInstall(&full_model) == null);
+    try std.testing.expect(!pending_ready);
+    try std.testing.expectEqual(@as(usize, max_install_queue), full_model.install.queued);
+    try std.testing.expectEqualStrings("queue-d", full_model.install.queue[max_install_queue - 1][0..full_model.install.queue_len[max_install_queue - 1]]);
+}
+
+test "deep-link install requests merge duplicates and process URL batches" {
+    pending_install = .{};
+    pending_ready = false;
+    defer {
+        pending_install = .{};
+        pending_ready = false;
+    }
+
+    const urls = [_][]const u8{
+        "petdex://install?slug=queue-a&slug=queue-c",
+        "petdex://queue-a",
+    };
+    _ = onUrlsOpened(&urls);
+
+    // The duplicate `queue-a` is one install, upgraded to activation by
+    // the bare link. The second slug in the same callback is retained.
+    try std.testing.expectEqual(@as(usize, 2), pending_install.queued);
+    try std.testing.expectEqualStrings("queue-a", pending_install.queue[0][0..pending_install.queue_len[0]]);
+    try std.testing.expect(pending_install.activate[0]);
+    try std.testing.expectEqualStrings("queue-c", pending_install.queue[1][0..pending_install.queue_len[1]]);
+    try std.testing.expect(!pending_install.activate[1]);
+}
+
+test "install queue keeps activation per pet" {
+    var queue: InstallState = .{};
+    try std.testing.expect(queue.enqueueRequest("queue-a", false));
+    try std.testing.expect(queue.enqueueRequest("queue-b", true));
+    try std.testing.expect(queue.enqueueRequest("queue-c", false));
+    try std.testing.expect(queue.enqueueRequest("queue-a", true));
+    try std.testing.expectEqual(@as(usize, 3), queue.queued);
+    try std.testing.expect(queue.currentActivates());
+    queue.current = 1;
+    try std.testing.expect(queue.currentActivates());
+    queue.current = 2;
+    try std.testing.expect(!queue.currentActivates());
+    try std.testing.expect(queue.activate[0]);
 }
 
 test "empty-state copy fits the pet window" {
