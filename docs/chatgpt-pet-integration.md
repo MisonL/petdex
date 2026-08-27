@@ -1,20 +1,23 @@
 # ChatGPT pet integration (`codex://pets/install`)
 
-Everything here was read out of ChatGPT.app's own bundle on 2026-07-27, against
-version **26.721.31836**. None of it is a documented contract. When OpenAI ships
+Everything here was read out of ChatGPT.app's own bundle on 2026-08-27, against
+version **26.818.61809**. None of it is a documented contract. When OpenAI ships
 an update, re-derive it with the recipe at the bottom rather than trusting this
 file: the point of writing it down is that the next pass starts from a known
 shape, not from zero.
 
-## Status: correct link, feature gated off
+## Status: parser present; modal remains feature-gated
 
-The link Petdex builds satisfies every rule the app's parser enforces. It still
-does nothing, because the modal that consumes it sits behind a Statsig gate that
-is currently off. Verified by firing a real link at a real install: ChatGPT
-takes focus, no modal appears, nothing is written to disk.
+The current bundle still contains the parser, downloader, and renderer listener
+for the Petdex link, and the listener remains behind Statsig gate
+`1848317837`. This pass re-checked those bundle markers on version
+26.818.61809. A bundle scan cannot prove the live value of the gate; the
+previous no-modal observation was tied to an older app version and must not be
+generalized to every installation.
 
-So: nothing to fix on our side, and nothing that will work until the flag flips.
-Keep the `petdex://` path beside it — that one works on all three platforms.
+If the modal is absent, first verify the gate and then inspect the filesystem.
+Keep the `petdex://` path beside it as the documented fallback; it does not
+depend on this ChatGPT feature gate.
 
 ## The contract
 
@@ -49,8 +52,9 @@ Separate from the URL parse, the asset fetch enforces:
   split on `;`, so a charset suffix is fine).
 - 20 MB ceiling, checked against `Content-Length` and again while streaming.
 
-Petdex assets satisfy all three today: `assets.petdex.dev` answers 200 with
-`image/webp`, largest sheet ~2.7 MB.
+The live v2 manifest was reachable during this pass and returned 4,667 entries.
+A sampled `assets.petdex.dev` sheet answered directly with HTTP 200 and
+`image/webp`; this is a reachability probe, not a claim about the largest asset.
 
 ## Why a correct link still does nothing
 
@@ -95,7 +99,9 @@ from a deep link uses it — it is what the modal renders.
 ## How to re-derive this after an update
 
 ```bash
-# 1. Extract (196MB asar, ~220MB extracted; delete it when done)
+# 1. Extract to a temporary directory. The bundle and extracted size vary by
+#    app release; allow several hundred MB and delete the temporary directory
+#    after inspection.
 npx --yes @electron/asar extract \
   /Applications/ChatGPT.app/Contents/Resources/app.asar /tmp/asar
 
