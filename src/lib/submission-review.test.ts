@@ -1,5 +1,10 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, setDefaultTimeout } from "bun:test";
 import { randomBytes } from "node:crypto";
+
+// Sharp's native pipeline can take several seconds to initialize on a cold
+// CI worker. Keep a bounded file-level budget for this image-heavy suite
+// without weakening the production request timeouts.
+setDefaultTimeout(30_000);
 
 import sharp from "sharp";
 
