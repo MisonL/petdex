@@ -5,12 +5,7 @@ type HeaderBag =
 const BLOCKED_IPS = new Set(["133.106.50.116"]);
 const BLOCKED_USER_AGENTS = ["petoverlaycompose-pixelartclassifier"];
 
-export type PublicTrafficGuardRule =
-  | "catalog"
-  | "metadata"
-  | "pack"
-  | "state"
-  | "sticker";
+export type PublicTrafficGuardRule = "catalog" | "metadata" | "state";
 
 export function publicTrafficGuardRule(input: {
   method: string;
@@ -18,11 +13,16 @@ export function publicTrafficGuardRule(input: {
 }): PublicTrafficGuardRule | null {
   if (input.method !== "GET" && input.method !== "HEAD") return null;
   const pathname = input.pathname;
-  if (/^\/api\/pets\/[^/]+\/(?:thumb|sticker)\/?$/.test(pathname)) {
-    return "sticker";
-  }
-  if (/^\/api\/pets\/[^/]+\/wastickers\/?$/.test(pathname)) return "pack";
-  if (pathname === "/api/manifest") return "catalog";
+  // The sticker routes are redirects to R2 objects (thumb 308, sticker 307)
+  // and wastickers is a constant 410, so none of them does work worth a Redis
+  // round trip. They were the single largest share of guarded traffic, which
+  // means the limiter spent most of its command budget guarding redirects.
+  // Abuse of the underlying objects is bounded by R2 and the CDN, not here.
+  // /api/manifest is a static 307 to the R2 object with a 300s CDN cache and
+  // no database read, so rate limiting it spends a Redis round trip to guard
+  // a redirect. It is also the single most requested path, which made it the
+  // largest contributor to the command volume that got the Upstash database
+  // blocked. Leave it out of the guard.
   if (pathname === "/api/pets/random") return "catalog";
   if (pathname === "/api/pets/search") return "catalog";
   if (pathname === "/api/me/header-state") return "state";
