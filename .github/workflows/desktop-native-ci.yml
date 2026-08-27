@@ -962,16 +962,7 @@ jobs:
               # directly. GetWindowRect reports the same physical screen
               # coordinates that SendInput and the GDI screenshot use.
               powershell.exe -NoProfile -NonInteractive -Command '
-                $source = @"
-              using System;
-              using System.Runtime.InteropServices;
-              public static class PetdexGeometry {
-                [StructLayout(LayoutKind.Sequential)]
-                public struct Rect { public int Left; public int Top; public int Right; public int Bottom; }
-                [DllImport("user32.dll", SetLastError = true)]
-                public static extern bool GetWindowRect(IntPtr hWnd, out Rect rect);
-              }
-              "@
+                $source = "using System;using System.Runtime.InteropServices;public static class PetdexGeometry { [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left; public int Top; public int Right; public int Bottom; } [DllImport(`"user32.dll`", SetLastError = true)] public static extern bool GetWindowRect(IntPtr hWnd, out Rect rect); }"
                 Add-Type $source
                 $process = Get-Process -Name "petdex-desktop-native" -ErrorAction SilentlyContinue |
                   Where-Object { -not $_.HasExited -and $_.MainWindowHandle -ne [IntPtr]::Zero } |
