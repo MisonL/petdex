@@ -251,17 +251,18 @@ index 4dd7ecd..3fea139 100644
  /* ------------------------------------------------------------------------
   * Hidden-titlebar window chrome (the Win32 custom-frame pattern).
   *
-@@ -2926,6 +2998,16 @@ static LRESULT CALLBACK gpuSurfaceProc(HWND hwnd, UINT message, WPARAM wparam, L
+@@ -2926,6 +2998,17 @@ static LRESULT CALLBACK gpuSurfaceProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam) {
              const double x = (double)(short)LOWORD(lparam) / scale;
              const double y = (double)(short)HIWORD(lparam) / scale;
              view->gpu_pointer_down = 1;
 +            if (message == WM_LBUTTONDOWN) {
 +                view->gpu_primary_down = 1;
-+                /* Keep two app polls alive: the first exposes the real
-+                 * press point for hit testing, and the second carries the
-+                 * endpoint even when the whole gesture completed before
-+                 * the runtime's first poll. */
-+                view->gpu_primary_latched = 2;
++                /* Keep three app polls alive: the first exposes the real
++                 * press point for hit testing, the second carries the
++                 * global endpoint while still pressed, and the third
++                 * reports release. Fast synthetic drags can deliver the
++                 * whole gesture before the runtime's first poll. */
++                view->gpu_primary_latched = 3;
 +                view->gpu_primary_x = x;
 +                view->gpu_primary_y = y;
 +            }
@@ -279,14 +280,16 @@ index 4dd7ecd..3fea139 100644
          case WM_RBUTTONUP:
          case WM_MBUTTONUP: {
              const double x = (double)(short)LOWORD(lparam) / scale;
-@@ -2950,6 +3037,7 @@ static LRESULT CALLBACK gpuSurfaceProc(HWND hwnd, UINT message, WPARAM wparam, L
-             const double y = (double)(short)HIWORD(lparam) / scale;
-             view->gpu_pointer_x = x;
-             view->gpu_pointer_y = y;
-+            view->gpu_primary_down = 0;
-             const int kind = view->gpu_pointer_down ? kGpuInputPointerDrag : kGpuInputPointerMove;
-             emitGpuSurfaceInput(host, *view, kind, x, y, 0, 0, 0, "", "", gpuModifierFlags());
-             return 0;
+@@ -2957,6 +3030,9 @@ static LRESULT CALLBACK gpuSurfaceProc(HWND hwnd, UINT message, WPARAM wparam, L
++        case WM_CANCELMODE:
+         case WM_CAPTURECHANGED:
+             if (view->gpu_pointer_down) {
+                 view->gpu_pointer_down = 0;
++                view->gpu_primary_down = 0;
++                view->gpu_primary_latched = 0;
+                 emitGpuSurfaceInput(host, *view, kGpuInputPointerCancel, view->gpu_pointer_x, view->gpu_pointer_y, 0, 0, 0, "", "", gpuModifierFlags());
+             }
+             break;
 @@ -5028,6 +5116,9 @@ static LRESULT CALLBACK windowProc(HWND hwnd, UINT message, WPARAM wparam, LPARA
          case kAudioSessionMessage:
              if (host) audioHandleSessionMessage(host, wparam, lparam);
@@ -297,7 +300,7 @@ index 4dd7ecd..3fea139 100644
          case kAudioSpectrumMessage:
              if (host) audioHandleSpectrumMessage(host, wparam);
              return 0;
-@@ -5940,6 +6031,68 @@ int native_sdk_windows_create_window(Host *host, uint64_t window_id, const char
+@@ -5940,6 +6031,76 @@ int native_sdk_windows_create_window(Host *host, uint64_t window_id, const char
      return 1;
  }
  
@@ -344,14 +347,22 @@ index 4dd7ecd..3fea139 100644
 +        NativeView &view = entry.second;
 +        if (view.window_id != window_id || view.kind != kViewGpuSurface) continue;
 +        if (view.gpu_primary_latched > 0) {
-+            /* The first latched pulse is the press point; the second uses
-+             * the last Win32 pointer sample, which includes the release
-+             * endpoint when a fast synthetic drag skipped WM_MOUSEMOVE. */
-+            primary_down = 1;
-+            if (view.hwnd) {
-+                const double x = view.gpu_primary_latched == 2 ? view.gpu_primary_x : view.gpu_pointer_x;
-+                const double y = view.gpu_primary_latched == 2 ? view.gpu_primary_y : view.gpu_pointer_y;
-+                POINT sampled = { (LONG)lround(x * scale), (LONG)lround(y * scale) };
++            /* 3 = press point/down, 2 = global endpoint/down,
++             * 1 = global endpoint/release only after WM_LBUTTONUP.
++             * If the button is still held, the final latched pulse stays
++             * down and subsequent polls use the live state. */
++            primary_down = (view.gpu_primary_latched > 1 || view.gpu_primary_down) ? 1 : 0;
++            if (view.gpu_primary_latched == 3 && view.hwnd) {
++                /* Preserve the press point for the first app poll. A fast
++                 * synthetic drag can move the cursor to its endpoint before
++                 * the runtime sees the down edge; using the live cursor on
++                 * that first pulse would miss the pet hit test. The second
++                 * pulse uses the GetCursorPos result above while still
++                 * reporting down; the third reports the same endpoint with
++                 * release. The child may not receive WM_MOUSEMOVE while a
++                 * transparent, borderless window is being dragged, but
++                 * Win32 still owns the authoritative global endpoint. */
++                POINT sampled = { (LONG)lround(view.gpu_primary_x * scale), (LONG)lround(view.gpu_primary_y * scale) };
 +                if (ClientToScreen(view.hwnd, &sampled)) cursor = sampled;
 +            }
 +            view.gpu_primary_latched--;

@@ -817,11 +817,12 @@ jobs:
       # and ignores every mouse event, because the platform registers no
       # move_window_fn and all pet input is routed through it.
       #
-      # cuse drives real OS input (XTEST on X11, SendInput on Win32) and
-      # diffs the frames, so a pet that stops reacting fails here rather
-      # than reaching a user. The assertion is deliberately the CHANGED
-      # frame: a tap flips the pet between jumping and waving, and only
-      # a click that actually reached the window can produce that.
+      # cuse drives real OS input (XTEST on X11, SendInput on Win32). The
+      # click assertion uses a frame change because a tap flips the pet
+      # between jumping and waving. Dragging is asserted separately from
+      # the window's reported geometry: animation can change pixels even
+      # when the window never moved, so a screenshot diff is not evidence
+      # of a successful drag.
       # Not blocking on Linux yet: cuse cannot enumerate windows on a
       # bare X11 display (crafter-agents/cuse#65), so that leg cannot aim
       # a click even though xwininfo sees the window in the same job.
@@ -954,20 +955,47 @@ jobs:
               *) echo "FAIL: the context menu did not close"; exit 1 ;;
             esac
 
-            moved="SAME 0%"
+            geometry() {
+              "${bin}" windows --json | bun -e '
+                const result = JSON.parse(await Bun.stdin.text());
+                const windows = Array.isArray(result.data) ? result.data : [];
+                const pet = windows.find((window) =>
+                  typeof window.title === "string" &&
+                  /^(petdex|petdex-desktop-native)$/i.test(window.title.trim()));
+                if (!pet) {
+                  console.error("FAIL: cuse could not enumerate the Petdex window");
+                  process.exit(1);
+                }
+                console.log(JSON.stringify({ x: pet.x, y: pet.y, width: pet.width, height: pet.height }));
+              '
+            }
+
+            moved=""
             for attempt in 1 2 3; do
               "${bin}" capture drag-before.png --json
+              before_geometry=$(geometry)
+              echo "drag attempt $attempt before: $before_geometry"
               "${bin}" drag 112 210 192 250 --json
               sleep 1
               "${bin}" capture drag-after.png --json
-              moved=$(verdict drag-before.png drag-after.png)
+              after_geometry=$(geometry)
+              echo "drag attempt $attempt after: $after_geometry"
+              moved=$(BEFORE="$before_geometry" AFTER="$after_geometry" bun -e '
+                const before = JSON.parse(process.env.BEFORE);
+                const after = JSON.parse(process.env.AFTER);
+                const dx = after.x - before.x;
+                const dy = after.y - before.y;
+                const moved = Math.max(Math.abs(dx), Math.abs(dy)) >= 20;
+                console.log(`${moved ? "MOVED" : "STATIONARY"} dx=${dx} dy=${dy}`);
+                if (!moved) process.exit(1);
+              ' 2>/dev/null || true)
               echo "drag attempt $attempt: $moved"
               case "$moved" in
-                CHANGED*) break ;;
+                MOVED*) break ;;
               esac
             done
             case "$moved" in
-              CHANGED*) ;;
+              MOVED*) ;;
               *) echo "FAIL: the pet did not move after a real drag"; exit 1 ;;
             esac
           fi
