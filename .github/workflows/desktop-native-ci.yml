@@ -956,17 +956,42 @@ jobs:
             esac
 
             geometry() {
-              "${bin}" windows --json | bun -e '
-                const result = JSON.parse(await Bun.stdin.text());
-                const windows = Array.isArray(result.data) ? result.data : [];
-                const pet = windows.find((window) =>
-                  typeof window.title === "string" &&
-                  /^(petdex|petdex-desktop-native)$/i.test(window.title.trim()));
-                if (!pet) {
-                  console.error("FAIL: cuse could not enumerate the Petdex window");
-                  process.exit(1);
+              # Petdex is a transparent, chromeless window. Windows UI
+              # Automation (which backs cuse windows) does not expose that
+              # surface reliably, so query the process-owned Win32 window
+              # directly. GetWindowRect reports the same physical screen
+              # coordinates that SendInput and the GDI screenshot use.
+              powershell.exe -NoProfile -NonInteractive -Command '
+                $source = @"
+              using System;
+              using System.Runtime.InteropServices;
+              public static class PetdexGeometry {
+                [StructLayout(LayoutKind.Sequential)]
+                public struct Rect { public int Left; public int Top; public int Right; public int Bottom; }
+                [DllImport("user32.dll", SetLastError = true)]
+                public static extern bool GetWindowRect(IntPtr hWnd, out Rect rect);
+              }
+              "@
+                Add-Type $source
+                $process = Get-Process -Name "petdex-desktop-native" -ErrorAction SilentlyContinue |
+                  Where-Object { -not $_.HasExited -and $_.MainWindowHandle -ne [IntPtr]::Zero } |
+                  Select-Object -First 1
+                if ($null -eq $process) {
+                  Write-Error "FAIL: could not find the Petdex process window"
+                  exit 1
                 }
-                console.log(JSON.stringify({ x: pet.x, y: pet.y, width: pet.width, height: pet.height }));
+                $process.Refresh()
+                $rect = New-Object PetdexGeometry+Rect
+                if (-not [PetdexGeometry]::GetWindowRect($process.MainWindowHandle, [ref]$rect)) {
+                  Write-Error "FAIL: GetWindowRect failed for the Petdex window"
+                  exit 1
+                }
+                [PSCustomObject]@{
+                  x = $rect.Left
+                  y = $rect.Top
+                  width = $rect.Right - $rect.Left
+                  height = $rect.Bottom - $rect.Top
+                } | ConvertTo-Json -Compress
               '
             }
 
