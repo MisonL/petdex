@@ -5325,8 +5325,11 @@ test "bubble movement crosses displays before applying target bounds" {
     const settle = src[settle_start..sync_start];
     const unbounded = std.mem.indexOf(u8, sync, "fx.moveWindow(\"bubble\", plan.dx, plan.dy, false)");
     const sync_settle = std.mem.indexOf(u8, sync, "settleBubbleWindow(model, fx, bubble_h, want_x)");
-    const no_move_boundary = std.mem.indexOf(u8, sync, "    }\n    // Always run the constrained probe");
-    const flip_reprobe = std.mem.indexOf(u8, settle, "        }\n        // Re-probe even when the flipped target");
+    // Search for comments rather than line-oriented snippets. Git for
+    // Windows may check this source out with CRLF, while macOS/Linux use
+    // LF; the ordering assertions must be independent of that EOL policy.
+    const no_move_boundary = std.mem.indexOf(u8, sync, "// Always run the constrained probe");
+    const flip_reprobe = std.mem.indexOf(u8, settle, "// Re-probe even when the flipped target");
     const bounded = std.mem.indexOf(u8, settle, "fx.moveWindow(\"bubble\", 0, 0, true)");
     const readback = std.mem.indexOf(u8, settle, "var actual = fx.moveWindow(\"bubble\", 0, 0, false)");
     const correction = std.mem.indexOf(u8, settle, "fx.moveWindow(\"bubble\", correction.dx, correction.dy, false)");
