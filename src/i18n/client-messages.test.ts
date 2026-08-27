@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readdirSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import {
@@ -13,9 +14,9 @@ import zh from "@/i18n/messages/zh.json";
 const messagesByLocale = { en, es, zh };
 
 describe("client messages", () => {
-  it("covers every literal client translation namespace", () => {
+  it("covers every literal client translation namespace", async () => {
     const paths = new Set(CLIENT_MESSAGE_PATHS);
-    for (const namespace of clientTranslationNamespaces()) {
+    for (const namespace of await clientTranslationNamespaces()) {
       expect(paths.has(namespace)).toBe(true);
     }
   });
@@ -39,11 +40,17 @@ describe("client messages", () => {
   });
 });
 
-function clientTranslationNamespaces(): string[] {
+async function clientTranslationNamespaces(): Promise<string[]> {
   const namespaces = new Set<string>();
-  for (const file of sourceFiles(join(process.cwd(), "src"))) {
-    if (file.endsWith(".test.ts") || file.endsWith(".test.tsx")) continue;
-    const source = readFileSync(file, "utf8");
+  const sources = await Promise.all(
+    sourceFiles(join(process.cwd(), "src"))
+      .filter(
+        (file) => !file.endsWith(".test.ts") && !file.endsWith(".test.tsx"),
+      )
+      .map((file) => readFile(file, "utf8")),
+  );
+
+  for (const source of sources) {
     for (const match of source.matchAll(/useTranslations\("([^"]+)"\)/g)) {
       namespaces.add(match[1]);
     }
@@ -53,12 +60,14 @@ function clientTranslationNamespaces(): string[] {
 
 function sourceFiles(dir: string): string[] {
   const out: string[] = [];
-  for (const entry of readdirSync(dir)) {
-    const path = join(dir, entry);
-    const stat = statSync(path);
-    if (stat.isDirectory()) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) {
       out.push(...sourceFiles(path));
-    } else if (/\.(ts|tsx)$/.test(path)) {
+    } else if (
+      entry.isFile() &&
+      (path.endsWith(".ts") || path.endsWith(".tsx"))
+    ) {
       out.push(path);
     }
   }
