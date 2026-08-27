@@ -55,7 +55,7 @@ codex://pets/install?name=...&description=...&imageUrl=...&spriteVersionNumber=.
 
 ## Hook 与 Agent 边界
 
-桌面应用维护 `~/.petdex/bin/petdex-hook`、运行时 token 和 `~/.petdex/runtime/hooks-disabled`。Hook 会先排空标准输入，再在本地服务不可用时安静退出，不能阻塞 Agent 的主流程。需要暂时停用时使用桌面应用提供的开关或 killswitch，不要杀掉 Codex、ChatGPT 或 Agent 进程。
+桌面应用维护 `~/.petdex/bin/petdex-hook`、运行时 token 和 `~/.petdex/runtime/hooks-disabled`。Hook 会保留有限输入前缀，在收到完整 JSON 后只在有界时间内排空剩余数据；本地服务不可用时安静退出，不能阻塞 Agent 的主流程。需要暂时停用时使用桌面应用提供的开关或 killswitch，不要杀掉 Codex、ChatGPT 或 Agent 进程。
 
 Codex 的当前配置由桌面应用原子更新：
 
@@ -89,7 +89,7 @@ OMP 没有可依赖的 shell-command Hook；桌面应用安装进程内扩展模
 
 1. 确认宠物文件是否同时存在于 `~/.petdex/pets/<slug>/` 与 `~/.codex/pets/<slug>/`，并检查 `pet.json` 的版本声明和图集尺寸。
 2. 确认实际显示者是 Petdex Desktop，而不是只安装了 CLI；在桌面 Settings 检查 Agent 状态和当前宠物。
-3. 若 Hook 卡住，先观察是否仍在排空输入、回环服务是否可达、token 是否存在以及 killswitch 是否被启用；不要停止正在运行的 Codex/ChatGPT 进程。
+3. 若 Hook 卡住，先观察是否仍在读取或有界排空输入、回环服务是否可达、token 是否存在以及 killswitch 是否被启用；不要停止正在运行的 Codex/ChatGPT 进程。
 4. 若 OMP 无事件，核对 `PI_CODING_AGENT_DIR` 与实际 `--profile`，并确认扩展位于对应 `extensions/petdex.ts`。
 5. 若远程无事件，先检查 SSH、POSIX 依赖和反向隧道状态；未满足依赖时的 retrying 是保护行为，不是已连接。
 6. 若 `codex://` 无弹窗，直接检查目标宠物目录是否写入；没有写入时改用 `petdex install` 或 `petdex://`，不要反复重启 Agent。
