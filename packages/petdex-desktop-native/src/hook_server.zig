@@ -569,7 +569,7 @@ fn waitForWindowsReadable(conn: *Conn, timeout: std.Io.Timeout) !void {
         }},
     };
     const bytes = std.mem.asBytes(&poll);
-    const result = conn.io.operate(.{
+    const result = (try conn.io.operate(.{
         .device_io_control = .{
             .file = .{
                 .handle = afd_device_handle,
@@ -582,7 +582,7 @@ fn waitForWindowsReadable(conn: *Conn, timeout: std.Io.Timeout) !void {
             .in = bytes,
             .out = bytes,
         },
-    }).device_io_control;
+    })).device_io_control;
 
     switch (result.u.Status) {
         .SUCCESS => {},
