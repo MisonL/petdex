@@ -7,19 +7,55 @@ const redis = Redis.fromEnv();
 
 type RatelimitConfig = ConstructorParameters<typeof Ratelimit>[0];
 
+const ALLOW_WHEN_LIMITER_IS_DOWN = {
+  success: true,
+  limit: Number.POSITIVE_INFINITY,
+  remaining: Number.POSITIVE_INFINITY,
+  reset: 0,
+  pending: Promise.resolve(),
+};
+
+// A rate limiter protects the site, so it must never be what takes the site
+// down. Upstash answers a temporarily-blocked database with HTTP 200 and an
+// `{"error": ...}` body; the SDK reads that as a success and calls .map() on
+// what it assumed was a pipeline result array, throwing `TypeError: r.map is
+// not a function` out of .limit(). Uncaught, that turned every rate-limited
+// route into a 500, including routes whose handlers never touch Redis.
+//
+// Wrapping the factory rather than each of the 27 call sites means a limiter
+// added later inherits the same fail-open behaviour without anyone
+// remembering to ask for it.
+function failOpen(limiter: Ratelimit): Ratelimit {
+  const inner = limiter.limit.bind(limiter);
+  const wrapped: Ratelimit["limit"] = async (identifier, req) => {
+    try {
+      return await inner(identifier, req);
+    } catch {
+      return ALLOW_WHEN_LIMITER_IS_DOWN;
+    }
+  };
+  return new Proxy(limiter, {
+    get(target, prop, receiver) {
+      if (prop === "limit") return wrapped;
+      return Reflect.get(target, prop, receiver);
+    },
+  });
+}
+
+// Exported for tests: exercises the wrapper without a live Upstash client.
+export function failOpenForTest(limiter: {
+  limit: (identifier: string) => Promise<{ success: boolean; reset?: number }>;
+}): Ratelimit {
+  return failOpen(limiter as unknown as Ratelimit);
+}
+
 function createRatelimit(config: RatelimitConfig): Ratelimit {
   if (IS_MOCK) {
     return {
-      limit: async () => ({
-        success: true,
-        limit: Number.POSITIVE_INFINITY,
-        remaining: Number.POSITIVE_INFINITY,
-        reset: 0,
-        pending: Promise.resolve(),
-      }),
+      limit: async () => ALLOW_WHEN_LIMITER_IS_DOWN,
     } as unknown as Ratelimit;
   }
-  return new Ratelimit(config);
+  return failOpen(new Ratelimit(config));
 }
 
 export const submitRatelimit = createRatelimit({
@@ -70,27 +106,6 @@ export const trackZipRatelimit = createRatelimit({
   prefix: "petdex:track-zip",
 });
 
-// WhatsApp Sticker Pack generation. Each request fans out to 1 spritesheet
-// fetch + 9 animated WebP encodes + 1 ZIP — the heaviest unauthenticated
-// path in the app. Tighter ceiling so a loop can't burn CPU + R2 egress.
-export const wastickersRatelimit = createRatelimit({
-  redis,
-  limiter: Ratelimit.slidingWindow(8, "1 h"),
-  prefix: "petdex:wastickers",
-});
-
-export const stickerAssetRatelimit = createRatelimit({
-  redis,
-  limiter: Ratelimit.slidingWindow(60, "1 h"),
-  prefix: "petdex:sticker-asset",
-});
-
-export const packAssetRatelimit = createRatelimit({
-  redis,
-  limiter: Ratelimit.slidingWindow(8, "1 h"),
-  prefix: "petdex:pack-asset",
-});
-
 export const publicCatalogRatelimit = createRatelimit({
   redis,
   limiter: Ratelimit.slidingWindow(60, "1 h"),
@@ -109,11 +124,8 @@ export const publicMetadataRatelimit = createRatelimit({
   prefix: "petdex:public-metadata",
 });
 
-export const publicTrafficBurstRatelimit = createRatelimit({
-  redis,
-  limiter: Ratelimit.slidingWindow(120, "1 m"),
-  prefix: "petdex:public-burst",
-});
+// The burst ceiling now lives in @/lib/burst-guard, in process, so a spike
+// costs no Redis commands. Only the sustained limits below reach Upstash.
 
 // Public metrics reads — `/api/pets/[slug]/metrics`. Browser pages hit
 // this on every visit, and the CDN caches the response for 60s so the
