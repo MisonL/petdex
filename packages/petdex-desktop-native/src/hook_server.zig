@@ -26,12 +26,65 @@ const dsh_integration = @import("dsh_integration.zig");
 const Conn = struct {
     stream: std.Io.net.Stream,
     io: std.Io,
+    afd_device_handle: ?std.os.windows.HANDLE = null,
 };
 
 pub const max_pending = 50;
 const max_active_connections: u32 = 64;
 const max_request_bytes: usize = 8192;
 const connection_timeout_ms: i64 = 5_000;
+const response_drain_grace_ms: i64 = 300;
+
+/// Windows' std.Io stream reader intentionally waits for the AFD receive
+/// operation to complete, but it has no stream-level timeout API. Poll the
+/// socket with the native AFD control path first, then use the existing
+/// reader only after the kernel reports readable or closed state. This keeps
+/// the receive buffer and the platform-independent parser unchanged while
+/// making the connection deadline real on Windows too.
+const AfdPollHandle = extern struct {
+    handle: std.os.windows.HANDLE,
+    events: std.os.windows.ULONG,
+    status: std.os.windows.NTSTATUS,
+};
+
+const AfdPollInfo = extern struct {
+    timeout: std.os.windows.LARGE_INTEGER,
+    handle_count: std.os.windows.ULONG,
+    exclusive: std.os.windows.ULONG,
+    handles: [1]AfdPollHandle,
+};
+
+const afd_event_receive: std.os.windows.ULONG = 1 << 0;
+const afd_event_oob_receive: std.os.windows.ULONG = 1 << 1;
+const afd_event_disconnect: std.os.windows.ULONG = 1 << 3;
+const afd_event_abort: std.os.windows.ULONG = 1 << 4;
+const afd_event_close: std.os.windows.ULONG = 1 << 5;
+const afd_readable_events = afd_event_receive |
+    afd_event_oob_receive |
+    afd_event_disconnect |
+    afd_event_abort |
+    afd_event_close;
+
+const afd_device_name: []const u16 = std.os.windows.AFD.DEVICE_NAME ++ .{
+    '\\', 'P', 'e', 't', 'd', 'e', 'x',
+};
+
+const AfdPollDevice = struct {
+    handle: ?std.os.windows.HANDLE = null,
+
+    fn init() !AfdPollDevice {
+        if (comptime builtin.os.tag != .windows) return .{};
+        return .{ .handle = try openAfdPollDevice() };
+    }
+
+    fn deinit(self: *AfdPollDevice) void {
+        if (comptime builtin.os.tag != .windows) return;
+        if (self.handle) |handle| {
+            std.os.windows.CloseHandle(handle);
+            self.handle = null;
+        }
+    }
+};
 
 pub const StateEvent = struct {
     state: [16]u8 = @splat(0),
@@ -354,6 +407,12 @@ fn run(server: *Server) void {
     defer scope.deinit();
     const io = scope.io();
 
+    var afd_device = AfdPollDevice.init() catch |err| {
+        std.debug.print("petdex: AFD poll device unavailable ({s})\n", .{@errorName(err)});
+        return;
+    };
+    defer afd_device.deinit();
+
     const addr: std.Io.net.IpAddress = .{ .ip4 = .loopback(7777) };
     var listener = addr.listen(io, .{
         .kernel_backlog = 16,
@@ -394,7 +453,7 @@ fn run(server: *Server) void {
         // A client can disappear after sending only part of a request. Keep
         // that blocking read off the accept loop so later hooks still reach
         // the server while the abandoned connection drains or closes.
-        const thread = std.Thread.spawn(.{}, handleConnectionThread, .{ server, stream }) catch {
+        const thread = std.Thread.spawn(.{}, handleConnectionThread, .{ server, stream, afd_device.handle }) catch {
             _ = server.active_connections.fetchSub(1, .release);
             stream.close(io);
             continue;
@@ -403,19 +462,23 @@ fn run(server: *Server) void {
     }
 }
 
-fn handleConnectionThread(server: *Server, stream: std.Io.net.Stream) void {
+fn handleConnectionThread(server: *Server, stream: std.Io.net.Stream, afd_device_handle: ?std.os.windows.HANDLE) void {
     defer _ = server.active_connections.fetchSub(1, .release);
     var scope = plat.Scope.init();
     defer scope.deinit();
     const io = scope.io();
-    var conn: Conn = .{ .stream = stream, .io = io };
+    var conn: Conn = .{ .stream = stream, .io = io, .afd_device_handle = afd_device_handle };
     handleConnection(server, &conn);
     stream.shutdown(io, .send) catch {};
     if (builtin.os.tag == .windows) {
-        var drain: [1]u8 = undefined;
+        var drain: [1024]u8 = undefined;
+        const timeout = (std.Io.Timeout{ .duration = .{
+            .raw = std.Io.Duration.fromMilliseconds(response_drain_grace_ms),
+            .clock = .awake,
+        } }).toDeadline(io);
         while (true) {
-            const message = stream.socket.receive(io, &drain) catch break;
-            if (message.data.len == 0) break;
+            const received = receiveWithTimeout(&conn, &drain, timeout) catch break;
+            if (received == 0) break;
         }
     }
     stream.close(io);
@@ -479,6 +542,7 @@ fn handleConnection(server: *Server, conn: *Conn) void {
 
 fn receiveWithTimeout(conn: *Conn, buffer: []u8, timeout: std.Io.Timeout) !usize {
     if (builtin.os.tag == .windows) {
+        try waitForWindowsReadable(conn, timeout);
         var reader = conn.stream.reader(conn.io, &.{});
         var data = [_][]u8{buffer};
         return reader.interface.readVec(&data) catch |err| switch (err) {
@@ -487,6 +551,89 @@ fn receiveWithTimeout(conn: *Conn, buffer: []u8, timeout: std.Io.Timeout) !usize
         };
     }
     return (try conn.stream.socket.receiveTimeout(conn.io, buffer, timeout)).data.len;
+}
+
+fn waitForWindowsReadable(conn: *Conn, timeout: std.Io.Timeout) !void {
+    if (comptime builtin.os.tag != .windows) return;
+
+    const afd_device_handle = conn.afd_device_handle orelse return error.OperationUnsupported;
+
+    var poll = AfdPollInfo{
+        .timeout = windowsRelativeTimeout(timeout, conn.io),
+        .handle_count = 1,
+        .exclusive = 0,
+        .handles = .{.{
+            .handle = conn.stream.socket.handle,
+            .events = afd_readable_events,
+            .status = .SUCCESS,
+        }},
+    };
+    const bytes = std.mem.asBytes(&poll);
+    const result = conn.io.operate(.{
+        .device_io_control = .{
+            .file = .{
+                .handle = afd_device_handle,
+                // AFD.POLL completes through the APC path when the request is
+                // pending. The synchronous flag would hit Zig's unreachable
+                // branch on STATUS_PENDING instead of honoring the deadline.
+                .flags = .{ .nonblocking = true },
+            },
+            .code = std.os.windows.IOCTL.AFD.POLL,
+            .in = bytes,
+            .out = bytes,
+        },
+    }).device_io_control;
+
+    switch (result.u.Status) {
+        .SUCCESS => {},
+        .TIMEOUT => return error.Timeout,
+        .CANCELLED => return error.Canceled,
+        else => |status| return std.os.windows.unexpectedStatus(status),
+    }
+    if (poll.handles[0].status != .SUCCESS) {
+        return std.os.windows.unexpectedStatus(poll.handles[0].status);
+    }
+    if (poll.handles[0].events & afd_readable_events == 0) {
+        return error.Unexpected;
+    }
+}
+
+fn openAfdPollDevice() !std.os.windows.HANDLE {
+    if (comptime builtin.os.tag != .windows) return error.OperationUnsupported;
+
+    var handle: std.os.windows.HANDLE = undefined;
+    var iosb: std.os.windows.IO_STATUS_BLOCK = undefined;
+    const status = std.os.windows.ntdll.NtCreateFile(
+        &handle,
+        .{ .STANDARD = .{ .SYNCHRONIZE = true } },
+        &.{
+            .ObjectName = @constCast(&std.os.windows.UNICODE_STRING.init(afd_device_name)),
+        },
+        &iosb,
+        null,
+        .{},
+        .{ .READ = true, .WRITE = true },
+        .OPEN,
+        .{ .IO = .ASYNCHRONOUS },
+        null,
+        0,
+    );
+    return switch (status) {
+        .SUCCESS => handle,
+        else => |rc| std.os.windows.unexpectedStatus(rc),
+    };
+}
+
+fn windowsRelativeTimeout(timeout: std.Io.Timeout, io: std.Io) std.os.windows.LARGE_INTEGER {
+    const duration = timeout.toDurationFromNow(io) orelse return std.math.minInt(std.os.windows.LARGE_INTEGER);
+    return windowsRelativeTimeoutFromNanoseconds(duration.raw.toNanoseconds());
+}
+
+fn windowsRelativeTimeoutFromNanoseconds(nanoseconds: i96) std.os.windows.LARGE_INTEGER {
+    if (nanoseconds <= 0) return 0;
+    const ticks: i128 = @divTrunc(@as(i128, nanoseconds) + 99, 100);
+    const bounded = @min(ticks, @as(i128, std.math.maxInt(std.os.windows.LARGE_INTEGER)));
+    return -@as(std.os.windows.LARGE_INTEGER, @intCast(bounded));
 }
 
 fn route(server: *Server, conn: *Conn, method: []const u8, path: []const u8, head: []const u8, body: []const u8) void {
@@ -936,6 +1083,42 @@ test "json string scanner rejects malformed mirror input" {
     try std.testing.expect(jsonString("{\"text\":\"unterminated}", "text") == null);
     try std.testing.expect(jsonString("{\"text\":\"bad\\x\"}", "text") == null);
     try std.testing.expect(jsonString("{\"text\":\"bad\nline\"}", "text") == null);
+}
+
+test "Windows AFD readable mask includes data and terminal events" {
+    try std.testing.expectEqual(
+        @as(std.os.windows.ULONG, (1 << 0) | (1 << 1) | (1 << 3) | (1 << 4) | (1 << 5)),
+        afd_readable_events,
+    );
+}
+
+test "Windows AFD relative timeout rounds up to 100ns units" {
+    try std.testing.expectEqual(@as(std.os.windows.LARGE_INTEGER, 0), windowsRelativeTimeoutFromNanoseconds(-1));
+    try std.testing.expectEqual(@as(std.os.windows.LARGE_INTEGER, 0), windowsRelativeTimeoutFromNanoseconds(0));
+    try std.testing.expectEqual(@as(std.os.windows.LARGE_INTEGER, -1), windowsRelativeTimeoutFromNanoseconds(1));
+    try std.testing.expectEqual(@as(std.os.windows.LARGE_INTEGER, -1), windowsRelativeTimeoutFromNanoseconds(100));
+    try std.testing.expectEqual(@as(std.os.windows.LARGE_INTEGER, -2), windowsRelativeTimeoutFromNanoseconds(101));
+    try std.testing.expectEqual(@as(std.os.windows.LARGE_INTEGER, -10_000), windowsRelativeTimeoutFromNanoseconds(1_000_000));
+}
+
+test "Windows AFD poll structures keep the native ABI layout" {
+    if (@sizeOf(usize) == 8) {
+        try std.testing.expectEqual(@as(usize, 16), @offsetOf(AfdPollInfo, "handles"));
+        try std.testing.expectEqual(@as(usize, 32), @sizeOf(AfdPollInfo));
+        try std.testing.expectEqual(@as(usize, 0), @offsetOf(AfdPollHandle, "handle"));
+        try std.testing.expectEqual(@as(usize, 8), @offsetOf(AfdPollHandle, "events"));
+        try std.testing.expectEqual(@as(usize, 12), @offsetOf(AfdPollHandle, "status"));
+        try std.testing.expectEqual(@as(usize, 16), @sizeOf(AfdPollHandle));
+    }
+}
+
+test "AFD poll device owns one independently closable control handle" {
+    var device = try AfdPollDevice.init();
+    try std.testing.expectEqual(builtin.os.tag == .windows, device.handle != null);
+    device.deinit();
+    try std.testing.expect(device.handle == null);
+    device.deinit();
+    try std.testing.expect(device.handle == null);
 }
 
 test "json number scanner validates complete JSON numbers" {
