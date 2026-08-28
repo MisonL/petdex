@@ -625,7 +625,7 @@ jobs:
           $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
           $g = [System.Drawing.Graphics]::FromImage($bmp)
           $g.CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
-          $bmp.Save("$env:TEMP\windows-screen.png")
+          $bmp.Save("$env:RUNNER_TEMP\windows-screen.png")
           "screenshot saved"
 
           $tokenPath = "$env:USERPROFILE\.petdex\runtime\update-token"
@@ -792,7 +792,7 @@ jobs:
           $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
           $g = [System.Drawing.Graphics]::FromImage($bmp)
           $g.CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
-          $bmp.Save("$env:TEMP\windows-screen-deeplink.png")
+          $bmp.Save("$env:RUNNER_TEMP\windows-screen-deeplink.png")
 
           Stop-Process -Id $cold.Id -Force -ErrorAction SilentlyContinue
           $cold.WaitForExit(10000) | Out-Null
@@ -1103,11 +1103,11 @@ jobs:
           kill "$APP_PID" 2>/dev/null || true
           wait "$APP_PID" 2>/dev/null || true
 
-      - name: Upload the screenshot
-        if: always() && matrix.platform != 'macos'
+      - name: Upload Linux screenshots
+        if: always() && matrix.platform == 'linux'
         uses: actions/upload-artifact@v7
         with:
-          name: screen-${{ matrix.platform }}
+          name: screen-linux
           path: |
             /tmp/linux-screen.png
             /tmp/linux-screen-cairo.png
@@ -1119,9 +1119,24 @@ jobs:
             packages/petdex-desktop-native/menu-closed.png
             packages/petdex-desktop-native/drag-before.png
             packages/petdex-desktop-native/drag-after.png
+          if-no-files-found: ignore
+
+      - name: Upload Windows screenshots
+        if: always() && matrix.platform == 'windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: screen-windows
+          path: |
             ${{ runner.temp }}/windows-screen.png
             ${{ runner.temp }}/windows-screen-deeplink.png
-          if-no-files-found: warn
+            packages/petdex-desktop-native/before.png
+            packages/petdex-desktop-native/after1.png
+            packages/petdex-desktop-native/menu-before.png
+            packages/petdex-desktop-native/menu-open.png
+            packages/petdex-desktop-native/menu-closed.png
+            packages/petdex-desktop-native/drag-before.png
+            packages/petdex-desktop-native/drag-after.png
+          if-no-files-found: ignore
 
       - name: Upload Linux test binary
         if: matrix.platform == 'linux'
