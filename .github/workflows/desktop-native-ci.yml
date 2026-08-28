@@ -369,6 +369,22 @@ jobs:
           wait "$APP_PID" 2>/dev/null || true
           sleep 2
           echo "=== retry with the cairo renderer ==="
+          # The hook server intentionally disables address reuse so a stale
+          # process cannot silently replace the active token owner. Wait for
+          # the kernel to release 7777 before the diagnostic retry; otherwise
+          # the retry only tests a UI that never started its hook server.
+          port_is_free() {
+            python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 7777)); s.close()' 2>/dev/null
+          }
+          for _ in $(seq 1 60); do
+            port_is_free && break
+            sleep 1
+          done
+          port_is_free || {
+            echo "FAIL: hook server endpoint remained unavailable before Cairo retry"
+            command -v ss >/dev/null 2>&1 && ss -ltnp '( sport = :7777 )' || true
+            exit 1
+          }
           GSK_RENDERER=cairo PETDEX_PET=ci-pet ./zig-out/bin/petdex-desktop-native > cairo.log 2>&1 &
           CAIRO_PID=$!
           sleep 10
@@ -474,7 +490,7 @@ jobs:
           # ownership. Probe an actual bind so this scenario waits for the
           # kernel to release the endpoint without masking a live process.
           port_is_free() {
-            python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 7777)); s.close()'
+            python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 7777)); s.close()' 2>/dev/null
           }
           for _ in $(seq 1 60); do
             port_is_free && break
@@ -659,6 +675,7 @@ jobs:
           }
 
           Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue
+          $app.WaitForExit(10000) | Out-Null
           if (-not (Test-Path $tokenPath)) { throw "token was never written" }
 
       - name: Fire a real deep link (Windows)
@@ -778,6 +795,7 @@ jobs:
           $bmp.Save("$env:TEMP\windows-screen-deeplink.png")
 
           Stop-Process -Id $cold.Id -Force -ErrorAction SilentlyContinue
+          $cold.WaitForExit(10000) | Out-Null
 
       - name: Remote agent writeback over real SSH (Linux)
         # The remote-agents feature's whole promise is that ssh argv built
@@ -838,7 +856,7 @@ jobs:
           # exit, accepted hook connections can leave 7777 in TIME_WAIT while
           # the server deliberately keeps address reuse disabled.
           port_is_free() {
-            python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 7777)); s.close()'
+            python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 7777)); s.close()' 2>/dev/null
           }
           for _ in $(seq 1 60); do
             port_is_free && break
