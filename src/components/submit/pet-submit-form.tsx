@@ -18,7 +18,10 @@ import { useTranslations } from "next-intl";
 
 import { petStates } from "@/lib/pet-states";
 import { deriveSlug } from "@/lib/slug";
-import { detectSpriteAtlas } from "@/lib/sprite-atlas";
+import {
+  canonicalSpriteDimensions,
+  detectSpriteAtlas,
+} from "@/lib/sprite-atlas";
 import { parseSpriteVersionNumber } from "@/lib/sprite-version";
 import { PET_ASSET_MAX_BYTES } from "@/lib/upload-limits";
 
@@ -77,7 +80,8 @@ type SubmitResponse = {
   review: SubmissionReviewOutcome;
 };
 
-const REQUIRED = { width: 1536, height: 1872 } as const;
+const CLASSIC_ATLAS = canonicalSpriteDimensions(1);
+const V2_ATLAS = canonicalSpriteDimensions(2);
 const PETS_DIR = "~/.codex/pets";
 
 export function PetSubmitForm() {
@@ -321,8 +325,10 @@ export function PetSubmitForm() {
             t("issues.tooSmall", {
               width,
               height,
-              recommendedWidth: REQUIRED.width,
-              recommendedHeight: REQUIRED.height,
+              classicWidth: CLASSIC_ATLAS.width,
+              classicHeight: CLASSIC_ATLAS.height,
+              v2Width: V2_ATLAS.width,
+              v2Height: V2_ATLAS.height,
             }),
           );
         } else if (!atlas) {
@@ -640,8 +646,10 @@ export function PetSubmitForm() {
                 {chunks}
               </code>
             ),
-            width: REQUIRED.width,
-            height: REQUIRED.height,
+            classicWidth: CLASSIC_ATLAS.width,
+            classicHeight: CLASSIC_ATLAS.height,
+            v2Width: V2_ATLAS.width,
+            v2Height: V2_ATLAS.height,
           })}
         </span>
 
