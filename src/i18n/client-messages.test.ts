@@ -1,5 +1,4 @@
 import { describe, expect, it } from "bun:test";
-import { readdirSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -42,12 +41,16 @@ describe("client messages", () => {
 
 async function clientTranslationNamespaces(): Promise<string[]> {
   const namespaces = new Set<string>();
+  const files: string[] = [];
+  const glob = new Bun.Glob("src/**/*.{ts,tsx}");
+
+  for await (const file of glob.scan({ cwd: process.cwd(), onlyFiles: true })) {
+    if (file.endsWith(".test.ts") || file.endsWith(".test.tsx")) continue;
+    files.push(join(process.cwd(), file));
+  }
+
   const sources = await Promise.all(
-    sourceFiles(join(process.cwd(), "src"))
-      .filter(
-        (file) => !file.endsWith(".test.ts") && !file.endsWith(".test.tsx"),
-      )
-      .map((file) => readFile(file, "utf8")),
+    files.map((file) => readFile(file, "utf8")),
   );
 
   for (const source of sources) {
@@ -56,22 +59,6 @@ async function clientTranslationNamespaces(): Promise<string[]> {
     }
   }
   return [...namespaces].sort();
-}
-
-function sourceFiles(dir: string): string[] {
-  const out: string[] = [];
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const path = join(dir, entry.name);
-    if (entry.isDirectory()) {
-      out.push(...sourceFiles(path));
-    } else if (
-      entry.isFile() &&
-      (path.endsWith(".ts") || path.endsWith(".tsx"))
-    ) {
-      out.push(path);
-    }
-  }
-  return out;
 }
 
 function readPath(value: unknown, path: string): unknown {
