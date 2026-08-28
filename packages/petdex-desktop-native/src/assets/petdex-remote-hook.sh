@@ -433,8 +433,10 @@ normalize_key() {
     elif command -v python3 >/dev/null 2>&1; then
         printf '%s' "$value" | python3 -c 'import hashlib,sys; print(hashlib.sha256(sys.stdin.buffer.read()).hexdigest())'
     else
-        set -- $(printf '%s' "$value" | cksum)
-        printf 'cksum-%s-%s' "$1" "$2"
+        cksum_result=$(printf '%s' "$value" | cksum)
+        cksum_sum=$(printf '%s\n' "$cksum_result" | awk '{print $1}')
+        cksum_length=$(printf '%s\n' "$cksum_result" | awk '{print $2}')
+        printf 'cksum-%s-%s' "$cksum_sum" "$cksum_length"
     fi
 }
 conversation_key=$(normalize_key "$conversation_key")
@@ -468,7 +470,7 @@ notification_kind=$(id_field notification_type)
 case "$phase" in
     pre|post)
         tool=$(id_field tool_name)
-        lower_tool=$(printf '%s' "$tool" | tr 'A-Z' 'a-z')
+        lower_tool=$(printf '%s' "$tool" | tr '[:upper:]' '[:lower:]')
         session_status=running
         message_kind=tool
         if [ "$lower_tool" = "clarify" ]; then
