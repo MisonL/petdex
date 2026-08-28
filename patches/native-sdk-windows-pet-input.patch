@@ -1,5 +1,5 @@
 diff --git a/src/platform/windows/root.zig b/src/platform/windows/root.zig
-index 7debdf9..0843612 100644
+index 7debdf9..346cc4c 100644
 --- a/src/platform/windows/root.zig
 +++ b/src/platform/windows/root.zig
 @@ -34,6 +34,7 @@ const WindowsEventKind = enum(c_int) {
@@ -19,15 +19,16 @@ index 7debdf9..0843612 100644
  };
  
  const WindowsCallback = *const fn (context: ?*anyopaque, event: *const WindowsEvent) callconv(.c) void;
-@@ -131,6 +134,7 @@ extern fn native_sdk_windows_set_security_policy(host: *WindowsHost, allowed_ori
+@@ -131,6 +134,8 @@ extern fn native_sdk_windows_set_security_policy(host: *WindowsHost, allowed_ori
  extern fn native_sdk_windows_set_menus(host: *WindowsHost, menu_titles: [*]const [*]const u8, menu_title_lens: [*]const usize, menu_count: usize, item_menu_indices: [*]const u32, item_labels: [*]const [*]const u8, item_label_lens: [*]const usize, item_commands: [*]const [*]const u8, item_command_lens: [*]const usize, item_keys: [*]const [*]const u8, item_key_lens: [*]const usize, item_modifiers: [*]const u32, item_separators: [*]const c_int, item_enabled: [*]const c_int, item_checked: [*]const c_int, item_count: usize) void;
  extern fn native_sdk_windows_set_shortcuts(host: *WindowsHost, ids: [*]const [*]const u8, id_lens: [*]const usize, keys: [*]const [*]const u8, key_lens: [*]const usize, modifiers: [*]const u32, count: usize) void;
  extern fn native_sdk_windows_create_window(host: *WindowsHost, window_id: u64, window_title: [*]const u8, window_title_len: usize, window_label: [*]const u8, window_label_len: usize, x: f64, y: f64, width: f64, height: f64, restore_frame: c_int, resizable: c_int, titlebar_style: c_int, window_flags: c_int, min_width: f64, min_height: f64) c_int;
 +extern fn native_sdk_windows_move_window(host: *WindowsHost, window_id: u64, dx: f64, dy: f64, clamp: c_int, out_x: *f64, out_y: *f64, out_hit_x: *c_int, out_hit_y: *c_int, out_primary_down: *c_int, out_cursor_x: *f64, out_cursor_y: *f64) c_int;
++extern fn native_sdk_windows_resize_window(host: *WindowsHost, window_id: u64, width: f64, height: f64, anchor_bottom_center: c_int) c_int;
  extern fn native_sdk_windows_start_window_drag(host: *WindowsHost, window_id: u64) c_int;
  extern fn native_sdk_windows_set_window_drag_regions(host: *WindowsHost, window_id: u64, label: [*]const u8, label_len: usize, rects: [*]const f64, exclusions: [*]const c_int, count: usize) c_int;
  extern fn native_sdk_windows_window_chrome(host: *WindowsHost, window_id: u64, top: *f64, left: *f64, bottom: *f64, right: *f64, buttons_x: *f64, buttons_y: *f64, buttons_width: *f64, buttons_height: *f64) c_int;
-@@ -180,6 +184,15 @@ extern fn native_sdk_windows_audio_stop(host: *WindowsHost) c_int;
+@@ -180,6 +185,15 @@ extern fn native_sdk_windows_audio_stop(host: *WindowsHost) c_int;
  extern fn native_sdk_windows_audio_seek(host: *WindowsHost, position_ms: u64) c_int;
  extern fn native_sdk_windows_audio_set_volume(host: *WindowsHost, volume: f64) c_int;
  extern fn native_sdk_windows_audio_spectrum_supported(host: *WindowsHost) c_int;
@@ -43,15 +44,16 @@ index 7debdf9..0843612 100644
  
  const WindowsOpenDialogOpts = extern struct {
      title: [*]const u8,
-@@ -281,6 +294,7 @@ pub const WindowsPlatform = struct {
+@@ -281,6 +295,8 @@ pub const WindowsPlatform = struct {
                  .create_window_fn = createWindow,
                  .focus_window_fn = focusWindow,
                  .close_window_fn = closeWindow,
 +                .move_window_fn = moveWindow,
++                .resize_window_fn = resizeWindow,
                  .minimize_window_fn = minimizeWindow,
                  .start_window_drag_fn = startWindowDrag,
                  .set_window_drag_regions_fn = setWindowDragRegions,
-@@ -294,6 +308,7 @@ pub const WindowsPlatform = struct {
+@@ -294,6 +310,7 @@ pub const WindowsPlatform = struct {
                  .request_gpu_surface_frame_fn = requestGpuSurfaceFrame,
                  .note_gpu_surface_input_fn = noteGpuSurfaceInput,
                  .present_gpu_surface_pixels_fn = presentGpuSurfacePixels,
@@ -59,7 +61,7 @@ index 7debdf9..0843612 100644
                  .create_webview_fn = createWebView,
                  .set_webview_frame_fn = setWebViewFrame,
                  .navigate_webview_fn = navigateWebView,
-@@ -368,7 +383,8 @@ pub const WindowsPlatform = struct {
+@@ -368,7 +385,8 @@ pub const WindowsPlatform = struct {
              // view-surface adoption are macOS-only today; Win32 keeps
              // the engine's wheel physics (TrackPopupMenu is the natural
              // future context-menu seam — the tray already uses it).
@@ -69,7 +71,7 @@ index 7debdf9..0843612 100644
          };
      }
  
-@@ -530,6 +546,12 @@ fn windowsCallback(context: ?*anyopaque, event: *const WindowsEvent) callconv(.c
+@@ -530,6 +548,12 @@ fn windowsCallback(context: ?*anyopaque, event: *const WindowsEvent) callconv(.c
              .buffering = event.audio_buffering != 0,
              .bands = event.audio_bands,
          } }),
@@ -82,7 +84,7 @@ index 7debdf9..0843612 100644
      }
  }
  
-@@ -744,6 +766,19 @@ fn focusWindow(context: ?*anyopaque, window_id: platform_mod.WindowId) anyerror!
+@@ -744,6 +768,24 @@ fn focusWindow(context: ?*anyopaque, window_id: platform_mod.WindowId) anyerror!
      if (native_sdk_windows_focus_window(self.host, window_id) == 0) return error.FocusFailed;
  }
  
@@ -99,10 +101,15 @@ index 7debdf9..0843612 100644
 +    return .{ .x = out_x, .y = out_y, .hit_x = out_hit_x != 0, .hit_y = out_hit_y != 0, .primary_down = out_primary != 0, .cursor_x = out_cursor_x, .cursor_y = out_cursor_y };
 +}
 +
++fn resizeWindow(context: ?*anyopaque, window_id: platform_mod.WindowId, width: f64, height: f64, anchor: platform_mod.WindowResizeAnchor) anyerror!void {
++    const self: *WindowsPlatform = @ptrCast(@alignCast(context.?));
++    if (native_sdk_windows_resize_window(self.host, window_id, width, height, if (anchor == .bottom_center) 1 else 0) == 0) return error.WindowNotFound;
++}
++
  fn closeWindow(context: ?*anyopaque, window_id: platform_mod.WindowId) anyerror!void {
      const self: *WindowsPlatform = @ptrCast(@alignCast(context.?));
      if (native_sdk_windows_close_window(self.host, window_id) == 0) return error.CloseFailed;
-@@ -952,6 +987,23 @@ fn presentGpuSurfacePixels(context: ?*anyopaque, pixels: platform_mod.GpuSurface
+@@ -952,6 +994,23 @@ fn presentGpuSurfacePixels(context: ?*anyopaque, pixels: platform_mod.GpuSurface
      ) == 0) return error.ViewNotFound;
  }
  
@@ -127,7 +134,7 @@ index 7debdf9..0843612 100644
      const self: *WindowsPlatform = @ptrCast(@alignCast(context.?));
      const frame = options.frame;
 diff --git a/src/platform/windows/webview2_host.cpp b/src/platform/windows/webview2_host.cpp
-index 4dd7ecd..3fea139 100644
+index 4dd7ecd..e50afae 100644
 --- a/src/platform/windows/webview2_host.cpp
 +++ b/src/platform/windows/webview2_host.cpp
 @@ -122,6 +122,7 @@ enum EventKind {
@@ -251,7 +258,7 @@ index 4dd7ecd..3fea139 100644
  /* ------------------------------------------------------------------------
   * Hidden-titlebar window chrome (the Win32 custom-frame pattern).
   *
-@@ -2926,6 +2998,17 @@ static LRESULT CALLBACK gpuSurfaceProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam) {
+@@ -2926,6 +2998,17 @@ static LRESULT CALLBACK gpuSurfaceProc(HWND hwnd, UINT message, WPARAM wparam, L
              const double x = (double)(short)LOWORD(lparam) / scale;
              const double y = (double)(short)HIWORD(lparam) / scale;
              view->gpu_pointer_down = 1;
@@ -280,7 +287,10 @@ index 4dd7ecd..3fea139 100644
          case WM_RBUTTONUP:
          case WM_MBUTTONUP: {
              const double x = (double)(short)LOWORD(lparam) / scale;
-@@ -2957,6 +3030,9 @@ static LRESULT CALLBACK gpuSurfaceProc(HWND hwnd, UINT message, WPARAM wparam, L
+@@ -2954,9 +3041,12 @@ static LRESULT CALLBACK gpuSurfaceProc(HWND hwnd, UINT message, WPARAM wparam, L
+             emitGpuSurfaceInput(host, *view, kind, x, y, 0, 0, 0, "", "", gpuModifierFlags());
+             return 0;
+         }
 +        case WM_CANCELMODE:
          case WM_CAPTURECHANGED:
              if (view->gpu_pointer_down) {
@@ -290,7 +300,7 @@ index 4dd7ecd..3fea139 100644
                  emitGpuSurfaceInput(host, *view, kGpuInputPointerCancel, view->gpu_pointer_x, view->gpu_pointer_y, 0, 0, 0, "", "", gpuModifierFlags());
              }
              break;
-@@ -5028,6 +5116,9 @@ static LRESULT CALLBACK windowProc(HWND hwnd, UINT message, WPARAM wparam, LPARA
+@@ -5028,6 +5118,9 @@ static LRESULT CALLBACK windowProc(HWND hwnd, UINT message, WPARAM wparam, LPARA
          case kAudioSessionMessage:
              if (host) audioHandleSessionMessage(host, wparam, lparam);
              return 0;
@@ -300,10 +310,65 @@ index 4dd7ecd..3fea139 100644
          case kAudioSpectrumMessage:
              if (host) audioHandleSpectrumMessage(host, wparam);
              return 0;
-@@ -5940,6 +6031,76 @@ int native_sdk_windows_create_window(Host *host, uint64_t window_id, const char
+@@ -5940,6 +6033,131 @@ int native_sdk_windows_create_window(Host *host, uint64_t window_id, const char
      return 1;
  }
  
++int native_sdk_windows_resize_window(Host *host, uint64_t window_id, double width, double height, int anchor_bottom_center) {
++    if (!host || width <= 0 || height <= 0) return 0;
++    auto found = host->windows.find(window_id);
++    if (found == host->windows.end() || !found->second.hwnd) return 0;
++    Window &window = found->second;
++    HWND hwnd = window.hwnd;
++
++    /* Window sizes cross the platform seam as logical content points. Keep
++     * the same style/DPI conversion as createNativeWindow so a resize lands
++     * on the requested client size for popup, standard, and hidden-titlebar
++     * windows alike. */
++    DWORD style = WS_OVERLAPPEDWINDOW;
++    if (!window.resizable) style &= ~(WS_THICKFRAME | WS_MAXIMIZEBOX);
++    if (windowIsChromeless(window)) {
++        style = WS_POPUP | WS_SYSMENU | WS_MINIMIZEBOX;
++        if (window.resizable) style |= WS_THICKFRAME | WS_MAXIMIZEBOX;
++    }
++    const bool has_menu = !host->menus.empty();
++    const UINT dpi = dpiForWindow(hwnd);
++    const double scale = dpi > 0 ? (double)dpi / 96.0 : 1.0;
++    const double content_width = width * scale;
++    const double content_height = height * scale;
++    LONG outer_width = 0;
++    LONG outer_height = 0;
++    if (windowUsesHiddenTitlebar(window)) {
++        const SIZE outer = hiddenOuterSizeForContent(style, 0, has_menu, content_width, content_height, dpi);
++        outer_width = outer.cx;
++        outer_height = outer.cy;
++    } else {
++        RECT desired = { 0, 0, physicalContentExtent(content_width), physicalContentExtent(content_height) };
++        adjustWindowRectForDpi(&desired, style, has_menu ? TRUE : FALSE, 0, dpi);
++        outer_width = desired.right - desired.left;
++        outer_height = desired.bottom - desired.top;
++    }
++    if (outer_width <= 0 || outer_height <= 0) return 0;
++
++    RECT current = {};
++    if (!GetWindowRect(hwnd, &current)) return 0;
++    const LONG current_width = current.right - current.left;
++    const LONG current_height = current.bottom - current.top;
++    LONG next_x = current.left;
++    LONG next_y = current.top;
++    if (anchor_bottom_center != 0) {
++        /* Keep the ground line and horizontal center fixed while the sprite
++         * scale changes. Physical coordinates are used here because the
++         * current window may already straddle a mixed-DPI monitor boundary. */
++        next_x = current.left + (current_width - outer_width) / 2;
++        next_y = current.top + current_height - outer_height;
++    }
++    if (!SetWindowPos(hwnd, nullptr, next_x, next_y, outer_width, outer_height, SWP_NOZORDER | SWP_NOACTIVATE)) return 0;
++    window.width = width;
++    window.height = height;
++    return 1;
++}
++
 +int native_sdk_windows_move_window(Host *host, uint64_t window_id, double dx, double dy, int clamp, double *out_x, double *out_y, int *out_hit_x, int *out_hit_y, int *out_primary_down, double *out_cursor_x, double *out_cursor_y) {
 +    if (!host) return 0;
 +    auto found = host->windows.find(window_id);
@@ -377,7 +442,7 @@ index 4dd7ecd..3fea139 100644
  void native_sdk_windows_start_timer(Host *host, uint64_t timer_id, uint64_t interval_ns, int repeats) {
      if (!host) return;
      native_sdk_windows_cancel_timer(host, timer_id);
-@@ -6270,6 +6431,31 @@ int native_sdk_windows_note_gpu_surface_input(Host *host, uint64_t window_id, co
+@@ -6270,6 +6488,31 @@ int native_sdk_windows_note_gpu_surface_input(Host *host, uint64_t window_id, co
      return 1;
  }
  
