@@ -54,12 +54,10 @@ const AfdPollInfo = extern struct {
 };
 
 const afd_event_receive: std.os.windows.ULONG = 1 << 0;
-const afd_event_oob_receive: std.os.windows.ULONG = 1 << 1;
 const afd_event_disconnect: std.os.windows.ULONG = 1 << 3;
 const afd_event_abort: std.os.windows.ULONG = 1 << 4;
 const afd_event_close: std.os.windows.ULONG = 1 << 5;
 const afd_readable_events = afd_event_receive |
-    afd_event_oob_receive |
     afd_event_disconnect |
     afd_event_abort |
     afd_event_close;
@@ -1036,9 +1034,9 @@ test "json string scanner rejects malformed mirror input" {
     try std.testing.expect(jsonString("{\"text\":\"bad\nline\"}", "text") == null);
 }
 
-test "Windows AFD readable mask includes data and terminal events" {
+test "Windows AFD readable mask includes normal data and terminal events" {
     try std.testing.expectEqual(
-        @as(std.os.windows.ULONG, (1 << 0) | (1 << 1) | (1 << 3) | (1 << 4) | (1 << 5)),
+        @as(std.os.windows.ULONG, (1 << 0) | (1 << 3) | (1 << 4) | (1 << 5)),
         afd_readable_events,
     );
 }

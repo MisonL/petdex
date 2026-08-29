@@ -148,6 +148,32 @@ describe("readStdin", () => {
     );
   });
 
+  test("does not parse through a split UTF-8 code point", async () => {
+    const input = new PassThrough();
+    const payload = JSON.stringify({
+      tool_name: "Read",
+      tool_input: { text: "中文🙂" },
+    });
+    const bytes = Buffer.from(payload);
+    const emoji = Buffer.from("🙂");
+    const emojiStart = bytes.indexOf(emoji);
+    expect(emojiStart).toBeGreaterThan(0);
+
+    let settled = false;
+    const reading = readStdin(input).then((value) => {
+      settled = true;
+      return value;
+    });
+
+    input.write(bytes.subarray(0, emojiStart + 1));
+    await delay(20);
+    expect(settled).toBeFalse();
+
+    input.end(bytes.subarray(emojiStart + 1));
+    await expect(reading).resolves.toBe(payload);
+    expect(settled).toBeTrue();
+  });
+
   test("keeps the first 64KB while continuing to drain oversized input", async () => {
     const input = new PassThrough();
     const payload = "x".repeat(96 * 1024);
@@ -237,6 +263,7 @@ describe("readStdin", () => {
   });
 
   test("returns after a complete JSON payload even when stdin stays open", async () => {
+    const fakeHome = mkdtempSync(join(tmpdir(), "petdex-hook-stdin-"));
     const child = spawn(
       process.execPath,
       [
@@ -246,7 +273,11 @@ describe("readStdin", () => {
       {
         cwd: CLI_PACKAGE_DIR,
         stdio: ["pipe", "pipe", "pipe"],
-        env: process.env,
+        env: {
+          ...process.env,
+          HOME: fakeHome,
+          USERPROFILE: fakeHome,
+        },
       },
     );
 
@@ -256,10 +287,12 @@ describe("readStdin", () => {
       expect(await waitForCloseWithin(child, 900)).toBe(0);
     } finally {
       if (child.exitCode === null && !child.killed) child.kill();
+      rmSync(fakeHome, { recursive: true, force: true });
     }
   });
 
   test("returns after a bounded wait when stdin never produces EOF", async () => {
+    const fakeHome = mkdtempSync(join(tmpdir(), "petdex-hook-stdin-"));
     const child = spawn(
       process.execPath,
       [
@@ -269,7 +302,11 @@ describe("readStdin", () => {
       {
         cwd: CLI_PACKAGE_DIR,
         stdio: ["pipe", "pipe", "pipe"],
-        env: process.env,
+        env: {
+          ...process.env,
+          HOME: fakeHome,
+          USERPROFILE: fakeHome,
+        },
       },
     );
 
@@ -278,6 +315,7 @@ describe("readStdin", () => {
       expect(await waitForCloseWithin(child, 900)).toBe(0);
     } finally {
       if (child.exitCode === null && !child.killed) child.kill();
+      rmSync(fakeHome, { recursive: true, force: true });
     }
   });
 });

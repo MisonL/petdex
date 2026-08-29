@@ -47,6 +47,7 @@ const STDIN_READ_TIMEOUT_MS = 500;
 const STDIN_DRAIN_GRACE_MS = 300;
 const SESSIONS_DIR = join(RUNTIME_DIR, "sessions");
 const TITLE_MAX = 60;
+type UnrefTimer = ReturnType<typeof setTimeout> & { unref?: () => void };
 
 /**
  * Session titles: UserPromptSubmit carries the user's prompt, so we
@@ -252,6 +253,10 @@ function completeUtf8PrefixLength(prefix: Buffer): number {
   return prefix.length;
 }
 
+function decodeCompleteUtf8Prefix(prefix: Buffer): string {
+  return prefix.toString("utf8", 0, completeUtf8PrefixLength(prefix));
+}
+
 /**
  * Map a hook phase + tool to the sprite state we want.
  * Mirrors the matchers in agents.ts so the hook command is a single
@@ -347,15 +352,11 @@ export async function readStdin(
     let prefixBytes = 0;
     let settled = false;
     let readTimer: ReturnType<typeof setTimeout> | undefined;
-    let drainTimer: ReturnType<typeof setTimeout> | undefined;
+    let drainTimer: UnrefTimer | undefined;
 
     const retainedText = () => {
       const retained = Buffer.concat(prefix, prefixBytes);
-      const text = retained.toString(
-        "utf8",
-        0,
-        completeUtf8PrefixLength(retained),
-      );
+      const text = decodeCompleteUtf8Prefix(retained);
       const end = completeJsonPayloadEnd(text);
       // A host may append logging or framing bytes after its JSON payload.
       // Return only the value that made us settle so parseStdin never sees
@@ -387,7 +388,8 @@ export async function readStdin(
       // Keep the data listener attached for a short bounded drain. This is
       // enough for normal oversized hook writes while guaranteeing the child
       // can exit when the host never closes stdin.
-      drainTimer = setTimeout(cleanup, STDIN_DRAIN_GRACE_MS);
+      drainTimer = setTimeout(cleanup, STDIN_DRAIN_GRACE_MS) as UnrefTimer;
+      drainTimer.unref?.();
     };
 
     const onData = (chunk: Buffer | string) => {
@@ -398,7 +400,9 @@ export async function readStdin(
           const retained = Buffer.from(bytes.subarray(0, remaining));
           prefix.push(retained);
           prefixBytes += retained.length;
-          const text = Buffer.concat(prefix, prefixBytes).toString("utf8");
+          const text = decodeCompleteUtf8Prefix(
+            Buffer.concat(prefix, prefixBytes),
+          );
           if (completeJsonPayloadEnd(text) !== null) {
             settleComplete();
           }

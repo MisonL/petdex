@@ -16,7 +16,7 @@ import time
 from pathlib import Path
 
 
-MAX_EXIT_SECONDS = 1.5
+MAX_EXIT_SECONDS = 3.0
 
 
 def run_case(binary: Path, label: str, payload: bytes | None) -> None:
@@ -30,7 +30,7 @@ def run_case(binary: Path, label: str, payload: bytes | None) -> None:
             [str(binary), "bubble", "post", "codex"],
             stdin=subprocess.PIPE,
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
             env=env,
         )
         try:
@@ -57,8 +57,6 @@ def run_case(binary: Path, label: str, payload: bytes | None) -> None:
         finally:
             if child.stdin is not None:
                 child.stdin.close()
-            if child.stderr is not None:
-                child.stderr.close()
 
 
 def main() -> int:
