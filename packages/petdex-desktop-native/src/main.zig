@@ -4165,6 +4165,12 @@ fn petdexWindows(model: *const Model, scratch: *PetdexApp.WindowsScratch) []cons
         const bubble_w = bubbleWindowWidth(model);
         const bubble_h = bubbleWindowHeight(model);
         if (comptime builtin.target.os.tag == .linux) {
+            // A popup is created before the next frame-clock sync can
+            // update `model.bubble_flipped`. Decide the initial side from
+            // the current geometry here as well; otherwise a pet near the
+            // top creates a GTK popover with a negative anchor, which the
+            // compositor maps off-screen and leaves at its 1px minimum.
+            const linux_flipped = bubbleShouldFlip(model, bubblePetTopY(model), @floatCast(bubble_h));
             scratch.windows[count] = .{
                 .label = "bubble",
                 .canvas_label = "bubble-canvas",
@@ -4175,7 +4181,7 @@ fn petdexWindows(model: *const Model, scratch: *PetdexApp.WindowsScratch) []cons
                 // GTK_POS_TOP treats the pointing rectangle as the
                 // popup's top edge. Supply a side-aware anchor so the
                 // compositor never places the bubble over the sprite.
-                .y = linuxBubbleAnchorY(model.scale, model.bubble_flipped, bubble_h),
+                .y = linuxBubbleAnchorY(model.scale, linux_flipped, bubble_h),
                 .resizable = false,
                 .titlebar = .chromeless,
                 .floating = true,
