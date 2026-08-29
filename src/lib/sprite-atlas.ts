@@ -41,10 +41,15 @@ export function detectSpriteAtlas(
   for (const layout of layouts) {
     const canonicalWidth = SPRITE_COLUMNS * SPRITE_FRAME_WIDTH;
     const canonicalHeight = layout.rows * SPRITE_FRAME_HEIGHT;
+    const widthBigInt = BigInt(width);
+    const heightBigInt = BigInt(height);
+    const canonicalWidthBigInt = BigInt(canonicalWidth);
+    const canonicalHeightBigInt = BigInt(canonicalHeight);
     if (
       width % SPRITE_COLUMNS !== 0 ||
       height % layout.rows !== 0 ||
-      width * canonicalHeight !== height * canonicalWidth
+      widthBigInt * canonicalHeightBigInt !==
+        heightBigInt * canonicalWidthBigInt
     )
       continue;
 

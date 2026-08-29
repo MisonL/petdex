@@ -30,6 +30,21 @@ describe("sprite atlas geometry", () => {
     });
   });
 
+  it("keeps exact ratios for safe dimensions whose products exceed Number precision", () => {
+    const scale = 4_000_000_000_000;
+    const width = 1536 * scale;
+    const height = 1872 * scale;
+    expect(Number.isSafeInteger(width)).toBeTrue();
+    expect(Number.isSafeInteger(height)).toBeTrue();
+    expect(width * 1872).toBeGreaterThan(Number.MAX_SAFE_INTEGER);
+    expect(height * 1536).toBeGreaterThan(Number.MAX_SAFE_INTEGER);
+    expect(detectSpriteAtlas(width, height)).toMatchObject({
+      version: 1,
+      rows: 9,
+      scale,
+    });
+  });
+
   it("rejects malformed, unsafe, and ambiguous dimensions", () => {
     expect(detectSpriteAtlas(1536, 2000)).toBeNull();
     expect(detectSpriteAtlas(256, 312)).toBeNull();

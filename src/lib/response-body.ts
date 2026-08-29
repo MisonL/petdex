@@ -44,7 +44,7 @@ export async function readResponseBodyBounded(
         if (!value) continue;
         total += value.byteLength;
         if (total > maxBytes) {
-          await reader.cancel("response body exceeds limit");
+          void reader.cancel("response body exceeds limit").catch(() => {});
           throw new Error("response body exceeds limit");
         }
         chunks.push(Buffer.from(value));

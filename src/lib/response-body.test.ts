@@ -41,4 +41,27 @@ describe("readResponseBodyBounded", () => {
       readResponseBodyBounded(new Response(body), 4, 20),
     ).rejects.toThrow("response body read timed out");
   });
+
+  it("does not wait for a stalled cancel after crossing the byte limit", async () => {
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array([1, 2, 3]));
+      },
+      cancel() {
+        return new Promise<void>(() => {});
+      },
+    });
+
+    const result = await Promise.race([
+      readResponseBodyBounded(new Response(body), 2).then(
+        () => "resolved",
+        (error: unknown) =>
+          error instanceof Error ? error.message : String(error),
+      ),
+      new Promise<string>((resolve) =>
+        setTimeout(() => resolve("timed out"), 100),
+      ),
+    ]);
+    expect(result).toBe("response body exceeds limit");
+  });
 });
