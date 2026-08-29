@@ -26,7 +26,6 @@ const dsh_integration = @import("dsh_integration.zig");
 const Conn = struct {
     stream: std.Io.net.Stream,
     io: std.Io,
-    afd_device_handle: ?std.os.windows.HANDLE = null,
 };
 
 pub const max_pending = 50;
@@ -65,27 +64,9 @@ const afd_readable_events = afd_event_receive |
     afd_event_abort |
     afd_event_close;
 
-const afd_device_name: []const u16 = std.os.windows.AFD.DEVICE_NAME ++ .{
-    '\\', 'P', 'e', 't', 'd', 'e', 'x',
-};
-
-const AfdPollDevice = struct {
-    handle: ?std.os.windows.HANDLE = null,
-
-    fn init() !AfdPollDevice {
-        if (comptime builtin.os.tag != .windows) return .{};
-        return .{ .handle = try openAfdPollDevice() };
-    }
-
-    fn deinit(self: *AfdPollDevice) void {
-        if (comptime builtin.os.tag != .windows) return;
-        if (self.handle) |handle| {
-            std.os.windows.CloseHandle(handle);
-            self.handle = null;
-        }
-    }
-};
-
+// AFD.POLL is issued directly on each accepted socket handle below. The AFD
+// endpoint is created by Winsock; opening a separate \Device\Afd child and
+// sending the ioctl to that control handle is rejected by Windows.
 pub const StateEvent = struct {
     state: [16]u8 = @splat(0),
     state_len: usize = 0,
@@ -407,12 +388,6 @@ fn run(server: *Server) void {
     defer scope.deinit();
     const io = scope.io();
 
-    var afd_device = AfdPollDevice.init() catch |err| {
-        std.debug.print("petdex: AFD poll device unavailable ({s})\n", .{@errorName(err)});
-        return;
-    };
-    defer afd_device.deinit();
-
     const addr: std.Io.net.IpAddress = .{ .ip4 = .loopback(7777) };
     var listener = addr.listen(io, .{
         .kernel_backlog = 16,
@@ -453,7 +428,7 @@ fn run(server: *Server) void {
         // A client can disappear after sending only part of a request. Keep
         // that blocking read off the accept loop so later hooks still reach
         // the server while the abandoned connection drains or closes.
-        const thread = std.Thread.spawn(.{}, handleConnectionThread, .{ server, stream, afd_device.handle }) catch {
+        const thread = std.Thread.spawn(.{}, handleConnectionThread, .{ server, stream }) catch {
             _ = server.active_connections.fetchSub(1, .release);
             stream.close(io);
             continue;
@@ -462,12 +437,12 @@ fn run(server: *Server) void {
     }
 }
 
-fn handleConnectionThread(server: *Server, stream: std.Io.net.Stream, afd_device_handle: ?std.os.windows.HANDLE) void {
+fn handleConnectionThread(server: *Server, stream: std.Io.net.Stream) void {
     defer _ = server.active_connections.fetchSub(1, .release);
     var scope = plat.Scope.init();
     defer scope.deinit();
     const io = scope.io();
-    var conn: Conn = .{ .stream = stream, .io = io, .afd_device_handle = afd_device_handle };
+    var conn: Conn = .{ .stream = stream, .io = io };
     handleConnection(server, &conn);
     stream.shutdown(io, .send) catch {};
     if (builtin.os.tag == .windows) {
@@ -556,8 +531,6 @@ fn receiveWithTimeout(conn: *Conn, buffer: []u8, timeout: std.Io.Timeout) !usize
 fn waitForWindowsReadable(conn: *Conn, timeout: std.Io.Timeout) !void {
     if (comptime builtin.os.tag != .windows) return;
 
-    const afd_device_handle = conn.afd_device_handle orelse return error.OperationUnsupported;
-
     var poll = AfdPollInfo{
         .timeout = windowsRelativeTimeout(timeout, conn.io),
         .handle_count = 1,
@@ -572,7 +545,11 @@ fn waitForWindowsReadable(conn: *Conn, timeout: std.Io.Timeout) !void {
     const result = (try conn.io.operate(.{
         .device_io_control = .{
             .file = .{
-                .handle = afd_device_handle,
+                // AFD.POLL is an endpoint ioctl. Windows requires the
+                // endpoint socket handle as the NtDeviceIoControlFile
+                // target; a separately opened \Device\Afd control handle
+                // returns STATUS_INVALID_DEVICE_REQUEST.
+                .handle = conn.stream.socket.handle,
                 // AFD.POLL completes through the APC path when the request is
                 // pending. The synchronous flag would hit Zig's unreachable
                 // branch on STATUS_PENDING instead of honoring the deadline.
@@ -596,32 +573,6 @@ fn waitForWindowsReadable(conn: *Conn, timeout: std.Io.Timeout) !void {
     if (poll.handles[0].events & afd_readable_events == 0) {
         return error.Unexpected;
     }
-}
-
-fn openAfdPollDevice() !std.os.windows.HANDLE {
-    if (comptime builtin.os.tag != .windows) return error.OperationUnsupported;
-
-    var handle: std.os.windows.HANDLE = undefined;
-    var iosb: std.os.windows.IO_STATUS_BLOCK = undefined;
-    const status = std.os.windows.ntdll.NtCreateFile(
-        &handle,
-        .{ .STANDARD = .{ .SYNCHRONIZE = true } },
-        &.{
-            .ObjectName = @constCast(&std.os.windows.UNICODE_STRING.init(afd_device_name)),
-        },
-        &iosb,
-        null,
-        .{},
-        .{ .READ = true, .WRITE = true },
-        .OPEN,
-        .{ .IO = .ASYNCHRONOUS },
-        null,
-        0,
-    );
-    return switch (status) {
-        .SUCCESS => handle,
-        else => |rc| std.os.windows.unexpectedStatus(rc),
-    };
 }
 
 fn windowsRelativeTimeout(timeout: std.Io.Timeout, io: std.Io) std.os.windows.LARGE_INTEGER {
@@ -1110,15 +1061,6 @@ test "Windows AFD poll structures keep the native ABI layout" {
         try std.testing.expectEqual(@as(usize, 12), @offsetOf(AfdPollHandle, "status"));
         try std.testing.expectEqual(@as(usize, 16), @sizeOf(AfdPollHandle));
     }
-}
-
-test "AFD poll device owns one independently closable control handle" {
-    var device = try AfdPollDevice.init();
-    try std.testing.expectEqual(builtin.os.tag == .windows, device.handle != null);
-    device.deinit();
-    try std.testing.expect(device.handle == null);
-    device.deinit();
-    try std.testing.expect(device.handle == null);
 }
 
 test "json number scanner validates complete JSON numbers" {
