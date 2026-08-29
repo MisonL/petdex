@@ -2753,6 +2753,12 @@ pub fn update(model: *Model, msg: Msg, fx: *Effects) void {
                 }
             }
             _ = expireBubbles(model, now);
+            // A newly drained bubble is declared as a popup in the same
+            // update pass. Compute Linux's side after expiry and before
+            // that declaration so the first rendered frame uses the same
+            // orientation as the compositor anchor, rather than showing a
+            // flipped tail for one frame until the next frame-clock tick.
+            if (builtin.target.os.tag == .linux and bubbleActive(model)) syncBubbleWindow(model, fx);
             if (model.waiting_sound and shouldEscalate(model.state, model.waiting_since_ms, model.waiting_escalated, now)) {
                 model.waiting_escalated = true;
                 playWaitingChime(fx);
