@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-08-27T08:57:22.378Z",
+  "generatedAt": "2026-08-29T04:34:29.261Z",
   "scope": "manifest",
   "source": "https://petdex.dev/api/manifest/v2",
   "assetHost": "assets.petdex.dev",
-  "requested": 4667,
+  "requested": 4669,
   "manualReviewRequired": [
     "idle eye-open default state",
     "action continuity and direction consistency",
@@ -45405,47 +45405,6 @@
       }
     },
     {
-      "slug": "spritesheet-6",
-      "spritesheetUrl": "https://assets.petdex.dev/pets/spritesheet-dcfb9d14a2d1/sprite.webp",
-      "declaredVersion": 1,
-      "detectedVersion": 2,
-      "width": 1536,
-      "height": 2288,
-      "bytes": 332120,
-      "summary": {
-        "expectedFrames": 73,
-        "emptyFrames": 41,
-        "touchingFrames": 0,
-        "geometryOutliers": 0,
-        "proportionOutliers": 0,
-        "continuityOutliers": 0,
-        "rowProportionOutliers": 0,
-        "edgeTouches": {
-          "left": 0,
-          "right": 0,
-          "top": 0,
-          "bottom": 0
-        }
-      },
-      "machineFlags": [
-        "asset-error",
-        "version-mismatch",
-        "empty-frame"
-      ],
-      "errorCode": "version-mismatch",
-      "manualReview": {
-        "status": "pending",
-        "checks": [
-          "idle eye-open default state",
-          "action continuity and direction consistency",
-          "transparent edge bounds and left/right clipping",
-          "sprite scale consistency and flattened proportions",
-          "state-row proportion and frame-to-frame continuity",
-          "compression artifacts and visual integrity"
-        ]
-      }
-    },
-    {
       "slug": "sandrone-marionette",
       "spritesheetUrl": "https://assets.petdex.dev/pets/sandrone-marionette-b709cd96f5f9/sprite.webp",
       "declaredVersion": 1,
@@ -55373,6 +55332,47 @@
       }
     },
     {
+      "slug": "spritesheet-6",
+      "spritesheetUrl": "https://assets.petdex.dev/pets/spritesheet-dcfb9d14a2d1/sprite.webp",
+      "declaredVersion": 1,
+      "detectedVersion": 2,
+      "width": 1536,
+      "height": 2288,
+      "bytes": 332120,
+      "summary": {
+        "expectedFrames": 73,
+        "emptyFrames": 41,
+        "touchingFrames": 0,
+        "geometryOutliers": 0,
+        "proportionOutliers": 0,
+        "continuityOutliers": 0,
+        "rowProportionOutliers": 0,
+        "edgeTouches": {
+          "left": 0,
+          "right": 0,
+          "top": 0,
+          "bottom": 0
+        }
+      },
+      "machineFlags": [
+        "asset-error",
+        "version-mismatch",
+        "empty-frame"
+      ],
+      "errorCode": "version-mismatch",
+      "manualReview": {
+        "status": "pending",
+        "checks": [
+          "idle eye-open default state",
+          "action continuity and direction consistency",
+          "transparent edge bounds and left/right clipping",
+          "sprite scale consistency and flattened proportions",
+          "state-row proportion and frame-to-frame continuity",
+          "compression artifacts and visual integrity"
+        ]
+      }
+    },
+    {
       "slug": "briar-thimble",
       "spritesheetUrl": "https://assets.petdex.dev/pets/briar-thimble-0b5d0f7793ef/sprite.webp",
       "declaredVersion": 1,
@@ -59805,6 +59805,43 @@
       }
     },
     {
+      "slug": "glyph",
+      "spritesheetUrl": "https://assets.petdex.dev/pets/glyph-19fa6bca3928/sprite.webp",
+      "declaredVersion": 1,
+      "detectedVersion": 1,
+      "width": 1536,
+      "height": 1872,
+      "bytes": 1308790,
+      "summary": {
+        "expectedFrames": 57,
+        "emptyFrames": 0,
+        "touchingFrames": 0,
+        "geometryOutliers": 0,
+        "proportionOutliers": 0,
+        "continuityOutliers": 0,
+        "rowProportionOutliers": 0,
+        "edgeTouches": {
+          "left": 0,
+          "right": 0,
+          "top": 0,
+          "bottom": 0
+        }
+      },
+      "machineFlags": [],
+      "errorCode": null,
+      "manualReview": {
+        "status": "pending",
+        "checks": [
+          "idle eye-open default state",
+          "action continuity and direction consistency",
+          "transparent edge bounds and left/right clipping",
+          "sprite scale consistency and flattened proportions",
+          "state-row proportion and frame-to-frame continuity",
+          "compression artifacts and visual integrity"
+        ]
+      }
+    },
+    {
       "slug": "shorekeeper-zeyu",
       "spritesheetUrl": "https://assets.petdex.dev/pets/shorekeeper-zeyu-c9345664989f/sprite.webp",
       "declaredVersion": 2,
@@ -60503,6 +60540,47 @@
         }
       },
       "machineFlags": [],
+      "errorCode": null,
+      "manualReview": {
+        "status": "pending",
+        "checks": [
+          "idle eye-open default state",
+          "action continuity and direction consistency",
+          "transparent edge bounds and left/right clipping",
+          "sprite scale consistency and flattened proportions",
+          "state-row proportion and frame-to-frame continuity",
+          "compression artifacts and visual integrity"
+        ]
+      }
+    },
+    {
+      "slug": "glide",
+      "spritesheetUrl": "https://assets.petdex.dev/pets/glide-c66abfd2f41d/sprite.webp",
+      "declaredVersion": 1,
+      "detectedVersion": 1,
+      "width": 1536,
+      "height": 1872,
+      "bytes": 1329946,
+      "summary": {
+        "expectedFrames": 57,
+        "emptyFrames": 13,
+        "touchingFrames": 0,
+        "geometryOutliers": 0,
+        "proportionOutliers": 1,
+        "continuityOutliers": 1,
+        "rowProportionOutliers": 0,
+        "edgeTouches": {
+          "left": 0,
+          "right": 0,
+          "top": 0,
+          "bottom": 0
+        }
+      },
+      "machineFlags": [
+        "empty-frame",
+        "flattened-proportion",
+        "frame-continuity"
+      ],
       "errorCode": null,
       "manualReview": {
         "status": "pending",

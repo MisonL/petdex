@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-08-27T08:57:22.378Z",
+  "generatedAt": "2026-08-29T04:34:29.261Z",
   "scope": "manifest",
   "source": "https://petdex.dev/api/manifest/v2",
   "assetHost": "assets.petdex.dev",
-  "requested": 4667,
+  "requested": 4669,
   "summary": {
     "errors": 683,
     "networkErrors": 0,
@@ -12,8 +12,8 @@
     "versionMismatches": 666,
     "touchingFrames": 4005,
     "geometryOutliers": 786,
-    "proportionOutliers": 1780,
-    "continuityOutliers": 1441,
+    "proportionOutliers": 1781,
+    "continuityOutliers": 1442,
     "rowProportionOutliers": 150,
     "edgeTouches": {
       "left": 1189,
@@ -22,8 +22,8 @@
       "bottom": 2463
     },
     "machineFlagCounts": {
-      "flattened-proportion": 681,
-      "frame-continuity": 1009,
+      "flattened-proportion": 682,
+      "frame-continuity": 1010,
       "asset-error": 683,
       "version-mismatch": 666,
       "geometry-outlier": 251,
@@ -31,12 +31,12 @@
       "top-edge-touch": 153,
       "row-proportion": 105,
       "bottom-edge-touch": 119,
-      "empty-frame": 29,
+      "empty-frame": 30,
       "left-edge-touch": 78,
       "right-edge-touch": 81,
       "unsupported-dimensions": 17
     },
-    "manualReviewPending": 4667
+    "manualReviewPending": 4669
   },
   "manualReviewRequired": [
     "idle eye-open default state",
@@ -48,7 +48,7 @@
   ],
   "manualReview": {
     "status": "pending",
-    "entries": 4667,
+    "entries": 4669,
     "checks": [
       "idle eye-open default state",
       "action continuity and direction consistency",
