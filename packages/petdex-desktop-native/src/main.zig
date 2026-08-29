@@ -3715,17 +3715,20 @@ fn linuxPetTopLocal(scale: f32) f32 {
     return win_h - pet_edge_pad - frame_h * scale;
 }
 
-/// GtkPopover's GTK_POS_TOP placement puts the popup's top edge at the
-/// pointing rectangle. The descriptor therefore supplies the desired popup
-/// top, not the pet edge: above the pet this is the pet top minus the full
-/// popup height, while below it is the pet bottom. The previous code passed
-/// the pet top for both cases, which made the popup cover the sprite on the
-/// X11/GTK path (the CI window tree showed popup y=97 for a pet top of 96).
+/// GtkPopover's GTK_POS_TOP placement puts the popup above the pointing
+/// rectangle. The descriptor therefore supplies the rectangle edge, not the
+/// popup top: above the pet the rectangle is the pet top minus the clearance;
+/// below it is the pet bottom plus clearance plus the popup height. The
+/// previous code supplied the pet edge for both cases, which made GTK choose
+/// the wrong side and cover the sprite on the X11/GTK path.
 fn linuxBubbleAnchorY(scale: f32, flipped: bool, bubble_h: f32) f32 {
     const pet_top = linuxPetTopLocal(scale);
     const pet_bottom = win_h - pet_edge_pad;
     const clearance: f32 = @floatCast(bubble_pet_clearance);
-    return if (flipped) pet_bottom + clearance else pet_top - bubble_h - clearance;
+    return if (flipped)
+        pet_bottom + clearance + bubble_h
+    else
+        pet_top - clearance;
 }
 
 /// Return the pet's actual global top edge for side selection. On Linux the
@@ -4178,8 +4181,8 @@ fn petdexWindows(model: *const Model, scratch: *PetdexApp.WindowsScratch) []cons
                 .width = bubble_w,
                 .height = bubble_h,
                 .x = win_w / 2,
-                // GTK_POS_TOP treats the pointing rectangle as the
-                // popup's top edge. Supply a side-aware anchor so the
+                // GTK_POS_TOP places the popup above its pointing
+                // rectangle. Supply a side-aware rectangle edge so the
                 // compositor never places the bubble over the sprite.
                 .y = linuxBubbleAnchorY(model.scale, linux_flipped, bubble_h),
                 .resizable = false,
@@ -5197,12 +5200,12 @@ test "linux popup anchors clear the fixed canvas pet on both sides" {
     const pet_bottom = win_h - pet_edge_pad;
 
     const above = linuxBubbleAnchorY(scale, false, bubble_h);
-    try std.testing.expectApproxEqAbs(pet_top - bubble_h - @as(f32, @floatCast(bubble_pet_clearance)), above, 0.001);
-    try std.testing.expect(above + bubble_h <= pet_top - @as(f32, @floatCast(bubble_pet_clearance)) + 0.001);
+    try std.testing.expectApproxEqAbs(pet_top - @as(f32, @floatCast(bubble_pet_clearance)), above, 0.001);
+    try std.testing.expect(above <= pet_top - @as(f32, @floatCast(bubble_pet_clearance)) + 0.001);
 
     const below = linuxBubbleAnchorY(scale, true, bubble_h);
-    try std.testing.expectApproxEqAbs(pet_bottom + @as(f32, @floatCast(bubble_pet_clearance)), below, 0.001);
-    try std.testing.expect(below >= pet_bottom + @as(f32, @floatCast(bubble_pet_clearance)) - 0.001);
+    try std.testing.expectApproxEqAbs(pet_bottom + @as(f32, @floatCast(bubble_pet_clearance)) + bubble_h, below, 0.001);
+    try std.testing.expect(below - bubble_h >= pet_bottom + @as(f32, @floatCast(bubble_pet_clearance)) - 0.001);
 
     // The fixed Linux canvas keeps its bottom edge stable when the sprite is
     // scaled; the above-side anchor follows the sprite's top edge.
