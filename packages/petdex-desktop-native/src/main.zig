@@ -2681,7 +2681,7 @@ pub fn update(model: *Model, msg: Msg, fx: *Effects) void {
             else
                 read.x;
             const pet_y = if (builtin.target.os.tag == .linux)
-                read.y + @as(f64, win_h - pet_edge_pad) - pet_h
+                read.y + @as(f64, linuxPetTopLocal(model.scale))
             else
                 read.y;
             const inside = read.cursor_x >= pet_x and read.cursor_x <= pet_x + pet_w and
@@ -3707,17 +3707,52 @@ fn settleBubbleWindow(model: *Model, fx: *Effects, bubble_h: f32, want_x: f64) b
     return true;
 }
 
+/// The Linux pet is drawn inside the fixed startup canvas rather than
+/// resizing the toplevel to the sprite. Keep the canvas-local pet origin in
+/// one helper so bubble anchoring and pointer hit testing use the same
+/// geometry at every scale.
+fn linuxPetTopLocal(scale: f32) f32 {
+    return win_h - pet_edge_pad - frame_h * scale;
+}
+
+/// GtkPopover's GTK_POS_TOP placement puts the popup's top edge at the
+/// pointing rectangle. The descriptor therefore supplies the desired popup
+/// top, not the pet edge: above the pet this is the pet top minus the full
+/// popup height, while below it is the pet bottom. The previous code passed
+/// the pet top for both cases, which made the popup cover the sprite on the
+/// X11/GTK path (the CI window tree showed popup y=97 for a pet top of 96).
+fn linuxBubbleAnchorY(scale: f32, flipped: bool, bubble_h: f32) f32 {
+    const pet_top = linuxPetTopLocal(scale);
+    const pet_bottom = win_h - pet_edge_pad;
+    const clearance: f32 = @floatCast(bubble_pet_clearance);
+    return if (flipped) pet_bottom + clearance else pet_top - bubble_h - clearance;
+}
+
+/// Return the pet's actual global top edge for side selection. On Linux the
+/// model position is the fixed canvas origin, not the sprite origin.
+fn bubblePetTopY(model: *const Model) f64 {
+    if (builtin.target.os.tag == .linux)
+        return model.pet_y + @as(f64, @floatCast(linuxPetTopLocal(model.scale)));
+    return model.pet_y;
+}
+
 /// Keep the bubble window glued above the pet and sized to its content:
 /// read both origins and close the gap. Self-correcting, so drags,
 /// throws, scale changes, and text-size changes all need no
 /// special-casing.
 fn syncBubbleWindow(model: *Model, fx: *Effects) void {
-    // Linux uses a parent-local compositor popup. Its descriptor drives
-    // size and anchoring, so application-side global moves are both
-    // unnecessary and invalid on Wayland.
-    if (builtin.target.os.tag == .linux) return;
     if (!bubbleActive(model)) {
         model.bubble_above_blocked = false;
+        return;
+    }
+    const bubble_h = bubbleWindowHeight(model);
+    // Linux uses a parent-local compositor popup. Its descriptor drives
+    // size and anchoring, so application-side global moves are both
+    // unnecessary and invalid on Wayland. The side decision still belongs
+    // here so petdexWindows can publish the correct local anchor on the
+    // next reconciliation pass.
+    if (builtin.target.os.tag == .linux) {
+        model.bubble_flipped = bubbleShouldFlip(model, bubblePetTopY(model), @floatCast(bubble_h));
         return;
     }
     // The flip is decided HERE, in the function that consumes it, rather
@@ -3728,12 +3763,11 @@ fn syncBubbleWindow(model: *Model, fx: *Effects) void {
     // before the cursor poll, so it never reached the frame clock's
     // update and flew the whole arc with a stale flag.
     const bubble_w = bubbleWindowWidth(model);
-    const bubble_h = bubbleWindowHeight(model);
     if (bubbleAboveProbeStale(model, bubble_h)) model.bubble_above_blocked = false;
     model.bubble_flipped = if (model.bubble_above_blocked)
         true
     else
-        bubbleShouldFlip(model, model.pet_y, @floatCast(bubble_h));
+        bubbleShouldFlip(model, bubblePetTopY(model), @floatCast(bubble_h));
     // Resize before moving: the move centers on the new width, so doing
     // it the other way round centers on the old one and leaves the
     // bubble offset by half the delta.
@@ -4131,7 +4165,6 @@ fn petdexWindows(model: *const Model, scratch: *PetdexApp.WindowsScratch) []cons
         const bubble_w = bubbleWindowWidth(model);
         const bubble_h = bubbleWindowHeight(model);
         if (comptime builtin.target.os.tag == .linux) {
-            const pet_h = frame_h * model.scale;
             scratch.windows[count] = .{
                 .label = "bubble",
                 .canvas_label = "bubble-canvas",
@@ -4139,7 +4172,10 @@ fn petdexWindows(model: *const Model, scratch: *PetdexApp.WindowsScratch) []cons
                 .width = bubble_w,
                 .height = bubble_h,
                 .x = win_w / 2,
-                .y = win_h - pet_edge_pad - pet_h,
+                // GTK_POS_TOP treats the pointing rectangle as the
+                // popup's top edge. Supply a side-aware anchor so the
+                // compositor never places the bubble over the sprite.
+                .y = linuxBubbleAnchorY(model.scale, model.bubble_flipped, bubble_h),
                 .resizable = false,
                 .titlebar = .chromeless,
                 .floating = true,
@@ -5146,6 +5182,27 @@ test "flipping sends the stack below the pet, clear of the sprite" {
     high.bubble_flipped = bubbleShouldFlip(&high, high.pet_y, @floatCast(bubble_h));
     try std.testing.expect(!high.bubble_flipped);
     try std.testing.expect(bubbleWantY(&high, bubble_h) + @as(f64, @floatCast(bubble_h)) <= high.pet_y - bubble_pet_clearance + 0.01);
+}
+
+test "linux popup anchors clear the fixed canvas pet on both sides" {
+    const scale: f32 = 1;
+    const bubble_h: f32 = 115;
+    const pet_top = linuxPetTopLocal(scale);
+    const pet_bottom = win_h - pet_edge_pad;
+
+    const above = linuxBubbleAnchorY(scale, false, bubble_h);
+    try std.testing.expectApproxEqAbs(pet_top - bubble_h - @as(f32, @floatCast(bubble_pet_clearance)), above, 0.001);
+    try std.testing.expect(above + bubble_h <= pet_top - @as(f32, @floatCast(bubble_pet_clearance)) + 0.001);
+
+    const below = linuxBubbleAnchorY(scale, true, bubble_h);
+    try std.testing.expectApproxEqAbs(pet_bottom + @as(f32, @floatCast(bubble_pet_clearance)), below, 0.001);
+    try std.testing.expect(below >= pet_bottom + @as(f32, @floatCast(bubble_pet_clearance)) - 0.001);
+
+    // The fixed Linux canvas keeps its bottom edge stable when the sprite is
+    // scaled; the above-side anchor follows the sprite's top edge.
+    const larger_above = linuxBubbleAnchorY(max_scale, false, bubble_h);
+    try std.testing.expect(larger_above < above);
+    try std.testing.expectEqual(below, linuxBubbleAnchorY(max_scale, true, bubble_h));
 }
 
 test "the flip has hysteresis so a pet on the threshold does not flap" {
