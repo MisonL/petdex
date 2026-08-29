@@ -39,9 +39,12 @@ const canvas_label = "pet-canvas";
 const frame_w: f32 = 192;
 const frame_h: f32 = 208;
 const max_scale: f32 = 1.2;
-const win_w: f32 = frame_w * max_scale;
-const win_h: f32 = frame_h * max_scale;
 const pet_edge_pad: f32 = 8;
+const win_w: f32 = frame_w * max_scale;
+// Linux keeps the startup canvas fixed instead of resizing it to the sprite.
+// Reserve the bottom edge pad in that canvas so the largest supported sprite
+// still starts at y=0 rather than clipping its top rows.
+const win_h: f32 = frame_h * max_scale + (if (builtin.target.os.tag == .linux) pet_edge_pad else 0);
 const cols: u64 = 8;
 const sheet_image_id: u64 = 1;
 /// What a first run offers to download. Small, friendly, and already in
@@ -3734,7 +3737,12 @@ fn linuxBubbleAnchorY(scale: f32, flipped: bool, bubble_h: f32) f32 {
     return if (flipped)
         pet_bottom + clearance + bubble_h
     else
-        pet_top - clearance;
+        // A scale at the edge of the fixed canvas can leave less than the
+        // clearance above the sprite. Keep the GTK pointing rectangle inside
+        // the parent surface; the side selector flips below when the global
+        // display has no room above, while a monitor above the primary screen
+        // may still legitimately use the zero-edge anchor.
+        @max(@as(f32, 0), pet_top - clearance);
 }
 
 /// Return the pet's actual global top edge for side selection. On Linux the
@@ -5218,6 +5226,10 @@ test "linux popup anchors clear the fixed canvas pet on both sides" {
     const larger_above = linuxBubbleAnchorY(max_scale, false, bubble_h);
     try std.testing.expect(larger_above < above);
     try std.testing.expectEqual(below, linuxBubbleAnchorY(max_scale, true, bubble_h));
+    if (builtin.target.os.tag == .linux) {
+        try std.testing.expect(linuxPetTopLocal(max_scale) >= 0);
+        try std.testing.expect(linuxBubbleAnchorY(max_scale, false, bubble_h) >= 0);
+    }
 }
 
 test "the flip has hysteresis so a pet on the threshold does not flap" {
