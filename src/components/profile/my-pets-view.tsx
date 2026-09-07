@@ -33,6 +33,7 @@ import {
   ProfileCard,
   type ProfileData,
 } from "@/components/profile/profile-card";
+import { ActionButton } from "@/components/ui/action-button";
 
 type Submission = {
   id: string;
@@ -473,15 +474,17 @@ export function SubmissionCard({ submission }: { submission: Submission }) {
               Submit a new version
             </Link>
           ) : (
-            <button
+            <ActionButton
               type="button"
+              variant="outline"
               onClick={handleWithdraw}
-              disabled={isPending}
+              pending={isPending}
+              pendingLabel="Withdrawing…"
               className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-3 text-xs font-medium text-rose-800 transition hover:border-rose-300 hover:bg-rose-100 disabled:opacity-50 dark:border-rose-800/60 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:border-rose-700 dark:hover:bg-rose-900/40"
             >
               <Trash2 className="size-3.5" />
-              {isPending ? "Withdrawing…" : "Withdraw"}
-            </button>
+              Withdraw
+            </ActionButton>
           )}
         </div>
 
