@@ -18,7 +18,15 @@ import { useTranslations } from "next-intl";
 
 import { petStates } from "@/lib/pet-states";
 import { deriveSlug } from "@/lib/slug";
+import {
+  canonicalSpriteDimensions,
+  detectSpriteAtlas,
+} from "@/lib/sprite-atlas";
 import { parseSpriteVersionNumber } from "@/lib/sprite-version";
+import {
+  PET_LICENSE_CHOICES,
+  type PetLicenseChoice,
+} from "@/lib/submissions-validation";
 import { PET_ASSET_MAX_BYTES } from "@/lib/upload-limits";
 
 import { Input } from "@/components/ui/input";
@@ -76,7 +84,8 @@ type SubmitResponse = {
   review: SubmissionReviewOutcome;
 };
 
-const REQUIRED = { width: 1536, height: 1872 } as const;
+const CLASSIC_ATLAS = canonicalSpriteDimensions(1);
+const V2_ATLAS = canonicalSpriteDimensions(2);
 const PETS_DIR = "~/.codex/pets";
 
 export function PetSubmitForm() {
@@ -94,6 +103,9 @@ export function PetSubmitForm() {
   // package is read; the user can then override them before submit.
   const [editedDisplayName, setEditedDisplayName] = useState("");
   const [editedDescription, setEditedDescription] = useState("");
+  // No preselected value: the creator has to pick, so the grant is an
+  // actual choice and not something we inferred from their silence.
+  const [license, setLicense] = useState<PetLicenseChoice | "">("");
 
   const uploadErrorRef = useRef<string | null>(null);
   const [, setUploadError] = useState<string | null>(null);
@@ -312,8 +324,7 @@ export function PetSubmitForm() {
       let height = 0;
       if (spritesheetUrl) {
         ({ width, height } = await measureImage(spritesheetUrl));
-        const isClassicGrid = width * 1872 === height * 1536;
-        const isV2Grid = width * 2288 === height * 1536;
+        const atlas = detectSpriteAtlas(width, height);
         if (width === 0 || height === 0) {
           issues.push(t("issues.unreadableSpritesheet"));
         } else if (width < 256 || height < 256) {
@@ -321,14 +332,26 @@ export function PetSubmitForm() {
             t("issues.tooSmall", {
               width,
               height,
-              recommendedWidth: REQUIRED.width,
-              recommendedHeight: REQUIRED.height,
+              classicWidth: CLASSIC_ATLAS.width,
+              classicHeight: CLASSIC_ATLAS.height,
+              v2Width: V2_ATLAS.width,
+              v2Height: V2_ATLAS.height,
             }),
           );
-        } else if (!isClassicGrid && !isV2Grid) {
+        } else if (!atlas) {
           // Mirror the server-side grid check so the preview never says
           // "ready" for a sheet /api/submit will reject.
           issues.push(t("issues.badGrid", { width, height }));
+        } else if (
+          spriteVersion.ok &&
+          atlas.version !== spriteVersion.version
+        ) {
+          issues.push(
+            t("issues.spriteVersionMismatch", {
+              detected: atlas.version,
+              declared: spriteVersion.version,
+            }),
+          );
         }
       }
 
@@ -554,6 +577,7 @@ export function PetSubmitForm() {
         spritesheetWidth: parsed.spritesheetWidth,
         spritesheetHeight: parsed.spritesheetHeight,
         spriteVersionNumber: parsed.spriteVersionNumber,
+        license,
       }),
     });
 
@@ -630,8 +654,10 @@ export function PetSubmitForm() {
                 {chunks}
               </code>
             ),
-            width: REQUIRED.width,
-            height: REQUIRED.height,
+            classicWidth: CLASSIC_ATLAS.width,
+            classicHeight: CLASSIC_ATLAS.height,
+            v2Width: V2_ATLAS.width,
+            v2Height: V2_ATLAS.height,
           })}
         </span>
 
@@ -741,6 +767,33 @@ export function PetSubmitForm() {
                   disabled={submission.kind === "uploading"}
                 />
               </div>
+              <div>
+                <label
+                  htmlFor="pet-license"
+                  className="font-mono text-[10px] tracking-[0.18em] text-muted-4 uppercase"
+                >
+                  {t("edit.licenseLabel")}
+                </label>
+                <select
+                  id="pet-license"
+                  className="mt-1 h-9 w-full rounded-xl border border-border-base bg-surface px-3 text-sm"
+                  value={license}
+                  onChange={(event) =>
+                    setLicense(event.target.value as PetLicenseChoice | "")
+                  }
+                  disabled={submission.kind === "uploading"}
+                >
+                  <option value="">{t("edit.licensePlaceholder")}</option>
+                  {PET_LICENSE_CHOICES.map((choice) => (
+                    <option key={choice} value={choice}>
+                      {t(`edit.licenseOption.${choice}`)}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-[11px] leading-4 text-muted-4">
+                  {t("edit.licenseHint")}
+                </p>
+              </div>
               {parsed.spritesheetWidth ? (
                 <p className="font-mono text-[10px] tracking-[0.18em] text-muted-4 uppercase">
                   {parsed.spritesheetWidth}×{parsed.spritesheetHeight}
@@ -766,6 +819,7 @@ export function PetSubmitForm() {
             <SubmitButton
               disabled={
                 effectiveIssues.length > 0 ||
+                !license ||
                 !isSignedIn ||
                 submission.kind === "uploading" ||
                 submission.kind === "success"

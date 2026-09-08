@@ -17,6 +17,10 @@ import {
   readEditZipAsset,
 } from "../src/edit-assets.js";
 import {
+  fetchManifest as fetchCatalogManifest,
+  type ManifestPet,
+} from "../src/manifest.js";
+import {
   emit,
   getStatus,
   maybeShowFirstRunNotice,
@@ -47,6 +51,7 @@ const RETIRED_COMMANDS = new Map<string, string>([
   ["stop", DESKTOP_STOP_REDIRECT],
   ["toggle", "Toggle the mascot from the Petdex menu bar icon."],
   ["desktop", "The desktop app manages its own lifecycle."],
+  ["select", "Select pets from the Petdex desktop app."],
   ["update", "The desktop app updates itself automatically."],
   // Desktop Settings → Agents:
   // packages/petdex-desktop-native/src/settings_view.zig (`agentsSection`).
@@ -273,26 +278,11 @@ async function cmdWhoami() {
   }
 }
 
-type ManifestPet = {
-  slug: string;
-  displayName: string;
-  spritesheetUrl: string;
-  petJsonUrl: string;
-  spriteVersionNumber?: 1 | 2;
-};
-
 function parseSpriteVersionNumber(petJson: Record<string, unknown>): 1 | 2 {
   const value = petJson.spriteVersionNumber;
   if (value === undefined || value === 1) return 1;
   if (value === 2) return 2;
   throw new Error("spriteVersionNumber must be omitted, 1, or 2");
-}
-
-async function fetchManifest(): Promise<ManifestPet[]> {
-  const res = await fetch(`${PETDEX_URL}/api/manifest`);
-  if (!res.ok) throw new Error(`manifest fetch ${res.status}`);
-  const data = (await res.json()) as { pets: ManifestPet[] };
-  return data.pets;
 }
 
 async function installOne(pet: ManifestPet): Promise<void> {
@@ -379,7 +369,7 @@ async function cmdInstall(args: string[]) {
 
   let manifest: ManifestPet[];
   try {
-    manifest = await fetchManifest();
+    manifest = await fetchCatalogManifest(PETDEX_URL);
   } catch (err) {
     s.stop(pc.red("manifest failed"));
     throw err;
@@ -470,23 +460,16 @@ async function cmdInstall(args: string[]) {
 async function cmdList() {
   const s = p.spinner();
   s.start("Fetching gallery");
-  const res = await fetch(`${PETDEX_URL}/api/manifest`);
-  if (!res.ok) {
+  let data: ManifestPet[];
+  try {
+    data = await fetchCatalogManifest(PETDEX_URL);
+  } catch (error) {
     s.stop(pc.red("failed"));
-    throw new Error(`failed to fetch manifest: ${res.status}`);
+    throw error;
   }
-  const data = (await res.json()) as {
-    total: number;
-    pets: Array<{
-      slug: string;
-      displayName: string;
-      kind: string;
-      submittedBy: string | null;
-    }>;
-  };
-  s.stop(`${data.total} pets`);
+  s.stop(`${data.length} pets`);
 
-  const lines = data.pets.map((pet) => {
+  const lines = data.map((pet) => {
     const tag = pet.submittedBy ? pc.dim(` by ${pet.submittedBy}`) : "";
     return `  ${pc.cyan(pet.slug.padEnd(26))} ${pet.displayName}${tag}`;
   });
@@ -496,12 +479,59 @@ async function cmdList() {
   );
 }
 
+const LICENSE_CHOICES = [
+  { value: "cc0", label: "CC0 — public domain, no credit needed" },
+  { value: "cc-by", label: "CC BY — any use, with credit" },
+  { value: "cc-by-sa", label: "CC BY-SA — any use, credit, share alike" },
+  { value: "cc-by-nc", label: "CC BY-NC — non-commercial only, with credit" },
+  { value: "all-rights-reserved", label: "All rights reserved — ask me first" },
+] as const;
+
+type LicenseChoice = (typeof LICENSE_CHOICES)[number]["value"];
+
+function parseLicenseFlag(args: string[]): string | null {
+  const inline = args.find((a) => a.startsWith("--license="));
+  if (inline) return inline.slice("--license=".length);
+  const i = args.indexOf("--license");
+  return i >= 0 ? (args[i + 1] ?? "") : null;
+}
+
 async function cmdSubmit(args: string[]) {
   const positionals = args.filter((a) => !a.startsWith("--"));
   const target = positionals[0];
   if (!target) {
-    p.cancel(`Usage: ${pc.cyan("petdex submit <path> [--force]")}`);
+    p.cancel(
+      `Usage: ${pc.cyan("petdex submit <path> [--license <id>] [--force]")}`,
+    );
     process.exit(1);
+  }
+
+  // Pet artwork belongs to whoever drew it, so every submission has to say
+  // what others may do with it. Asked up front to fail before uploading.
+  const licenseFlag = parseLicenseFlag(args);
+  let license: LicenseChoice;
+  if (licenseFlag !== null) {
+    const match = LICENSE_CHOICES.find((c) => c.value === licenseFlag);
+    if (!match) {
+      p.cancel(
+        `Unknown --license ${pc.red(licenseFlag || "(empty)")}. Options: ${LICENSE_CHOICES.map((c) => c.value).join(", ")}`,
+      );
+      process.exit(1);
+    }
+    license = match.value;
+  } else {
+    const picked = await p.select({
+      message: "License for this pet's artwork (you keep the copyright)",
+      options: LICENSE_CHOICES.map((c) => ({
+        value: c.value,
+        label: c.label,
+      })),
+    });
+    if (p.isCancel(picked)) {
+      p.cancel("Cancelled.");
+      process.exit(1);
+    }
+    license = picked as LicenseChoice;
   }
 
   // Ensure auth before doing any work.
@@ -623,7 +653,7 @@ async function cmdSubmit(args: string[]) {
       const t = await auth.getAccessToken();
       if (!t) throw new Error("session expired");
       token = t;
-      const result = await submitOne(cand, token);
+      const result = await submitOne(cand, token, license);
       profileUrl = absoluteProfileUrl(result.profileUrl) ?? profileUrl;
       ps.stop(
         `${pc.green("✓")} ${pc.cyan(cand.label)} → ${formatSubmissionOutcome(result)}`,
@@ -980,6 +1010,7 @@ async function readZipCandidate(zipPath: string): Promise<Candidate | null> {
 async function submitOne(
   cand: Candidate,
   bearer: string,
+  license: LicenseChoice,
 ): Promise<SubmitOneResult> {
   const { width, height } = parseImageDims(cand.spritesheetBuffer);
   if (width === 0 || height === 0) {
@@ -1052,6 +1083,7 @@ async function submitOne(
       spritesheetWidth: width,
       spritesheetHeight: height,
       spriteVersionNumber: parseSpriteVersionNumber(cand.petJsonObj),
+      license,
     }),
   });
 

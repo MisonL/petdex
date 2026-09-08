@@ -32,7 +32,39 @@ pub const max_pending = 50;
 const max_active_connections: u32 = 64;
 const max_request_bytes: usize = 8192;
 const connection_timeout_ms: i64 = 5_000;
+const response_drain_grace_ms: i64 = 300;
 
+/// Windows' std.Io stream reader intentionally waits for the AFD receive
+/// operation to complete, but it has no stream-level timeout API. Poll the
+/// socket with the native AFD control path first, then use the existing
+/// reader only after the kernel reports readable or closed state. This keeps
+/// the receive buffer and the platform-independent parser unchanged while
+/// making the connection deadline real on Windows too.
+const AfdPollHandle = extern struct {
+    handle: std.os.windows.HANDLE,
+    events: std.os.windows.ULONG,
+    status: std.os.windows.NTSTATUS,
+};
+
+const AfdPollInfo = extern struct {
+    timeout: std.os.windows.LARGE_INTEGER,
+    handle_count: std.os.windows.ULONG,
+    exclusive: std.os.windows.ULONG,
+    handles: [1]AfdPollHandle,
+};
+
+const afd_event_receive: std.os.windows.ULONG = 1 << 0;
+const afd_event_disconnect: std.os.windows.ULONG = 1 << 3;
+const afd_event_abort: std.os.windows.ULONG = 1 << 4;
+const afd_event_close: std.os.windows.ULONG = 1 << 5;
+const afd_readable_events = afd_event_receive |
+    afd_event_disconnect |
+    afd_event_abort |
+    afd_event_close;
+
+// AFD.POLL is issued directly on each accepted socket handle below. The AFD
+// endpoint is created by Winsock; opening a separate \Device\Afd child and
+// sending the ioctl to that control handle is rejected by Windows.
 pub const StateEvent = struct {
     state: [16]u8 = @splat(0),
     state_len: usize = 0,
@@ -63,6 +95,12 @@ pub const Bubble = struct {
     herdr_pane: [64]u8 = @splat(0),
     herdr_pane_len: usize = 0,
     busy: bool = false,
+    /// Per-agent attention, when the sender knows it. `busy` alone cannot
+    /// tell a blocked agent from an idle one, and that distinction is the
+    /// whole point of showing a body per agent. Empty means the sender did
+    /// not say, and readers fall back to `busy`.
+    agent_state: [16]u8 = @splat(0),
+    agent_state_len: usize = 0,
     counter: u64 = 0,
 
     pub fn sessionSlice(self: *const Bubble) []const u8 {
@@ -76,6 +114,9 @@ pub const Bubble = struct {
     }
     pub fn herdrPaneSlice(self: *const Bubble) []const u8 {
         return self.herdr_pane[0..self.herdr_pane_len];
+    }
+    pub fn agentStateSlice(self: *const Bubble) []const u8 {
+        return self.agent_state[0..self.agent_state_len];
     }
 };
 
@@ -232,6 +273,25 @@ pub const Mailbox = struct {
         return slot.counter;
     }
 
+    /// Record per-agent attention for a session that already has a slot.
+    /// Separate from setBubbleWithMetadata so the nine-parameter contract
+    /// every existing caller uses stays exactly as it is: a sender that
+    /// knows the state calls this right after, and one that does not
+    /// leaves the field empty for readers to fall back on `busy`.
+    pub fn setBubbleAgentState(self: *Mailbox, session: []const u8, state: []const u8) void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        for (self.bubbles[0..self.bubbles_len]) |*b| {
+            if (!std.mem.eql(u8, b.sessionSlice(), session)) continue;
+            const n = @min(state.len, b.agent_state.len);
+            @memcpy(b.agent_state[0..n], state[0..n]);
+            @memset(b.agent_state[n..], 0);
+            b.agent_state_len = n;
+            self.bubbles_dirty = true;
+            return;
+        }
+    }
+
     /// Drain the whole set into `out`, returning how many slots landed.
     /// All-or-nothing rather than per-bubble: the consumer re-renders
     /// the stack as a unit, so a partial copy has no meaning.
@@ -270,6 +330,50 @@ pub const Mailbox = struct {
 };
 
 pub var mailbox: Mailbox = .{};
+
+pub const AuthCallback = struct {
+    code: [2048]u8 = @splat(0),
+    code_len: usize = 0,
+    state: [128]u8 = @splat(0),
+    state_len: usize = 0,
+    error_text: [256]u8 = @splat(0),
+    error_len: usize = 0,
+
+    pub fn codeSlice(self: *const AuthCallback) []const u8 {
+        return self.code[0..self.code_len];
+    }
+
+    pub fn stateSlice(self: *const AuthCallback) []const u8 {
+        return self.state[0..self.state_len];
+    }
+
+    pub fn errorSlice(self: *const AuthCallback) []const u8 {
+        return self.error_text[0..self.error_len];
+    }
+};
+
+pub const AuthMailbox = struct {
+    mutex: SpinMutex = .{},
+    callback: AuthCallback = .{},
+    dirty: bool = false,
+
+    pub fn set(self: *AuthMailbox, callback: AuthCallback) void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        self.callback = callback;
+        self.dirty = true;
+    }
+
+    pub fn take(self: *AuthMailbox) ?AuthCallback {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        if (!self.dirty) return null;
+        self.dirty = false;
+        return self.callback;
+    }
+};
+
+pub var auth_mailbox: AuthMailbox = .{};
 
 const valid_states = [_][]const u8{
     "idle",    "running", "running-left", "running-right", "waving",
@@ -348,12 +452,6 @@ pub fn start(allocator: std.mem.Allocator, home: []const u8) !void {
 }
 
 fn run(server: *Server) void {
-    writeRuntimeFile(server, "update-token", &server.token, 0o600) catch |err| {
-        std.debug.print("petdex: token write failed ({s})\n", .{@errorName(err)});
-        return;
-    };
-    mirrorState(server, "idle", 0) catch {};
-
     // This thread owns its Io for its whole life: the listener blocks
     // in accept() forever and must never touch the main thread's.
     var scope = plat.Scope.init();
@@ -363,7 +461,10 @@ fn run(server: *Server) void {
     const addr: std.Io.net.IpAddress = .{ .ip4 = .loopback(7777) };
     var listener = addr.listen(io, .{
         .kernel_backlog = 16,
-        .reuse_address = true,
+        // This endpoint is a single-owner service. Zig maps true to
+        // SO_REUSEPORT on POSIX, which would let a second desktop bind the
+        // same port and replace the first instance's token file.
+        .reuse_address = false,
         .mode = .stream,
         .protocol = .tcp,
     }) catch {
@@ -371,6 +472,16 @@ fn run(server: *Server) void {
         return;
     };
     defer listener.deinit(io);
+
+    // Bind before replacing the token file. A second desktop instance may
+    // fail to bind; it must not invalidate the token of the listener that is
+    // already serving hooks.
+    writeRuntimeFile(server, "update-token", &server.token, 0o600) catch |err| {
+        std.debug.print("petdex: token write failed ({s})\n", .{@errorName(err)});
+        return;
+    };
+    mirrorState(server, "idle", 0) catch {};
+
     // Installation is not connection. Each Petdex process requires a fresh
     // event from the plugin before Settings may show DSH as connected.
     deleteRuntimeFile(server, "dsh-handshake.json");
@@ -405,10 +516,14 @@ fn handleConnectionThread(server: *Server, stream: std.Io.net.Stream) void {
     handleConnection(server, &conn);
     stream.shutdown(io, .send) catch {};
     if (builtin.os.tag == .windows) {
-        var drain: [1]u8 = undefined;
+        var drain: [1024]u8 = undefined;
+        const timeout = (std.Io.Timeout{ .duration = .{
+            .raw = std.Io.Duration.fromMilliseconds(response_drain_grace_ms),
+            .clock = .awake,
+        } }).toDeadline(io);
         while (true) {
-            const message = stream.socket.receive(io, &drain) catch break;
-            if (message.data.len == 0) break;
+            const received = receiveWithTimeout(&conn, &drain, timeout) catch break;
+            if (received == 0) break;
         }
     }
     stream.close(io);
@@ -467,11 +582,12 @@ fn handleConnection(server: *Server, conn: *Conn) void {
     const target = part_it.next() orelse return;
     const path = if (std.mem.indexOfScalar(u8, target, '?')) |q| target[0..q] else target;
 
-    route(server, conn, method, path, head, body);
+    route(server, conn, method, target, path, head, body);
 }
 
 fn receiveWithTimeout(conn: *Conn, buffer: []u8, timeout: std.Io.Timeout) !usize {
     if (builtin.os.tag == .windows) {
+        try waitForWindowsReadable(conn, timeout);
         var reader = conn.stream.reader(conn.io, &.{});
         var data = [_][]u8{buffer};
         return reader.interface.readVec(&data) catch |err| switch (err) {
@@ -482,10 +598,86 @@ fn receiveWithTimeout(conn: *Conn, buffer: []u8, timeout: std.Io.Timeout) !usize
     return (try conn.stream.socket.receiveTimeout(conn.io, buffer, timeout)).data.len;
 }
 
-fn route(server: *Server, conn: *Conn, method: []const u8, path: []const u8, head: []const u8, body: []const u8) void {
+fn waitForWindowsReadable(conn: *Conn, timeout: std.Io.Timeout) !void {
+    if (comptime builtin.os.tag != .windows) return;
+
+    var poll = AfdPollInfo{
+        .timeout = windowsRelativeTimeout(timeout, conn.io),
+        .handle_count = 1,
+        .exclusive = 0,
+        .handles = .{.{
+            .handle = conn.stream.socket.handle,
+            .events = afd_readable_events,
+            .status = .SUCCESS,
+        }},
+    };
+    const bytes = std.mem.asBytes(&poll);
+    const result = (try conn.io.operate(.{
+        .device_io_control = .{
+            .file = .{
+                // AFD.POLL is an endpoint ioctl. Windows requires the
+                // endpoint socket handle as the NtDeviceIoControlFile
+                // target; a separately opened \Device\Afd control handle
+                // returns STATUS_INVALID_DEVICE_REQUEST.
+                .handle = conn.stream.socket.handle,
+                // AFD.POLL completes through the APC path when the request is
+                // pending. The synchronous flag would hit Zig's unreachable
+                // branch on STATUS_PENDING instead of honoring the deadline.
+                .flags = .{ .nonblocking = true },
+            },
+            .code = std.os.windows.IOCTL.AFD.POLL,
+            .in = bytes,
+            .out = bytes,
+        },
+    })).device_io_control;
+
+    switch (result.u.Status) {
+        .SUCCESS => {},
+        .TIMEOUT => return error.Timeout,
+        .CANCELLED => return error.Canceled,
+        else => |status| return std.os.windows.unexpectedStatus(status),
+    }
+    if (poll.handles[0].status != .SUCCESS) {
+        return std.os.windows.unexpectedStatus(poll.handles[0].status);
+    }
+    if (poll.handles[0].events & afd_readable_events == 0) {
+        return error.Unexpected;
+    }
+}
+
+fn windowsRelativeTimeout(timeout: std.Io.Timeout, io: std.Io) std.os.windows.LARGE_INTEGER {
+    const duration = timeout.toDurationFromNow(io) orelse return std.math.minInt(std.os.windows.LARGE_INTEGER);
+    return windowsRelativeTimeoutFromNanoseconds(duration.raw.toNanoseconds());
+}
+
+fn windowsRelativeTimeoutFromNanoseconds(nanoseconds: i96) std.os.windows.LARGE_INTEGER {
+    if (nanoseconds <= 0) return 0;
+    const ticks: i128 = @divTrunc(@as(i128, nanoseconds) + 99, 100);
+    const bounded = @min(ticks, @as(i128, std.math.maxInt(std.os.windows.LARGE_INTEGER)));
+    return -@as(std.os.windows.LARGE_INTEGER, @intCast(bounded));
+}
+
+fn route(server: *Server, conn: *Conn, method: []const u8, target: []const u8, path: []const u8, head: []const u8, body: []const u8) void {
     const get = std.mem.eql(u8, method, "GET");
     const post = std.mem.eql(u8, method, "POST");
     var scratch: [512]u8 = undefined;
+
+    if (get and std.mem.eql(u8, path, "/callback")) {
+        const query = if (std.mem.indexOfScalar(u8, target, '?')) |q| target[q + 1 ..] else "";
+        var callback: AuthCallback = .{};
+        if (queryValue(query, "code", &callback.code)) |value| callback.code_len = value.len;
+        if (queryValue(query, "state", &callback.state)) |value| callback.state_len = value.len;
+        if (queryValue(query, "error_description", &callback.error_text)) |value| {
+            callback.error_len = value.len;
+        } else if (queryValue(query, "error", &callback.error_text)) |value| {
+            callback.error_len = value.len;
+        }
+        auth_mailbox.set(callback);
+        if (callback.code_len > 0 and callback.state_len > 0) {
+            return respondHtml(conn, 200, "<!doctype html><meta charset=utf-8><title>Petdex</title><style>body{background:#0c0c0f;color:#f5f5f7;font:16px system-ui;display:grid;place-items:center;height:100vh;margin:0}main{text-align:center}h1{font-size:24px}</style><main><h1>Signed in to Petdex</h1><p>You can close this tab and return to the app.</p></main>");
+        }
+        return respondHtml(conn, 400, "<!doctype html><meta charset=utf-8><title>Petdex</title><style>body{background:#0c0c0f;color:#f5f5f7;font:16px system-ui;display:grid;place-items:center;height:100vh;margin:0}main{text-align:center}h1{font-size:24px}</style><main><h1>Petdex sign-in failed</h1><p>Return to the app and try again.</p></main>");
+    }
 
     if (get and std.mem.eql(u8, path, "/health")) {
         return respond(conn, 200, "{\"ok\":true,\"port\":7777}");
@@ -574,6 +766,11 @@ fn route(server: *Server, conn: *Conn, method: []const u8, path: []const u8, hea
             ) catch {};
         }
         const counter = mailbox.setBubbleWithMetadata(session, capped, agent[0..@min(agent.len, 24)], title[0..@min(title.len, 96)], origin_app, source_tty, source_cwd, herdr_pane, busy);
+        // Optional: a sender that can tell blocked from working says so
+        // here. Older senders omit it and keep the busy-only behaviour.
+        if (jsonString(body, "agent_state")) |state| {
+            mailbox.setBubbleAgentState(session, state[0..@min(state.len, 16)]);
+        }
         mirrorBubble(server, capped, counter, title[0..@min(title.len, 96)], agent[0..@min(agent.len, 24)], busy) catch {};
         const out = std.fmt.bufPrint(&scratch, "{{\"ok\":true,\"counter\":{d}}}", .{counter}) catch return;
         return respond(conn, 200, out);
@@ -608,6 +805,14 @@ fn respondRuntimeFile(server: *Server, conn: *Conn, name: []const u8, fallback: 
 // ------------------------------------------------------------ http helpers
 
 fn respond(conn: *Conn, status: u16, body: []const u8) void {
+    respondTyped(conn, status, "application/json", body);
+}
+
+fn respondHtml(conn: *Conn, status: u16, body: []const u8) void {
+    respondTyped(conn, status, "text/html; charset=utf-8", body);
+}
+
+fn respondTyped(conn: *Conn, status: u16, content_type: []const u8, body: []const u8) void {
     var buf: [1024]u8 = undefined;
     const reason = switch (status) {
         200 => "OK",
@@ -619,12 +824,44 @@ fn respond(conn: *Conn, status: u16, body: []const u8) void {
         429 => "Too Many Requests",
         else => "OK",
     };
-    const head = std.fmt.bufPrint(&buf, "HTTP/1.1 {d} {s}\r\ncontent-type: application/json\r\ncontent-length: {d}\r\nconnection: close\r\n\r\n", .{ status, reason, body.len }) catch return;
+    const head = std.fmt.bufPrint(&buf, "HTTP/1.1 {d} {s}\r\ncontent-type: {s}\r\ncontent-length: {d}\r\nconnection: close\r\n\r\n", .{ status, reason, content_type, body.len }) catch return;
     var write_buf: [64]u8 = undefined;
     var writer = conn.stream.writer(conn.io, &write_buf);
     writer.interface.writeAll(head) catch return;
     writer.interface.writeAll(body) catch return;
     writer.interface.flush() catch return;
+}
+
+fn hexValue(c: u8) ?u8 {
+    if (c >= '0' and c <= '9') return c - '0';
+    if (c >= 'a' and c <= 'f') return c - 'a' + 10;
+    if (c >= 'A' and c <= 'F') return c - 'A' + 10;
+    return null;
+}
+
+fn queryValue(query: []const u8, wanted: []const u8, out: []u8) ?[]const u8 {
+    var pairs = std.mem.splitScalar(u8, query, '&');
+    while (pairs.next()) |pair| {
+        const equal = std.mem.indexOfScalar(u8, pair, '=') orelse continue;
+        if (!std.mem.eql(u8, pair[0..equal], wanted)) continue;
+        var source = pair[equal + 1 ..];
+        var written: usize = 0;
+        while (source.len > 0) {
+            if (written >= out.len) return null;
+            if (source[0] == '%' and source.len >= 3) {
+                const hi = hexValue(source[1]) orelse return null;
+                const lo = hexValue(source[2]) orelse return null;
+                out[written] = (hi << 4) | lo;
+                source = source[3..];
+            } else {
+                out[written] = if (source[0] == '+') ' ' else source[0];
+                source = source[1..];
+            }
+            written += 1;
+        }
+        return out[0..written];
+    }
+    return null;
 }
 
 fn headerValue(head: []const u8, name: []const u8) ?[]const u8 {
@@ -827,6 +1064,13 @@ test "bubble session key prefers and normalizes canonical conversations" {
     try std.testing.expect(!std.mem.eql(u8, normalized, long[0..64]));
 }
 
+test "OAuth callback query values are decoded and bounded" {
+    var out: [32]u8 = undefined;
+    try std.testing.expectEqualStrings("hello world", queryValue("code=hello%20world&state=abc", "code", &out).?);
+    try std.testing.expectEqualStrings("abc", queryValue("code=hello&state=abc", "state", &out).?);
+    try std.testing.expect(queryValue("code=toolong", "code", out[0..3]) == null);
+}
+
 test "two sessions hold two bubbles and neither overwrites the other" {
     var mb: Mailbox = .{};
     _ = mb.setBubble("alpha", "reading main.zig", "claude-code", "Fix the tail", true);
@@ -929,6 +1173,33 @@ test "json string scanner rejects malformed mirror input" {
     try std.testing.expect(jsonString("{\"text\":\"unterminated}", "text") == null);
     try std.testing.expect(jsonString("{\"text\":\"bad\\x\"}", "text") == null);
     try std.testing.expect(jsonString("{\"text\":\"bad\nline\"}", "text") == null);
+}
+
+test "Windows AFD readable mask includes normal data and terminal events" {
+    try std.testing.expectEqual(
+        @as(std.os.windows.ULONG, (1 << 0) | (1 << 3) | (1 << 4) | (1 << 5)),
+        afd_readable_events,
+    );
+}
+
+test "Windows AFD relative timeout rounds up to 100ns units" {
+    try std.testing.expectEqual(@as(std.os.windows.LARGE_INTEGER, 0), windowsRelativeTimeoutFromNanoseconds(-1));
+    try std.testing.expectEqual(@as(std.os.windows.LARGE_INTEGER, 0), windowsRelativeTimeoutFromNanoseconds(0));
+    try std.testing.expectEqual(@as(std.os.windows.LARGE_INTEGER, -1), windowsRelativeTimeoutFromNanoseconds(1));
+    try std.testing.expectEqual(@as(std.os.windows.LARGE_INTEGER, -1), windowsRelativeTimeoutFromNanoseconds(100));
+    try std.testing.expectEqual(@as(std.os.windows.LARGE_INTEGER, -2), windowsRelativeTimeoutFromNanoseconds(101));
+    try std.testing.expectEqual(@as(std.os.windows.LARGE_INTEGER, -10_000), windowsRelativeTimeoutFromNanoseconds(1_000_000));
+}
+
+test "Windows AFD poll structures keep the native ABI layout" {
+    if (@sizeOf(usize) == 8) {
+        try std.testing.expectEqual(@as(usize, 16), @offsetOf(AfdPollInfo, "handles"));
+        try std.testing.expectEqual(@as(usize, 32), @sizeOf(AfdPollInfo));
+        try std.testing.expectEqual(@as(usize, 0), @offsetOf(AfdPollHandle, "handle"));
+        try std.testing.expectEqual(@as(usize, 8), @offsetOf(AfdPollHandle, "events"));
+        try std.testing.expectEqual(@as(usize, 12), @offsetOf(AfdPollHandle, "status"));
+        try std.testing.expectEqual(@as(usize, 16), @sizeOf(AfdPollHandle));
+    }
 }
 
 test "json number scanner validates complete JSON numbers" {

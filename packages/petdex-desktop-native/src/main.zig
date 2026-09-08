@@ -28,6 +28,8 @@ const remote_ssh = @import("remote_ssh.zig");
 const remote_writeback = @import("remote_writeback.zig");
 const remote_runtime = @import("remote_runtime.zig");
 const herdr_status = @import("herdr_status.zig");
+pub const desktop_auth = @import("desktop_auth.zig");
+const flock_mod = @import("flock.zig");
 pub const updates = @import("updates.zig");
 
 pub const panic = std.debug.FullPanic(native_sdk.debug.capturePanic);
@@ -39,9 +41,12 @@ const canvas_label = "pet-canvas";
 const frame_w: f32 = 192;
 const frame_h: f32 = 208;
 const max_scale: f32 = 1.2;
-const win_w: f32 = frame_w * max_scale;
-const win_h: f32 = frame_h * max_scale;
 const pet_edge_pad: f32 = 8;
+const win_w: f32 = frame_w * max_scale;
+// Linux keeps the startup canvas fixed instead of resizing it to the sprite.
+// Reserve the bottom edge pad in that canvas so the largest supported sprite
+// still starts at y=0 rather than clipping its top rows.
+const win_h: f32 = frame_h * max_scale + (if (builtin.target.os.tag == .linux) pet_edge_pad else 0);
 const cols: u64 = 8;
 const sheet_image_id: u64 = 1;
 /// What a first run offers to download. Small, friendly, and already in
@@ -93,6 +98,8 @@ pub const Msg = union(enum) {
     set_scale: f32,
     open_pets_folder,
     open_pet_page: u32,
+    open_active_pet_page,
+    open_website,
     appearance: native_sdk.platform.Appearance,
     toggle_bubbles,
     toggle_bubbles_per_conversation,
@@ -115,6 +122,8 @@ pub const Msg = union(enum) {
     dsh_remove_done: native_sdk.EffectExit,
     pet_filter: canvas.TextInputEvent,
     toggle_pets_expanded,
+    toggle_flock_window,
+    focus_flock_member: u32,
     manifest_done: native_sdk.EffectExit,
     pet_json_done: native_sdk.EffectExit,
     spritesheet_done: native_sdk.EffectExit,
@@ -135,9 +144,22 @@ pub const Msg = union(enum) {
     download_update,
     copy_brew_command,
     brew_command_copied: native_sdk.EffectClipboardResult,
+    auth_sign_in,
+    auth_refresh,
+    auth_sign_out,
+    auth_install_pet: u32,
+    auth_open_pet: u32,
+    auth_open_library,
+    auth_open_community,
+    set_pet_source: u32,
+    settings_scrolled: canvas.ScrollState,
+    auth_token_response: native_sdk.EffectResponse,
+    auth_avatar_response: native_sdk.EffectResponse,
+    auth_preview_response: native_sdk.EffectResponse,
+    auth_library_done: native_sdk.EffectExit,
     noop,
 
-    pub const view_unbound = .{ "frame_tick", "poll_tick", "physics_tick", "frame_clock", "cycle_state", "native_drag_watchdog", "chime_done", "quit_app", "toggle_focus_mode", "shuffle_pet", "dsh_install_done", "dsh_remove_done", "remote_line", "remote_done", "remote_backoff", "update_boot_check", "update_response", "homebrew_done", "homebrew_timeout", "brew_command_copied" };
+    pub const view_unbound = .{ "frame_tick", "poll_tick", "physics_tick", "frame_clock", "cycle_state", "native_drag_watchdog", "chime_done", "quit_app", "toggle_focus_mode", "shuffle_pet", "dsh_install_done", "dsh_remove_done", "remote_line", "remote_done", "remote_backoff", "update_boot_check", "update_response", "homebrew_done", "homebrew_timeout", "brew_command_copied", "auth_token_response", "auth_avatar_response", "auth_preview_response", "auth_library_done" };
 };
 
 pub const Model = struct {
@@ -185,6 +207,15 @@ pub const Model = struct {
     /// the top of the screen for the expanded height to fit. Flipped,
     /// the front card is the TOP one and the stack grows downward.
     bubble_flipped: bool = false,
+    /// A constrained placement probe can prove that the above candidate is
+    /// outside the current display's visible frame. Keep that result until
+    /// the pet moves to another display/position or the bubble is resized;
+    /// otherwise every frame would try the rejected side again and cause
+    /// visible jitter at a monitor edge.
+    bubble_above_blocked: bool = false,
+    bubble_above_blocked_x: f64 = 0,
+    bubble_above_blocked_y: f64 = 0,
+    bubble_above_blocked_h: f32 = 0,
     // Drag + momentum, the old desktop's "Codex parity" physics: the
     // frame clock samples the window origin and the primary button
     // through fx.moveWindow(0,0); a down->up edge computes the release
@@ -313,12 +344,21 @@ pub const Model = struct {
     pet_filter: [48]u8 = @splat(0),
     pet_filter_len: usize = 0,
     pets_expanded: bool = false,
+    /// One body per live agent. Derived from the same bubbles the
+    /// mailbox already keys by session, so the set exists whether or
+    /// not the window is open.
+    flock: flock_mod.Model = .{},
     install: InstallState = .{},
     remotes: [remote_runtime.max_remotes]remote_runtime.Slot = .{ .{}, .{}, .{}, .{}, .{}, .{}, .{}, .{} },
     remote_count: usize = 0,
     dark: bool = true,
     high_contrast: bool = false,
     reduce_motion: bool = false,
+    auth: desktop_auth.State = .{},
+    pet_source: desktop_auth.LibraryView = .installed,
+    settings_scroll: f32 = 0,
+    auth_preview_next: usize = 0,
+    auth_preview_ready: [12]bool = @splat(false),
 };
 
 /// Petdex web tokens (globals.css) translated from OKLCH: brand purple
@@ -409,13 +449,10 @@ pub const InstallState = struct {
     phase: InstallPhase = .idle,
     queue: [max_install_queue][64]u8 = @splat(@splat(0)),
     queue_len: [max_install_queue]usize = @splat(0),
+    activate: [max_install_queue]bool = @splat(false),
     queued: usize = 0,
     /// Index into `queue` of the pet being downloaded right now.
     current: usize = 0,
-    /// Set when the deep link was `petdex://<slug>` rather than
-    /// `petdex://install?…`: that form means "use this pet", so the
-    /// install activates it on completion.
-    activate_when_done: bool = false,
     /// Chosen once per install so pet.json and the spritesheet land
     /// under matching names (`spritesheet.png` vs `.webp`).
     ext_png: bool = false,
@@ -423,6 +460,12 @@ pub const InstallState = struct {
     /// install either succeeded or never ran.
     error_text: [96]u8 = @splat(0),
     error_len: usize = 0,
+    /// The compact endpoint is preferred. A failed request gets one
+    /// retry against the legacy endpoint for older mirrors.
+    manifest_fallback_attempted: bool = false,
+    /// Resolved v2 asset URLs must outlive the helper that schedules the
+    /// downloader effect, so keep their scratch storage in the model.
+    asset_url_buffers: [2][1024]u8 = @splat(@splat(0)),
     installed_ok: usize = 0,
 
     pub fn currentSlug(self: *const InstallState) []const u8 {
@@ -438,18 +481,47 @@ pub const InstallState = struct {
         return self.phase != .idle;
     }
 
+    pub fn currentActivates(self: *const InstallState) bool {
+        if (self.current >= self.queued) return false;
+        return self.activate[self.current];
+    }
+
     /// Copy a slug off a borrowed URL slice. Rejected slugs never enter
     /// the queue, so nothing downstream has to re-validate a path.
-    pub fn enqueue(self: *InstallState, slug: []const u8) bool {
-        if (self.queued >= max_install_queue) return false;
+    ///
+    /// A repeated request is merged rather than dropped. This matters
+    /// when a bare `petdex://slug` arrives while the same slug is already
+    /// downloading: the second request upgrades the existing work to an
+    /// activating request without starting a duplicate download.
+    pub fn enqueueRequest(self: *InstallState, slug: []const u8, activate: bool) bool {
         if (!installer.slugOk(slug)) return false;
         for (0..self.queued) |i| {
-            if (std.mem.eql(u8, self.queue[i][0..self.queue_len[i]], slug)) return false;
+            if (std.mem.eql(u8, self.queue[i][0..self.queue_len[i]], slug)) {
+                self.activate[i] = self.activate[i] or activate;
+                return true;
+            }
         }
+        if (self.queued >= max_install_queue) return false;
         @memcpy(self.queue[self.queued][0..slug.len], slug);
         self.queue_len[self.queued] = slug.len;
+        self.activate[self.queued] = activate;
         self.queued += 1;
         return true;
+    }
+
+    pub fn enqueue(self: *InstallState, slug: []const u8) bool {
+        return self.enqueueRequest(slug, false);
+    }
+
+    pub fn removeAt(self: *InstallState, index: usize) void {
+        if (index >= self.queued) return;
+        var i = index;
+        while (i + 1 < self.queued) : (i += 1) {
+            self.queue[i] = self.queue[i + 1];
+            self.queue_len[i] = self.queue_len[i + 1];
+            self.activate[i] = self.activate[i + 1];
+        }
+        self.queued -= 1;
     }
 
     pub fn setError(self: *InstallState, comptime fmt: []const u8, args: anytype) void {
@@ -509,6 +581,7 @@ fn startInstallQueue(model: *Model, fx: *Effects) void {
     model.install.current = 0;
     model.install.installed_ok = 0;
     model.install.error_len = 0;
+    model.install.manifest_fallback_attempted = false;
     fx.spawn(.{
         .key = manifest_key,
         .argv = installer.downloadArgv(which, &argv_buf, installer.manifest_url, dest),
@@ -537,10 +610,18 @@ fn beginCurrentPet(model: *Model, fx: *Effects) bool {
         model.install.setError("{s} is not in the catalog", .{slug});
         return false;
     };
+    const pet_json = urls.resolvePetJson(model.install.asset_url_buffers[0][0..]) orelse {
+        model.install.setError("{s} has an invalid pet.json URL", .{slug});
+        return false;
+    };
+    const spritesheet = urls.resolveSpritesheet(model.install.asset_url_buffers[1][0..]) orelse {
+        model.install.setError("{s} has an invalid spritesheet URL", .{slug});
+        return false;
+    };
     // The host check happens before a single byte is requested: an
     // approved-but-stale row could carry a URL off the asset origin,
     // and the app must not write those bytes to a pet directory.
-    if (!installer.isTrustedAssetUrl(urls.pet_json) or !installer.isTrustedAssetUrl(urls.spritesheet)) {
+    if (!installer.isTrustedAssetUrl(pet_json) or !installer.isTrustedAssetUrl(spritesheet)) {
         model.install.setError("{s} has an untrusted asset host", .{slug});
         return false;
     }
@@ -554,7 +635,7 @@ fn beginCurrentPet(model: *Model, fx: *Effects) bool {
     model.install.phase = .pet_json;
     fx.spawn(.{
         .key = pet_json_key,
-        .argv = installer.downloadArgv(which, &argv_buf, urls.pet_json, dest),
+        .argv = installer.downloadArgv(which, &argv_buf, pet_json, dest),
         .output = .collect,
         .on_exit = Effects.exitMsg(.pet_json_done),
     });
@@ -572,7 +653,8 @@ fn beginSpritesheet(model: *Model, fx: *Effects) bool {
     const manifest = plat.readFileAlloc(boot_allocator, manifest_path, max_manifest_bytes) orelse return false;
     defer boot_allocator.free(manifest);
     const urls = installer.findPetUrls(manifest, slug) orelse return false;
-    if (!installer.isTrustedAssetUrl(urls.spritesheet)) return false;
+    const spritesheet = urls.resolveSpritesheet(model.install.asset_url_buffers[1][0..]) orelse return false;
+    if (!installer.isTrustedAssetUrl(spritesheet)) return false;
 
     var name_buf: [32]u8 = undefined;
     const name = std.fmt.bufPrint(&name_buf, "spritesheet.{s}", .{urls.spritesheetExt()}) catch return false;
@@ -583,7 +665,7 @@ fn beginSpritesheet(model: *Model, fx: *Effects) bool {
     model.install.phase = .spritesheet;
     fx.spawn(.{
         .key = spritesheet_key,
-        .argv = installer.downloadArgv(which, &argv_buf, urls.spritesheet, dest),
+        .argv = installer.downloadArgv(which, &argv_buf, spritesheet, dest),
         .output = .collect,
         .on_exit = Effects.exitMsg(.spritesheet_done),
     });
@@ -593,19 +675,28 @@ fn beginSpritesheet(model: *Model, fx: *Effects) bool {
 /// Copy the finished pet into the second root. The CLI downloads each
 /// asset twice; copying the bytes already on disk costs one read
 /// instead of a second round trip over the network.
-fn mirrorToCodexRoot(slug: []const u8, ext_png: bool) void {
-    const home = env_home orelse return;
+fn mirrorToCodexRoot(slug: []const u8, ext_png: bool) bool {
+    const home = env_home orelse return false;
     var name_buf: [32]u8 = undefined;
-    const sheet_name = std.fmt.bufPrint(&name_buf, "spritesheet.{s}", .{if (ext_png) "png" else "webp"}) catch return;
+    const sheet_name = std.fmt.bufPrint(&name_buf, "spritesheet.{s}", .{if (ext_png) "png" else "webp"}) catch return false;
+    // Do not rely on the download side having created the second root. A
+    // first install can race a stale/partial directory tree, and a failed
+    // mkdir must not be converted into a successful half-install.
+    var dir_buf: [512]u8 = undefined;
+    const dir = installer.petDir(&dir_buf, home, installer.install_roots[1], slug) orelse return false;
+    plat.makeDir(dir);
+    var copied: usize = 0;
     for ([_][]const u8{ "pet.json", sheet_name }) |name| {
         var src_buf: [512]u8 = undefined;
         var dst_buf: [512]u8 = undefined;
-        const src = installer.petFile(&src_buf, home, installer.install_roots[0], slug, name) orelse continue;
-        const dst = installer.petFile(&dst_buf, home, installer.install_roots[1], slug, name) orelse continue;
-        const bytes = plat.readFileAlloc(boot_allocator, src, max_sheet_file_bytes) orelse continue;
+        const src = installer.petFile(&src_buf, home, installer.install_roots[0], slug, name) orelse return false;
+        const dst = installer.petFile(&dst_buf, home, installer.install_roots[1], slug, name) orelse return false;
+        const bytes = plat.readFileAlloc(boot_allocator, src, max_sheet_file_bytes) orelse return false;
         defer boot_allocator.free(bytes);
-        _ = plat.writeFile(dst, bytes);
+        if (!plat.writeFile(dst, bytes)) return false;
+        copied += 1;
     }
+    return copied == 2;
 }
 
 /// Add a freshly installed pet to the in-memory catalog. A rescan would
@@ -673,6 +764,48 @@ const url_scheme_prefix = "petdex://";
 var pending_install: InstallState = .{};
 var pending_ready: bool = false;
 
+fn stagePendingInstall(slug: []const u8, activate: bool) bool {
+    if (!pending_install.enqueueRequest(slug, activate)) return false;
+    pending_ready = true;
+    return true;
+}
+
+/// Merge staged requests into the active queue without starting a second
+/// run. This is called from the app's update loop, so it is safe to append
+/// while a manifest or asset effect is in flight; `advanceInstallQueue`
+/// will visit the appended entries after the current one. If the active
+/// fixed-size queue is full, the unmerged tail stays staged for the next
+/// poll instead of being discarded.
+fn mergePendingInstall(model: *Model) ?u32 {
+    if (!pending_ready) return null;
+    var immediate_selection: ?u32 = null;
+    var i: usize = 0;
+    while (i < pending_install.queued) {
+        const slug = pending_install.queue[i][0..pending_install.queue_len[i]];
+        // A bare deep link means "use this pet". If the pet finished
+        // downloading between the URL callback and this merge, select the
+        // catalog entry instead of downloading it a second time. Explicit
+        // `petdex://install` requests keep their existing install semantics.
+        if (pending_install.activate[i]) {
+            if (catalogIndexOf(slug)) |index| {
+                immediate_selection = @intCast(index);
+                pending_install.removeAt(i);
+                continue;
+            }
+        }
+        if (!model.install.enqueueRequest(slug, pending_install.activate[i])) {
+            i += 1;
+            continue;
+        }
+        pending_install.removeAt(i);
+    }
+    if (pending_install.queued == 0) {
+        pending_install = .{};
+        pending_ready = false;
+    }
+    return immediate_selection;
+}
+
 /// `petdex://<slug>` selects a pet, installing it first when it is not
 /// on disk; `petdex://install?slug=a&slug=b` installs without
 /// selecting (petdex-desktop-link.ts builds both forms).
@@ -681,6 +814,8 @@ var pending_ready: bool = false;
 /// callback, so the common case keeps its immediate swap and never
 /// touches the network.
 fn onUrlsOpened(urls: []const []const u8) ?Msg {
+    var staged = false;
+    var immediate_selection: ?u32 = null;
     for (urls) |url| {
         if (!std.mem.startsWith(u8, url, url_scheme_prefix)) continue;
         const rest = url[url_scheme_prefix.len..];
@@ -688,29 +823,30 @@ fn onUrlsOpened(urls: []const []const u8) ?Msg {
 
         if (std.mem.eql(u8, host, "install")) {
             const query = std.mem.indexOfScalar(u8, rest, '?') orelse continue;
-            pending_install = .{};
             var it = std.mem.splitScalar(u8, rest[query + 1 ..], '&');
             while (it.next()) |pair| {
                 if (!std.mem.startsWith(u8, pair, "slug=")) continue;
                 var value = pair["slug=".len..];
                 if (std.mem.indexOfScalar(u8, value, '#')) |cut| value = value[0..cut];
-                _ = pending_install.enqueue(value);
+                staged = stagePendingInstall(value, false) or staged;
             }
-            if (pending_install.queued == 0) continue;
-            pending_install.activate_when_done = false;
-            pending_ready = true;
-            return .noop;
+            continue;
         }
 
         // NSURL hands back the absoluteString, and a bare host round
         // trips as `petdex://slug/`.
-        if (catalogIndexOf(host)) |index| return .{ .select_pet = @intCast(index) };
-        pending_install = .{};
-        if (!pending_install.enqueue(host)) continue;
-        pending_install.activate_when_done = true;
-        pending_ready = true;
-        return .noop;
+        if (catalogIndexOf(host)) |index| {
+            // Process every URL in the callback. If a batch contains
+            // both an already-installed pet and a new one, the immediate
+            // selection is returned while the new install remains staged.
+            immediate_selection = @intCast(index);
+            continue;
+        }
+        staged = stagePendingInstall(host, true) or staged;
     }
+
+    if (immediate_selection) |index| return .{ .select_pet = index };
+    if (staged) return .noop;
     return null;
 }
 
@@ -718,14 +854,15 @@ fn onUrlsOpened(urls: []const []const u8) ?Msg {
 /// `update`, the first place with an `fx` to spawn on.
 fn drainPendingInstall(model: *Model, fx: *Effects) void {
     if (!pending_ready) return;
-    pending_ready = false;
-    if (model.install.busy()) return;
-    const activate = pending_install.activate_when_done;
-    model.install.queued = 0;
-    for (0..pending_install.queued) |i| {
-        _ = model.install.enqueue(pending_install.queue[i][0..pending_install.queue_len[i]]);
+    const immediate_selection = mergePendingInstall(model);
+    if (immediate_selection) |index| {
+        update(model, .{ .select_pet = index }, fx);
     }
-    model.install.activate_when_done = activate;
+    // The staged entries are now part of the active queue. Do not reset or
+    // restart it while an effect is still running; the next poll will retry
+    // only any tail that did not fit.
+    if (model.install.busy()) return;
+    if (model.install.queued == 0) return;
     startInstallQueue(model, fx);
     // A deep-link install arrives from the browser with no Petdex window
     // in front of the user, so the progress banner would render into a
@@ -775,11 +912,165 @@ const update_boot_timer_key: u64 = 33;
 const homebrew_timeout_timer_key: u64 = 34;
 const dsh_install_key: u64 = 35;
 const dsh_remove_key: u64 = 36;
+const auth_token_key: u64 = 43;
+const auth_library_key: u64 = 44;
+const auth_avatar_key: u64 = 45;
+const auth_preview_key: u64 = 46;
 const update_boot_delay_ms: u32 = 5000;
 const update_background_interval_ms: i64 = 24 * 60 * 60 * 1000;
 const update_settings_interval_ms: i64 = 5 * 60 * 1000;
 const update_failure_retry_ms: u64 = 60 * 60 * 1000;
 const homebrew_timeout_ms: u64 = 8000;
+
+fn loadAuthSession(model: *Model, fx: *Effects) void {
+    if (!desktop_auth.available) return;
+    model.auth.phase = .loading;
+    var stored_buf: [17000]u8 = undefined;
+    const stored = desktop_auth.loadStoredSession(&stored_buf) orelse {
+        model.auth.clearSession();
+        return;
+    };
+    if (!desktop_auth.applyStoredTokens(&model.auth, boot_allocator, stored)) {
+        model.auth.clearSession();
+        return;
+    }
+    fetchAuthLibrary(model, fx);
+}
+
+fn saveAuthSession(model: *const Model, fx: *Effects) void {
+    _ = fx;
+    if (!desktop_auth.available) return;
+    var session_buf: [17000]u8 = undefined;
+    const token = desktop_auth.storedTokens(&model.auth, &session_buf) orelse return;
+    if (!desktop_auth.saveStoredSession(token)) std.debug.print("petdex: macOS Keychain could not save the session\n", .{});
+}
+
+fn fetchAuthLibrary(model: *Model, fx: *Effects) void {
+    if (model.auth.access_token_len == 0) {
+        model.auth.setError("Your Petdex session is missing an access token");
+        return;
+    }
+    model.auth.phase = .syncing;
+    var config_buf: [9000]u8 = undefined;
+    const config = std.fmt.bufPrint(&config_buf, "url = \"{s}\"\nheader = \"Authorization: Bearer {s}\"\nsilent\nshow-error\nwrite-out = \"\\n%{{http_code}}\"\n", .{ env_auth_library_url, model.auth.accessToken() }) catch {
+        model.auth.setError("Your Petdex session token is too large");
+        return;
+    };
+    const argv = [_][]const u8{ "/usr/bin/curl", "--max-time", "15", "--config", "-" };
+    fx.spawn(.{
+        .key = auth_library_key,
+        .argv = &argv,
+        .stdin = config,
+        .output = .collect,
+        .on_exit = Effects.exitMsg(.auth_library_done),
+    });
+}
+
+fn requestAuthTokens(model: *Model, code: ?[]const u8, fx: *Effects) void {
+    var body_buf: [10000]u8 = undefined;
+    const body = if (code) |value| desktop_auth.tokenBody(&model.auth, value, &body_buf) else desktop_auth.refreshBody(&model.auth, &body_buf);
+    const payload = body orelse {
+        model.auth.setError("Could not prepare the Petdex sign-in request");
+        return;
+    };
+    model.auth.refreshing = code == null;
+    model.auth.phase = .exchanging;
+    const headers = [_]std.http.Header{.{ .name = "content-type", .value = "application/x-www-form-urlencoded" }};
+    fx.fetch(.{
+        .key = auth_token_key,
+        .method = .POST,
+        .url = desktop_auth.issuer ++ "/oauth/token",
+        .headers = &headers,
+        .body = payload,
+        .timeout_ms = 15000,
+        .on_response = Effects.responseMsg(.auth_token_response),
+    });
+}
+
+fn authPetForCell(model: *const Model, cell: usize) ?*const desktop_auth.Pet {
+    if (cell < 6) {
+        if (cell >= model.auth.owned_len) return null;
+        return &model.auth.owned[cell];
+    }
+    const index = cell - 6;
+    if (index >= model.auth.caught_len) return null;
+    return &model.auth.caught[index];
+}
+
+fn fetchNextAuthPreview(model: *Model, fx: *Effects) void {
+    while (model.auth_preview_next < auth_preview_count) {
+        const cell = model.auth_preview_next;
+        model.auth_preview_next += 1;
+        const pet = authPetForCell(model, cell) orelse continue;
+        if (pet.thumbnail_url_len == 0) continue;
+        fx.fetch(.{
+            .key = auth_preview_key,
+            .url = pet.thumbnailUrl(),
+            .timeout_ms = 10000,
+            .on_response = Effects.responseMsg(.auth_preview_response),
+        });
+        return;
+    }
+}
+
+fn startAuthImages(model: *Model, fx: *Effects) void {
+    auth_avatar_ready = false;
+    model.auth_preview_next = 0;
+    model.auth_preview_ready = @splat(false);
+    if (auth_preview_pixels.len == 0) {
+        auth_preview_pixels = boot_allocator.alloc(u8, auth_preview_columns * auth_preview_cell * 2 * auth_preview_cell * 4) catch return;
+    }
+    @memset(auth_preview_pixels, 0);
+    if (model.auth.avatar_url_len > 0) {
+        fx.fetch(.{
+            .key = auth_avatar_key,
+            .url = model.auth.avatarUrl(),
+            .timeout_ms = 10000,
+            .on_response = Effects.responseMsg(.auth_avatar_response),
+        });
+    }
+    fetchNextAuthPreview(model, fx);
+}
+
+fn registerAuthPreview(model: *Model, response: native_sdk.EffectResponse, fx: *Effects) void {
+    const cell = model.auth_preview_next -| 1;
+    if (cell >= auth_preview_count or response.outcome != .ok or response.status != 200 or response.truncated) {
+        fetchNextAuthPreview(model, fx);
+        return;
+    }
+    const services = fx.services orelse {
+        fetchNextAuthPreview(model, fx);
+        return;
+    };
+    const scratch = boot_allocator.alloc(u8, 512 * 512 * 4) catch {
+        fetchNextAuthPreview(model, fx);
+        return;
+    };
+    defer boot_allocator.free(scratch);
+    const decoded = services.decodeImage(response.body, scratch) catch {
+        fetchNextAuthPreview(model, fx);
+        return;
+    };
+    if (decoded.width == 0 or decoded.height == 0) {
+        fetchNextAuthPreview(model, fx);
+        return;
+    }
+    const atlas_width = auth_preview_columns * auth_preview_cell;
+    const cell_x = (cell % auth_preview_columns) * auth_preview_cell;
+    const cell_y = (cell / auth_preview_columns) * auth_preview_cell;
+    for (0..auth_preview_cell) |y| {
+        const src_y = y * decoded.height / auth_preview_cell;
+        for (0..auth_preview_cell) |x| {
+            const src_x = x * decoded.width / auth_preview_cell;
+            const src_off = (src_y * decoded.width + src_x) * 4;
+            const dst_off = ((cell_y + y) * atlas_width + cell_x + x) * 4;
+            @memcpy(auth_preview_pixels[dst_off..][0..4], scratch[src_off..][0..4]);
+        }
+    }
+    model.auth_preview_ready[cell] = true;
+    fx.registerImage(auth_preview_atlas_id, atlas_width, auth_preview_cell * 2, auth_preview_pixels) catch {};
+    fetchNextAuthPreview(model, fx);
+}
 
 fn updateCachePhase(model: *Model) void {
     if (model.latest_version_len == 0) {
@@ -902,6 +1193,7 @@ var sheet: Sheet = .{};
 /// global getenv; env rides std.process.Init).
 var env_home: ?[]const u8 = null;
 var env_wanted_pet: ?[]const u8 = null;
+var env_auth_library_url: []const u8 = desktop_auth.library_url;
 
 fn readFileAbsolute(io: std.Io, allocator: std.mem.Allocator, path: []const u8, max: usize) ![]u8 {
     var file = try std.Io.Dir.openFileAbsolute(io, path, .{});
@@ -1219,6 +1511,13 @@ var initial_pet_y: ?f64 = null;
 // assets/agents/, re-registered only when the agent changes.
 const avatar_image_id: u64 = 13;
 const tail_image_id: u64 = 14;
+const auth_avatar_image_id: u64 = 15;
+const auth_preview_atlas_id: u64 = 16;
+const auth_preview_cell: usize = 48;
+const auth_preview_columns: usize = 6;
+const auth_preview_count: usize = 12;
+var auth_avatar_ready: bool = false;
+var auth_preview_pixels: []u8 = &.{};
 // One slot for every agent logo plus fallback, packed side by side and read back with
 // `image_src` (the thumbnail atlas above does the same). Previously each
 // agent held its own registry id, which ran the app into the SDK's
@@ -1588,6 +1887,64 @@ fn registerStateFrames(state: State, fx: *Effects) void {
     }
 }
 
+/// Slots for the flock's per-state stills. The pet window animates one
+/// state at a time through slots 1..8; a flock shows several states at
+/// once, so each body needs a frame of its own state resident. One still
+/// per state is enough to tell them apart at a glance, and it fits the
+/// registry's remaining budget where eight animated frames per body would
+/// not.
+const flock_atlas_image_id: u64 = 10;
+const flock_states = [_]State{ .waiting, .running, .idle, .failed, .review };
+
+pub fn flockImageId(state: State) u64 {
+    _ = state;
+    return flock_atlas_image_id;
+}
+
+fn flockFrameIndex(state: State) usize {
+    return switch (state) {
+        .waiting => 0,
+        .running, .@"running-right", .@"running-left" => 1,
+        .failed => 3,
+        .review => 4,
+        else => 2,
+    };
+}
+
+fn flockImageRect(state: State) geometry.RectF {
+    return geometry.RectF.init(
+        @as(f32, @floatFromInt(flockFrameIndex(state))) * frame_w,
+        0,
+        frame_w,
+        frame_h,
+    );
+}
+
+/// Register one representative still per flock state. Called when the
+/// sheet loads, so the bodies have artwork before the window opens.
+fn registerFlockFrames(fx: *Effects) void {
+    if (sheet.pixels.len == 0) return;
+    const fw = sheet.width / cols;
+    const fh = sheet.height / sheet.rows;
+    const atlas_w = fw * flock_states.len;
+    var scratch = boot_allocator.alloc(u8, atlas_w * fh * 4) catch return;
+    defer boot_allocator.free(scratch);
+    for (flock_states, 0..) |state, index| {
+        const def = stateDef(state);
+        const src_x = def.frames[0].col * fw;
+        const src_y = def.row * fh;
+        for (0..fh) |y| {
+            const src_off = ((src_y + y) * sheet.width + src_x) * 4;
+            const dst_off = (y * atlas_w + index * fw) * 4;
+            @memcpy(scratch[dst_off..][0 .. fw * 4], sheet.pixels[src_off..][0 .. fw * 4]);
+        }
+    }
+    fx.registerImage(flock_atlas_image_id, atlas_w, fh, scratch) catch |err| {
+        std.debug.print("petdex: flock frame register failed ({s})\n", .{@errorName(err)});
+        return;
+    };
+}
+
 const poll_timer_key: u64 = 2;
 const poll_interval_ms: u32 = 100;
 const min_dwell_ms: u32 = 250;
@@ -1787,6 +2144,7 @@ pub fn boot(model: *Model, fx: *Effects) void {
         };
         startRemotes(model, fx);
     }
+    loadAuthSession(model, fx);
     fx.startTimer(.{
         .key = poll_timer_key,
         .interval_ms = poll_interval_ms,
@@ -1869,6 +2227,10 @@ pub fn boot(model: *Model, fx: *Effects) void {
     // draw.
     pet_display_name = catalog[active].slice();
     registerStateFrames(model.state, fx);
+    // The flock draws several states at once, so its stills are resident
+    // from the moment the sheet is: a body must not wait for its own
+    // state to become the pet window's.
+    registerFlockFrames(fx);
     model.sheet_loaded = true;
     const n = @min(pet_display_name.len, model.pet_name.len);
     @memcpy(model.pet_name[0..n], pet_display_name[0..n]);
@@ -1935,6 +2297,23 @@ pub fn update(model: *Model, msg: Msg, fx: *Effects) void {
             applyState(model, model.state.next(), 0, fx);
         },
         .toggle_pets_expanded => model.pets_expanded = !model.pets_expanded,
+        .focus_flock_member => |index| {
+            // The pane id rode all the way from Herdr on the bubble this
+            // body was built from, so reaching the session is the same
+            // verb the pet window already uses for the front bubble.
+            if (index >= model.flock.len) return;
+            const member = &model.flock.members[index];
+            const pane = member.herdrPaneSlice();
+            if (pane.len == 0) return;
+            if (env_home) |home| _ = plat.activateHerdrPane(home, pane);
+        },
+        .toggle_flock_window => {
+            model.flock.open = !model.flock.open;
+            // Badges read from the shared agent strip. It loads at boot,
+            // but a theme flip since then would leave it in the wrong
+            // palette; this reloads only when that happened.
+            if (model.flock.open) loadAgentsAtlas(model.dark, fx);
+        },
         .dismiss_install_error => model.install.error_len = 0,
         .install_first_pet => {
             // A fresh install has no pets, so the pet window renders an
@@ -1945,8 +2324,7 @@ pub fn update(model: *Model, msg: Msg, fx: *Effects) void {
             // takes the identical path.
             if (model.install.busy()) return;
             model.install.error_len = 0;
-            _ = model.install.enqueue(default_pet_slug);
-            model.install.activate_when_done = true;
+            _ = model.install.enqueueRequest(default_pet_slug, true);
             startInstallQueue(model, fx);
         },
         .manifest_done => |exit| {
@@ -1955,6 +2333,25 @@ pub fn update(model: *Model, msg: Msg, fx: *Effects) void {
             // there is nothing to resolve any slug against: the whole
             // queue ends here rather than failing pet by pet.
             if (exit.reason != .exited or exit.code != 0) {
+                if (!model.install.manifest_fallback_attempted) {
+                    model.install.manifest_fallback_attempted = true;
+                    var path_buf: [512]u8 = undefined;
+                    const path = manifestTmpPath(&path_buf) orelse {
+                        model.install.setError("Could not reach petdex.dev", .{});
+                        model.install.phase = .idle;
+                        model.install.queued = 0;
+                        return;
+                    };
+                    const which = installer.detect() orelse return;
+                    var argv_buf: [installer.max_argv][]const u8 = undefined;
+                    fx.spawn(.{
+                        .key = manifest_key,
+                        .argv = installer.downloadArgv(which, &argv_buf, installer.legacy_manifest_url, path),
+                        .output = .collect,
+                        .on_exit = Effects.exitMsg(.manifest_done),
+                    });
+                    return;
+                }
                 model.install.setError("Could not reach petdex.dev", .{});
                 model.install.phase = .idle;
                 model.install.queued = 0;
@@ -1983,13 +2380,17 @@ pub fn update(model: *Model, msg: Msg, fx: *Effects) void {
                 advanceInstallQueue(model, fx);
                 return;
             }
-            mirrorToCodexRoot(slug, model.install.ext_png);
+            if (!mirrorToCodexRoot(slug, model.install.ext_png)) {
+                model.install.setError("{s}: failed to mirror into Codex pets", .{slug});
+                advanceInstallQueue(model, fx);
+                return;
+            }
             model.install.installed_ok += 1;
             // The pet is only usable once the catalog knows it; a fresh
             // thumbnail pass picks it up the next time settings is open.
             const index = catalogAppend(slug, model.active_pet);
             thumbs_built = @min(thumbs_built, catalog_mod.catalog_len);
-            if (model.install.activate_when_done) {
+            if (model.install.currentActivates()) {
                 if (index) |i| {
                     // Deliberately routed through the same Msg the
                     // settings list uses, so activation after an install
@@ -2115,11 +2516,124 @@ pub fn update(model: *Model, msg: Msg, fx: *Effects) void {
             }
             model.settings_open = true;
         },
+        .auth_sign_in => {
+            if (!desktop_auth.available or model.auth.phase == .authorizing or model.auth.phase == .exchanging) return;
+            var url_buf: [1024]u8 = undefined;
+            const url = desktop_auth.begin(&model.auth, &url_buf) orelse {
+                model.auth.setError("Could not start Petdex sign-in");
+                return;
+            };
+            plat.openExternal(url);
+        },
+        .auth_refresh => {
+            if (model.auth.phase != .signed_in and model.auth.phase != .failed) return;
+            if (model.auth.access_token_len > 0) {
+                fetchAuthLibrary(model, fx);
+            } else {
+                requestAuthTokens(model, null, fx);
+            }
+        },
+        .auth_sign_out => {
+            model.auth.clearSession();
+            model.pet_source = .installed;
+            auth_avatar_ready = false;
+            model.auth_preview_ready = @splat(false);
+            if (desktop_auth.available and !desktop_auth.deleteStoredSession()) std.debug.print("petdex: macOS Keychain could not delete the session\n", .{});
+        },
+        .auth_install_pet => |cloud_id| {
+            const caught = cloud_id >= desktop_auth.max_pets;
+            const index: usize = if (caught) cloud_id - desktop_auth.max_pets else cloud_id;
+            const pet = if (caught) blk: {
+                if (index >= model.auth.caught_len) return;
+                break :blk &model.auth.caught[index];
+            } else blk: {
+                if (index >= model.auth.owned_len) return;
+                break :blk &model.auth.owned[index];
+            };
+            if (pet.status != .approved and pet.status != .caught) return;
+            if (catalogIndexOf(pet.slugSlice())) |catalog_index| {
+                update(model, .{ .select_pet = @intCast(catalog_index) }, fx);
+                return;
+            }
+            if (model.install.busy()) return;
+            model.install.error_len = 0;
+            _ = model.install.enqueueRequest(pet.slugSlice(), true);
+            startInstallQueue(model, fx);
+        },
+        .auth_open_pet => |cloud_id| {
+            const caught = cloud_id >= desktop_auth.max_pets;
+            const index: usize = if (caught) cloud_id - desktop_auth.max_pets else cloud_id;
+            const pet = if (caught) blk: {
+                if (index >= model.auth.caught_len) return;
+                break :blk &model.auth.caught[index];
+            } else blk: {
+                if (index >= model.auth.owned_len) return;
+                break :blk &model.auth.owned[index];
+            };
+            if (pet.status != .approved and pet.status != .caught) {
+                plat.openExternal("https://petdex.dev/my-pets");
+                return;
+            }
+            var url: [256]u8 = undefined;
+            const value = std.fmt.bufPrint(&url, "https://petdex.dev/pets/{s}", .{pet.slugSlice()}) catch return;
+            plat.openExternal(value);
+        },
+        .auth_open_library => plat.openExternal("https://petdex.dev/my-pets"),
+        .auth_open_community => plat.openExternal("https://petdex.dev"),
+        .set_pet_source => |source| {
+            model.pet_source = switch (source) {
+                0 => .installed,
+                1 => .yours,
+                2 => .caught,
+                else => return,
+            };
+            model.pets_expanded = false;
+            model.settings_scroll = 0;
+        },
+        .settings_scrolled => |state| model.settings_scroll = state.offset,
+        .auth_token_response => |response| {
+            if (response.outcome != .ok or response.status != 200 or response.truncated or !desktop_auth.applyTokenResponse(&model.auth, boot_allocator, response.body)) {
+                model.auth.refreshing = false;
+                model.auth.setError("Petdex sign-in could not complete");
+                return;
+            }
+            saveAuthSession(model, fx);
+            fetchAuthLibrary(model, fx);
+        },
+        .auth_avatar_response => |response| {
+            if (response.outcome != .ok or response.status != 200 or response.truncated) return;
+            _ = fx.registerImageBytes(auth_avatar_image_id, response.body) catch return;
+            auth_avatar_ready = true;
+        },
+        .auth_preview_response => |response| registerAuthPreview(model, response, fx),
+        .auth_library_done => |exit| {
+            const output = std.mem.trimEnd(u8, exit.output, "\r\n");
+            const newline = std.mem.lastIndexOfScalar(u8, output, '\n');
+            const status = if (newline) |at| std.fmt.parseInt(u16, output[at + 1 ..], 10) catch 0 else 0;
+            const body = if (newline) |at| output[0..at] else "";
+            if (exit.reason == .exited and exit.code == 0 and status == 401 and model.auth.refresh_token_len > 0 and !model.auth.refreshing) {
+                requestAuthTokens(model, null, fx);
+                return;
+            }
+            if (exit.reason != .exited or exit.code != 0 or exit.output_truncated or status != 200 or !desktop_auth.applyLibrary(&model.auth, boot_allocator, body)) {
+                model.auth.refreshing = false;
+                model.auth.setError("Could not sync your My Petdex library");
+                return;
+            }
+            model.auth.refreshing = false;
+            startAuthImages(model, fx);
+        },
         .settings_closed => model.settings_open = false,
         .update_boot_check => |timer| {
             if (timer.outcome == .fired and model.update_checks_enabled) startUpdateCheck(model, false, fx);
         },
-        .check_updates => startUpdateCheck(model, true, fx),
+        .check_updates => {
+            if (model.update_phase == .available) {
+                plat.openExternal(updates.downloadUrl());
+            } else {
+                startUpdateCheck(model, true, fx);
+            }
+        },
         .toggle_update_checks => {
             model.update_checks_enabled = !model.update_checks_enabled;
             if (!model.update_checks_enabled) {
@@ -2230,6 +2744,7 @@ pub fn update(model: *Model, msg: Msg, fx: *Effects) void {
             // the next day.
             model.rotation_day = dayFromWallMs(fx.wallMs());
             registerStateFrames(model.state, fx);
+            registerFlockFrames(fx);
             armFrameTimer(model, fx);
             saveSettings(model);
         },
@@ -2371,6 +2886,13 @@ pub fn update(model: *Model, msg: Msg, fx: *Effects) void {
             const url = std.fmt.bufPrint(&buf, "https://petdex.dev/pets/{s}", .{catalog[index].slice()}) catch return;
             plat.openExternal(url);
         },
+        .open_active_pet_page => {
+            if (model.active_pet >= catalog_mod.catalog_len) return;
+            var buf: [256]u8 = undefined;
+            const url = std.fmt.bufPrint(&buf, "https://petdex.dev/pets/{s}", .{catalog[model.active_pet].slice()}) catch return;
+            plat.openExternal(url);
+        },
+        .open_website => plat.openExternal("https://petdex.dev"),
         .appearance => |a| {
             model.dark = a.color_scheme == .dark;
             if (newestBubble(model)) |newest| {
@@ -2601,7 +3123,7 @@ pub fn update(model: *Model, msg: Msg, fx: *Effects) void {
             else
                 read.x;
             const pet_y = if (builtin.target.os.tag == .linux)
-                read.y + @as(f64, win_h - pet_edge_pad) - pet_h
+                read.y + @as(f64, linuxPetTopLocal(model.scale))
             else
                 read.y;
             const inside = read.cursor_x >= pet_x and read.cursor_x <= pet_x + pet_w and
@@ -2620,6 +3142,19 @@ pub fn update(model: *Model, msg: Msg, fx: *Effects) void {
         },
         .poll_tick => |timer| {
             if (timer.outcome != .fired) return;
+            if (hook_server.auth_mailbox.take()) |callback| {
+                if (model.auth.phase == .authorizing) {
+                    if (!std.mem.eql(u8, callback.stateSlice(), model.auth.oauthState())) {
+                        model.auth.setError("Petdex rejected the sign-in callback");
+                    } else if (callback.error_len > 0) {
+                        model.auth.setError(callback.errorSlice());
+                    } else if (callback.code_len > 0) {
+                        requestAuthTokens(model, callback.codeSlice(), fx);
+                    } else {
+                        model.auth.setError("Petdex rejected the sign-in callback");
+                    }
+                }
+            }
             // Ahead of the sheet guard on purpose: a machine with no pet
             // installed has no sheet, and that is precisely when a
             // `petdex://<slug>` link has work to do.
@@ -2660,6 +3195,10 @@ pub fn update(model: *Model, msg: Msg, fx: *Effects) void {
                     @memcpy(model.bubbles[0..count], drained[0..count]);
                     for (count..hook_server.max_bubbles) |i| model.bubbles[i] = .{};
                     model.bubbles_len = count;
+                    // The flock reads the same live set, one body per
+                    // session, instead of the single aggregate state the
+                    // pet window shows.
+                    flock_mod.reconcile(&model.flock, model.bubbles[0..count]);
                     syncBubbleDeadlines(model, previous[0..previous_len], previous_deadlines[0..previous_len], now);
                     if (newestBubble(model)) |newest| {
                         loadAgentAvatar(newest.agent[0..newest.agent_len], model.dark, fx);
@@ -2673,6 +3212,12 @@ pub fn update(model: *Model, msg: Msg, fx: *Effects) void {
                 }
             }
             _ = expireBubbles(model, now);
+            // A newly drained bubble is declared as a popup in the same
+            // update pass. Compute Linux's side after expiry and before
+            // that declaration so the first rendered frame uses the same
+            // orientation as the compositor anchor, rather than showing a
+            // flipped tail for one frame until the next frame-clock tick.
+            if (builtin.target.os.tag == .linux and bubbleActive(model)) syncBubbleWindow(model, fx);
             if (model.waiting_sound and shouldEscalate(model.state, model.waiting_since_ms, model.waiting_escalated, now)) {
                 model.waiting_escalated = true;
                 playWaitingChime(fx);
@@ -2729,6 +3274,10 @@ pub fn onCommand(name: []const u8) ?Msg {
     if (std.mem.eql(u8, name, "petdex.quit")) return .quit_app;
     if (std.mem.eql(u8, name, "petdex.focus")) return .toggle_focus_mode;
     if (std.mem.eql(u8, name, "petdex.shuffle")) return .shuffle_pet;
+    if (std.mem.eql(u8, name, "petdex.website")) return .open_website;
+    if (std.mem.eql(u8, name, "petdex.pet-page")) return .open_active_pet_page;
+    if (std.mem.eql(u8, name, "petdex.updates")) return .check_updates;
+    if (std.mem.eql(u8, name, "petdex.flock")) return .toggle_flock_window;
     return null;
 }
 
@@ -2738,8 +3287,19 @@ pub const AppUi = canvas.Ui(Msg);
 
 const pet_menu = [_]AppUi.ContextMenuItem{
     .{ .label = "Open Settings", .msg = .open_settings },
+    .{ .label = "Open Flock", .msg = .toggle_flock_window },
+    .{ .label = "View Pet on Petdex", .msg = .open_active_pet_page },
     .{ .label = "Close Pet", .msg = .close_pet },
 };
+
+test "pet context menu opens the flock" {
+    try std.testing.expectEqualStrings("Open Flock", pet_menu[1].label);
+    const msg = pet_menu[1].msg orelse return error.TestUnexpectedResult;
+    switch (msg) {
+        .toggle_flock_window => {},
+        else => return error.TestUnexpectedResult,
+    }
+}
 
 // The visible card remains intrinsic and grows only with the text it actually
 // contains. These values size the surrounding transparent canvas generously
@@ -3406,6 +3966,7 @@ fn clearBubble(model: *Model) void {
     model.bubbles = @splat(.{});
     model.bubbles_len = 0;
     model.bubble_expires_at_ms = @splat(-1);
+    model.bubble_above_blocked = false;
     hook_server.mailbox.clearBubbles();
 }
 
@@ -3560,6 +4121,16 @@ const BubbleMovePlan = struct {
     dy: f64,
 };
 
+const bubble_probe_position_epsilon: f64 = 4;
+
+fn bubbleAboveProbeStale(model: *const Model, bubble_h: f32) bool {
+    if (!model.bubble_above_blocked) return false;
+    if (@abs(model.pet_x - model.bubble_above_blocked_x) > bubble_probe_position_epsilon) return true;
+    if (@abs(model.pet_y - model.bubble_above_blocked_y) > bubble_probe_position_epsilon) return true;
+    if (@abs(bubble_h - model.bubble_above_blocked_h) > 0.5) return true;
+    return false;
+}
+
 /// Calculate a global-coordinate move without applying a display clamp.
 /// The caller applies the destination display's visible-frame constraint
 /// only after this move has crossed any monitor boundary.
@@ -3578,15 +4149,100 @@ fn bubbleClampCorrection(actual_x: f64, actual_y: f64, settled_x: f64, settled_y
     return bubbleMovePlan(actual_x, actual_y, settled_x, settled_y);
 }
 
+/// Apply the destination display's visible-frame clamp and reconcile hosts
+/// that report the clamped origin without moving the actual window. The
+/// probe is also used when the bubble is already at its target: taskbar,
+/// display-layout, and display-scale changes can invalidate a previously
+/// valid origin without changing the requested coordinates.
+fn settleBubbleWindow(model: *Model, fx: *Effects, bubble_h: f32, want_x: f64) bool {
+    var settled = fx.moveWindow("bubble", 0, 0, true) orelse return false;
+    var actual = fx.moveWindow("bubble", 0, 0, false) orelse return false;
+    // A negative global y is valid on a monitor above the primary screen,
+    // so the initial direction deliberately stays above. If the above
+    // candidate is clipped by the destination display, flip below and make
+    // a second bounded pass.
+    if (!model.bubble_flipped and settled.hit_y) {
+        model.bubble_flipped = true;
+        model.bubble_above_blocked = true;
+        model.bubble_above_blocked_x = model.pet_x;
+        model.bubble_above_blocked_y = model.pet_y;
+        model.bubble_above_blocked_h = bubble_h;
+        const flipped_y = bubbleWantY(model, bubble_h);
+        if (bubbleMovePlan(actual.x, actual.y, want_x, flipped_y)) |flip_plan| {
+            _ = fx.moveWindow("bubble", flip_plan.dx, flip_plan.dy, false) orelse return false;
+        }
+        // Re-probe even when the flipped target is already at the current
+        // origin; the display may still clamp the candidate after the side
+        // changes, and the readback must describe that final placement.
+        settled = fx.moveWindow("bubble", 0, 0, true) orelse return false;
+        actual = fx.moveWindow("bubble", 0, 0, false) orelse return false;
+    }
+    if (!model.bubble_flipped and !settled.hit_y) model.bubble_above_blocked = false;
+    if (bubbleClampCorrection(actual.x, actual.y, settled.x, settled.y)) |correction| {
+        const corrected = fx.moveWindow("bubble", correction.dx, correction.dy, false) orelse return false;
+        recordPetCenterLocal(model, corrected.x);
+    } else {
+        recordPetCenterLocal(model, actual.x);
+    }
+    return true;
+}
+
+/// The Linux pet is drawn inside the fixed startup canvas rather than
+/// resizing the toplevel to the sprite. Keep the canvas-local pet origin in
+/// one helper so bubble anchoring and pointer hit testing use the same
+/// geometry at every scale.
+fn linuxPetTopLocal(scale: f32) f32 {
+    return win_h - pet_edge_pad - frame_h * scale;
+}
+
+/// GtkPopover's GTK_POS_TOP placement puts the popup above the pointing
+/// rectangle. The descriptor therefore supplies the rectangle edge, not the
+/// popup top: above the pet the rectangle is the pet top minus the clearance;
+/// below it is the pet bottom plus clearance plus the popup height. The
+/// previous code supplied the pet edge for both cases, which made GTK choose
+/// the wrong side and cover the sprite on the X11/GTK path.
+fn linuxBubbleAnchorY(scale: f32, flipped: bool, bubble_h: f32) f32 {
+    const pet_top = linuxPetTopLocal(scale);
+    const pet_bottom = win_h - pet_edge_pad;
+    const clearance: f32 = @floatCast(bubble_pet_clearance);
+    return if (flipped)
+        pet_bottom + clearance + bubble_h
+    else
+        // A scale at the edge of the fixed canvas can leave less than the
+        // clearance above the sprite. Keep the GTK pointing rectangle inside
+        // the parent surface; the side selector flips below when the global
+        // display has no room above, while a monitor above the primary screen
+        // may still legitimately use the zero-edge anchor.
+        @max(@as(f32, 0), pet_top - clearance);
+}
+
+/// Return the pet's actual global top edge for side selection. On Linux the
+/// model position is the fixed canvas origin, not the sprite origin.
+fn bubblePetTopY(model: *const Model) f64 {
+    if (builtin.target.os.tag == .linux)
+        return model.pet_y + @as(f64, @floatCast(linuxPetTopLocal(model.scale)));
+    return model.pet_y;
+}
+
 /// Keep the bubble window glued above the pet and sized to its content:
 /// read both origins and close the gap. Self-correcting, so drags,
 /// throws, scale changes, and text-size changes all need no
 /// special-casing.
 fn syncBubbleWindow(model: *Model, fx: *Effects) void {
+    if (!bubbleActive(model)) {
+        model.bubble_above_blocked = false;
+        return;
+    }
+    const bubble_h = bubbleWindowHeight(model);
     // Linux uses a parent-local compositor popup. Its descriptor drives
     // size and anchoring, so application-side global moves are both
-    // unnecessary and invalid on Wayland.
-    if (builtin.target.os.tag == .linux or !bubbleActive(model)) return;
+    // unnecessary and invalid on Wayland. The side decision still belongs
+    // here so petdexWindows can publish the correct local anchor on the
+    // next reconciliation pass.
+    if (builtin.target.os.tag == .linux) {
+        model.bubble_flipped = bubbleShouldFlip(model, bubblePetTopY(model), @floatCast(bubble_h));
+        return;
+    }
     // The flip is decided HERE, in the function that consumes it, rather
     // than by each caller beforehand. bubbleWantY below reads the flag,
     // so a caller that moved the pet and forgot to refresh it first would
@@ -3594,9 +4250,12 @@ fn syncBubbleWindow(model: *Model, fx: *Effects) void {
     // what the throw branch did: it drives its own moveWindow and returns
     // before the cursor poll, so it never reached the frame clock's
     // update and flew the whole arc with a stale flag.
-    model.bubble_flipped = bubbleShouldFlip(model, model.pet_y, @floatCast(bubbleWindowHeight(model)));
     const bubble_w = bubbleWindowWidth(model);
-    const bubble_h = bubbleWindowHeight(model);
+    if (bubbleAboveProbeStale(model, bubble_h)) model.bubble_above_blocked = false;
+    model.bubble_flipped = if (model.bubble_above_blocked)
+        true
+    else
+        bubbleShouldFlip(model, bubblePetTopY(model), @floatCast(bubble_h));
     // Resize before moving: the move centers on the new width, so doing
     // it the other way round centers on the old one and leaves the
     // bubble offset by half the delta.
@@ -3614,24 +4273,11 @@ fn syncBubbleWindow(model: *Model, fx: *Effects) void {
         // window. It cannot be used for the first leg of a cross-display
         // move: the bubble would remain trapped on the old display.
         _ = fx.moveWindow("bubble", plan.dx, plan.dy, false) orelse return;
-        // The global move has reached the target display. A zero-distance
-        // constrained move now lets that display apply its visible-frame
-        // correction, including negative coordinates and taskbar insets.
-        const settled = fx.moveWindow("bubble", 0, 0, true) orelse return;
-        // The pre-fix macOS host returned the clamped origin here but did
-        // not call setFrameOrigin when dx/dy were zero. Read the actual
-        // origin back and reconcile that legacy behavior explicitly; this
-        // also makes the app robust while an SDK fix is rolling out.
-        const actual = fx.moveWindow("bubble", 0, 0, false) orelse return;
-        if (bubbleClampCorrection(actual.x, actual.y, settled.x, settled.y)) |correction| {
-            const corrected = fx.moveWindow("bubble", correction.dx, correction.dy, false) orelse return;
-            recordPetCenterLocal(model, corrected.x);
-        } else {
-            recordPetCenterLocal(model, actual.x);
-        }
-        return;
     }
-    recordPetCenterLocal(model, cur.x);
+    // Always run the constrained probe, including a zero-distance target:
+    // taskbar/display-layout changes can invalidate an otherwise unchanged
+    // origin and must be reconciled before recording the local anchor.
+    if (!settleBubbleWindow(model, fx, bubble_h, want_x)) return;
 }
 
 /// Project the pet's center into the stack container's coordinates.
@@ -3668,6 +4314,11 @@ fn bubbleWantY(model: *const Model, bubble_h: f32) f64 {
 /// that threshold plus a margin to come back up.
 fn bubbleShouldFlip(model: *const Model, space_above: f64, needed: f64) bool {
     const required = needed + bubble_pet_clearance;
+    // Screen coordinates are global across the desktop. A monitor above
+    // the primary screen legitimately reports negative y, which is not
+    // evidence that there is no room above the pet. The destination
+    // monitor's constrained move supplies that fact through hit_y.
+    if (space_above < 0) return false;
     if (model.bubble_flipped) return space_above < required + bubble_flip_hysteresis;
     return space_above < required;
 }
@@ -3993,6 +4644,143 @@ fn bubbleView(ui: *AppUi, model: *const Model) AppUi.Node {
 
 // --------------------------------------------------------- settings window
 
+// ------------------------------------------------------------- flock
+
+const flock_window_label = "flock";
+const flock_canvas_label = "flock-canvas";
+pub const companion_header_h: f32 = 28;
+/// Room under each body for its agent badge, plus the gap above it.
+const flock_badge_px: f32 = 18;
+/// Badge, the gap above it, and breathing room below: at exactly badge +
+/// gap the badge lands flush on the window edge and reads as clipped.
+const flock_label_h: f32 = flock_badge_px + 8;
+const flock_max_columns: usize = 4;
+/// Bodies render smaller than the solo pet: the point of the window is
+/// the whole set at a glance, not one mascot at full size.
+const flock_pet_scale: f32 = 0.6;
+
+fn flockLayout(model: *const Model) flock_mod.LayoutSpec {
+    _ = model;
+    return .{
+        .cell_w = frame_w * flock_pet_scale,
+        .cell_h = frame_h * flock_pet_scale,
+        .gap = 8,
+        .columns = flock_max_columns,
+        .label_h = flock_label_h,
+    };
+}
+
+/// One body per live agent, laid out in a grid. V1 draws every member
+/// with the active pet's current frame: the bodies are separate, the
+/// artwork is not yet. V3 gives each session its own pet.
+fn flockView(ui: *AppUi, model: *const Model) AppUi.Node {
+    if (model.flock.len == 0 or !model.sheet_loaded) {
+        var root = ui.column(.{ .grow = 1 }, .{
+            ui.el(.stack, .{ .height = companion_header_h, .window_drag = true }, .{}),
+            ui.column(.{ .grow = 1, .main = .center, .cross = .center }, .{
+                ui.text(.{ .size = .sm, .text_alignment = .center }, "No agents running"),
+            }),
+        });
+        root.widget.style.background = settingsBackground(model);
+        return root;
+    }
+    const spec = flockLayout(model);
+    const columns = flock_mod.columnsFor(model.flock.len, flock_max_columns);
+    var rows: [flock_mod.max_members]AppUi.Node = undefined;
+    var row_count: usize = 0;
+    var index: usize = 0;
+    while (index < model.flock.len) {
+        var cells: [flock_max_columns]AppUi.Node = undefined;
+        var cell_count: usize = 0;
+        while (cell_count < columns and index < model.flock.len) : (index += 1) {
+            cells[cell_count] = flockMember(ui, model, index, spec);
+            cell_count += 1;
+        }
+        rows[row_count] = ui.row(.{ .gap = spec.gap, .cross = .end }, cells[0..cell_count]);
+        row_count += 1;
+    }
+    var root = ui.column(.{ .grow = 1 }, .{
+        ui.el(.stack, .{ .height = companion_header_h, .window_drag = true }, .{}),
+        ui.column(.{ .grow = 1, .main = .center, .cross = .center, .gap = spec.gap }, rows[0..row_count]),
+    });
+    root.widget.style.background = settingsBackground(model);
+    return root;
+}
+
+fn flockSemanticLabel(state: State) []const u8 {
+    return switch (state) {
+        .waiting => "Agent blocked",
+        .running, .@"running-right", .@"running-left" => "Agent working",
+        .failed => "Agent failed",
+        .review => "Agent reading",
+        .waving, .jumping => "Agent finished",
+        else => "Agent idle",
+    };
+}
+
+/// Which bodies earn the amber marker: the ones where a human either has
+/// to act or would want to look. A failed tool call qualifies for the
+/// same reason a blocked prompt does, and neither is legible from the
+/// pose alone at this size.
+fn flockNeedsAttention(state: State) bool {
+    return state == .waiting or state == .failed;
+}
+
+fn flockMember(ui: *AppUi, model: *const Model, index: usize, spec: flock_mod.LayoutSpec) AppUi.Node {
+    const member = &model.flock.members[index];
+    var body = ui.image(.{
+        .width = spec.cell_w,
+        .height = spec.cell_h,
+        .image = @intCast(flockImageId(member.state)),
+        .semantics = .{ .label = flockSemanticLabel(member.state) },
+    });
+    body.widget.image_fit = .stretch;
+    body.widget.image_sampling = .nearest;
+    body.widget.image_src = flockImageRect(member.state);
+    // Whole cell, not just the sprite: a 115px target beats a 18px one,
+    // and the badge is part of the same body. A member with no pane (a
+    // direct hook outside Herdr) stays inert rather than offering a jump
+    // that would do nothing.
+    const pressable = member.herdrPaneSlice().len != 0;
+    return ui.column(.{
+        .cross = .center,
+        .gap = 2,
+        .on_press = if (pressable) .{ .focus_flock_member = @intCast(index) } else null,
+    }, .{
+        body,
+        flockBadge(ui, member),
+    });
+}
+
+/// Which agent this body belongs to. The logo reads faster than the name
+/// at this size and survives a narrow cell, and the strip it comes from
+/// is already compiled into the binary for the bubbles. The name stays as
+/// the accessibility label, so screen readers and the automation snapshot
+/// still get it.
+fn flockBadge(ui: *AppUi, member: *const flock_mod.Member) AppUi.Node {
+    const name = member.labelSlice();
+    const identity = if (agents_icons_ready and name.len != 0) blk: {
+        var badge = ui.image(.{
+            .width = flock_badge_px,
+            .height = flock_badge_px,
+            .image = agent_icon_atlas_id,
+            .semantics = .{ .label = name },
+        });
+        badge.widget.image_src = agentIconRect(agentIconIndex(name));
+        badge.widget.image_fit = .contain;
+        break :blk badge;
+    } else ui.text(.{ .size = .sm, .text_alignment = .center }, name);
+
+    // An agent that needs the human is the one thing worth spotting from
+    // across the room, and the resting poses of waiting and idle are too
+    // close to carry that on their own. Same amber marker the bubble
+    // already uses for the same meaning.
+    if (!flockNeedsAttention(member.state)) return identity;
+    var marker = ui.text(.{ .size = .sm }, "!");
+    marker.widget.style.foreground = canvas.Color.rgb8(250, 170, 48);
+    return ui.row(.{ .cross = .center, .gap = 3 }, .{ identity, marker });
+}
+
 const settings_window_label = "settings";
 const settings_canvas_label = "settings-canvas";
 
@@ -4002,7 +4790,12 @@ fn petdexWindows(model: *const Model, scratch: *PetdexApp.WindowsScratch) []cons
         const bubble_w = bubbleWindowWidth(model);
         const bubble_h = bubbleWindowHeight(model);
         if (comptime builtin.target.os.tag == .linux) {
-            const pet_h = frame_h * model.scale;
+            // A popup is created before the next frame-clock sync can
+            // update `model.bubble_flipped`. Decide the initial side from
+            // the current geometry here as well; otherwise a pet near the
+            // top creates a GTK popover with a negative anchor, which the
+            // compositor maps off-screen and leaves at its 1px minimum.
+            const linux_flipped = bubbleShouldFlip(model, bubblePetTopY(model), @floatCast(bubble_h));
             scratch.windows[count] = .{
                 .label = "bubble",
                 .canvas_label = "bubble-canvas",
@@ -4010,7 +4803,10 @@ fn petdexWindows(model: *const Model, scratch: *PetdexApp.WindowsScratch) []cons
                 .width = bubble_w,
                 .height = bubble_h,
                 .x = win_w / 2,
-                .y = win_h - pet_edge_pad - pet_h,
+                // GTK_POS_TOP places the popup above its pointing
+                // rectangle. Supply a side-aware rectangle edge so the
+                // compositor never places the bubble over the sprite.
+                .y = linuxBubbleAnchorY(model.scale, linux_flipped, bubble_h),
                 .resizable = false,
                 .titlebar = .chromeless,
                 .floating = true,
@@ -4040,6 +4836,20 @@ fn petdexWindows(model: *const Model, scratch: *PetdexApp.WindowsScratch) []cons
         }
         count += 1;
     }
+    if (model.flock.open) {
+        const size = flock_mod.windowSize(model.flock.len, flockLayout(model));
+        scratch.windows[count] = .{
+            .label = flock_window_label,
+            .canvas_label = flock_canvas_label,
+            .title = "Petdex Flock",
+            .width = size.w,
+            .height = size.h + companion_header_h,
+            .resizable = false,
+            .titlebar = .hidden_inset,
+            .on_close = .toggle_flock_window,
+        };
+        count += 1;
+    }
     if (model.settings_open) {
         scratch.windows[count] = .{
             .label = settings_window_label,
@@ -4048,6 +4858,7 @@ fn petdexWindows(model: *const Model, scratch: *PetdexApp.WindowsScratch) []cons
             .width = 420,
             .height = 680,
             .resizable = false,
+            .titlebar = .hidden_inset,
             .on_close = .settings_closed,
         };
         count += 1;
@@ -4055,8 +4866,26 @@ fn petdexWindows(model: *const Model, scratch: *PetdexApp.WindowsScratch) []cons
     return scratch.windows[0..count];
 }
 
+test "companion windows use the unified opaque shell" {
+    var model: Model = .{};
+    model.flock.open = true;
+    model.settings_open = true;
+    var scratch: PetdexApp.WindowsScratch = undefined;
+    const windows = petdexWindows(&model, &scratch);
+    try std.testing.expectEqual(@as(usize, 2), windows.len);
+    try std.testing.expectEqualStrings(flock_window_label, windows[0].label);
+    try std.testing.expectEqual(.hidden_inset, windows[0].titlebar);
+    try std.testing.expect(!windows[0].transparent);
+    try std.testing.expect(!windows[0].floating);
+    try std.testing.expectEqualStrings(settings_window_label, windows[1].label);
+    try std.testing.expectEqual(.hidden_inset, windows[1].titlebar);
+    try std.testing.expect(!windows[1].transparent);
+    try std.testing.expect(!windows[1].floating);
+}
+
 fn petdexWindowView(ui: *PetdexApp.Ui, model: *const Model, window_label: []const u8) PetdexApp.Ui.Node {
     if (std.mem.eql(u8, window_label, "bubble")) return bubbleView(ui, model);
+    if (std.mem.eql(u8, window_label, flock_window_label)) return flockView(ui, model);
     std.debug.assert(std.mem.eql(u8, window_label, settings_window_label));
     return settings_view.settingsView(ui, model, .{
         .ready = agents_icons_ready,
@@ -4067,6 +4896,13 @@ fn petdexWindowView(ui: *PetdexApp.Ui, model: *const Model, window_label: []cons
         .ready = &thumbs_ready,
         .cell_w = @floatFromInt(thumb_w),
         .cell_h = @floatFromInt(thumb_h),
+    }, .{
+        .avatar_ready = auth_avatar_ready,
+        .avatar_image = auth_avatar_image_id,
+        .preview_image = auth_preview_atlas_id,
+        .preview_ready = &model.auth_preview_ready,
+        .preview_cell = @floatFromInt(auth_preview_cell),
+        .preview_columns = auth_preview_columns,
     });
 }
 
@@ -4107,16 +4943,32 @@ fn refreshHookEntry(argv0: []const u8) void {
 /// Model-derived (the `status_item_fn` shape) so Focus Mode can show
 /// its state in the label; the static options keep icon and tooltip.
 fn petdexStatusItem(model: *const Model, scratch: *PetdexApp.StatusItemScratch) PetdexApp.StatusItemState {
+    const update_label = switch (model.update_phase) {
+        .checking => "Checking for Updates…",
+        .available => std.fmt.bufPrint(&scratch.title_buffer, "Update to Petdex {s}…", .{model.latest_version[0..model.latest_version_len]}) catch "Update Petdex…",
+        .current => std.fmt.bufPrint(&scratch.title_buffer, "Petdex is up to date · {s}", .{updates.current_version}) catch "Petdex is up to date",
+        .idle, .failed => std.fmt.bufPrint(&scratch.title_buffer, "Check for Updates… · {s}", .{updates.current_version}) catch "Check for Updates…",
+    };
     scratch.items[0] = .{ .id = 1, .label = "Open Settings", .command = "petdex.settings" };
-    scratch.items[1] = .{
-        .id = 2,
+    scratch.items[1] = .{ .id = 2, .label = "Open petdex.dev", .command = "petdex.website" };
+    scratch.items[2] = .{ .id = 3, .separator = true };
+    scratch.items[3] = .{
+        .id = 4,
         .label = if (model.focus_mode) "Focus Mode: On" else "Focus Mode: Off",
         .command = "petdex.focus",
     };
-    scratch.items[2] = .{ .id = 3, .label = "Shuffle Pet", .command = "petdex.shuffle" };
-    scratch.items[3] = .{ .id = 4, .separator = true };
-    scratch.items[4] = .{ .id = 5, .label = "Quit Petdex", .command = "petdex.quit" };
-    return .{ .items = scratch.items[0..5] };
+    scratch.items[4] = .{ .id = 5, .label = "Shuffle Pet", .command = "petdex.shuffle" };
+    scratch.items[5] = .{
+        .id = 6,
+        .label = if (model.flock.open) "Hide Flock" else "Show Flock",
+        .command = "petdex.flock",
+    };
+    scratch.items[6] = .{ .id = 7, .label = "View Pet on Petdex", .command = "petdex.pet-page" };
+    scratch.items[7] = .{ .id = 8, .separator = true };
+    scratch.items[8] = .{ .id = 9, .label = update_label, .command = "petdex.updates", .enabled = model.update_phase != .checking };
+    scratch.items[9] = .{ .id = 10, .separator = true };
+    scratch.items[10] = .{ .id = 11, .label = "Quit Petdex", .command = "petdex.quit" };
+    return .{ .items = scratch.items[0..11] };
 }
 
 /// The menu-bar button icon: the brand mark's silhouette with the face
@@ -4161,6 +5013,7 @@ pub fn main(init: std.process.Init) !void {
     // %USERPROFILE%\.petdex\pets. HOME still wins where it exists, so a
     // POSIX user pointing it elsewhere keeps that.
     env_home = init.environ_map.get("HOME") orelse init.environ_map.get("USERPROFILE");
+    env_auth_library_url = init.environ_map.get("PETDEX_LIBRARY_URL") orelse desktop_auth.library_url;
     // Claude Code honors CLAUDE_CONFIG_DIR for fully isolated installs;
     // wiring hooks into ~/.claude for those users writes a settings.json
     // their Claude Code never reads, and detection shows them as
@@ -4326,6 +5179,44 @@ test "transparent surfaces clear independently from settings" {
     try std.testing.expectEqual(settings_alpha, settingsBackground(&model).a);
 }
 
+test "a flock body reserves more than its badge is tall" {
+    // At exactly badge + gap the badge landed flush on the window edge
+    // and read as clipped, which only the screenshot showed: the
+    // snapshot bounds looked correct.
+    try std.testing.expect(flock_label_h > flock_badge_px + 2);
+}
+
+test "every flock state names itself, none falls through to idle" {
+    // failed and review were mapped to their own artwork but not to their
+    // own label, so both announced themselves as idle: the states the
+    // direct hooks exist to surface were the ones going unnamed.
+    try std.testing.expectEqualStrings("Agent failed", flockSemanticLabel(.failed));
+    try std.testing.expectEqualStrings("Agent reading", flockSemanticLabel(.review));
+    try std.testing.expectEqualStrings("Agent blocked", flockSemanticLabel(.waiting));
+    try std.testing.expectEqualStrings("Agent working", flockSemanticLabel(.running));
+    try std.testing.expectEqualStrings("Agent idle", flockSemanticLabel(.idle));
+}
+
+test "a body earns the marker when a human has to act" {
+    try std.testing.expect(flockNeedsAttention(.waiting));
+    try std.testing.expect(flockNeedsAttention(.failed));
+    try std.testing.expect(!flockNeedsAttention(.running));
+    try std.testing.expect(!flockNeedsAttention(.idle));
+    try std.testing.expect(!flockNeedsAttention(.review));
+}
+
+test "flock states use distinct cells in one atlas" {
+    for (flock_states, 0..) |state, index| {
+        try std.testing.expectEqual(flock_atlas_image_id, flockImageId(state));
+        try std.testing.expectEqual(@as(f32, @floatFromInt(index)) * frame_w, flockImageRect(state).x);
+    }
+    try std.testing.expect(flock_atlas_image_id != sheet_image_id);
+    try std.testing.expect(flock_atlas_image_id != agent_icon_atlas_id);
+    try std.testing.expect(flock_atlas_image_id != thumb_atlas_id);
+    try std.testing.expect(flock_atlas_image_id != avatar_image_id);
+    try std.testing.expect(flock_atlas_image_id != tail_image_id);
+}
+
 test "one image slot covers every agent" {
     // agent_art is what loadAgentsAtlas walks, so a new AgentKind without
     // artwork would pack short and leave the last agent blank.
@@ -4383,6 +5274,100 @@ test "activating index 0 works before any sheet is loaded" {
     try std.testing.expect(!would_skip_now);
 }
 
+test "deep-link install requests merge into a busy queue" {
+    // URL callbacks can arrive while a manifest or asset download is in
+    // flight. New requests must join the active run without resetting its
+    // current item or dropping the activation bit for any queued pet.
+    pending_install = .{};
+    pending_ready = false;
+    defer {
+        pending_install = .{};
+        pending_ready = false;
+    }
+
+    _ = onUrlsOpened(&.{"petdex://install?slug=queue-a"});
+    _ = onUrlsOpened(&.{"petdex://queue-b"});
+    try std.testing.expect(pending_ready);
+    try std.testing.expectEqual(@as(usize, 2), pending_install.queued);
+    try std.testing.expect(!pending_install.activate[0]);
+    try std.testing.expect(pending_install.activate[1]);
+
+    var model: Model = .{};
+    try std.testing.expect(model.install.enqueueRequest("active", false));
+    model.install.phase = .manifest;
+    try std.testing.expect(mergePendingInstall(&model) == null);
+    try std.testing.expect(!pending_ready);
+    try std.testing.expectEqual(@as(usize, 3), model.install.queued);
+    try std.testing.expectEqualStrings("active", model.install.queue[0][0..model.install.queue_len[0]]);
+    try std.testing.expectEqualStrings("queue-a", model.install.queue[1][0..model.install.queue_len[1]]);
+    try std.testing.expectEqualStrings("queue-b", model.install.queue[2][0..model.install.queue_len[2]]);
+    try std.testing.expect(!model.install.activate[0]);
+    try std.testing.expect(!model.install.activate[1]);
+    try std.testing.expect(model.install.activate[2]);
+
+    // A full active queue may only consume the prefix that fits. The
+    // remaining staged tail keeps the ready signal until the next poll.
+    pending_install = .{};
+    pending_ready = false;
+    _ = onUrlsOpened(&.{"petdex://install?slug=queue-c&slug=queue-d"});
+    var full_model: Model = .{};
+    for (0..max_install_queue - 1) |i| {
+        var slug_buf: [16]u8 = undefined;
+        const slug = std.fmt.bufPrint(&slug_buf, "active-{d}", .{i}) catch unreachable;
+        try std.testing.expect(full_model.install.enqueue(slug));
+    }
+    full_model.install.phase = .spritesheet;
+    try std.testing.expect(mergePendingInstall(&full_model) == null);
+    try std.testing.expectEqual(@as(usize, 1), pending_install.queued);
+    try std.testing.expect(pending_ready);
+    try std.testing.expectEqualStrings("queue-d", pending_install.queue[0][0..pending_install.queue_len[0]]);
+    try std.testing.expectEqual(@as(usize, max_install_queue), full_model.install.queued);
+
+    full_model.install.removeAt(0);
+    try std.testing.expect(mergePendingInstall(&full_model) == null);
+    try std.testing.expect(!pending_ready);
+    try std.testing.expectEqual(@as(usize, max_install_queue), full_model.install.queued);
+    try std.testing.expectEqualStrings("queue-d", full_model.install.queue[max_install_queue - 1][0..full_model.install.queue_len[max_install_queue - 1]]);
+}
+
+test "deep-link install requests merge duplicates and process URL batches" {
+    pending_install = .{};
+    pending_ready = false;
+    defer {
+        pending_install = .{};
+        pending_ready = false;
+    }
+
+    const urls = [_][]const u8{
+        "petdex://install?slug=queue-a&slug=queue-c",
+        "petdex://queue-a",
+    };
+    _ = onUrlsOpened(&urls);
+
+    // The duplicate `queue-a` is one install, upgraded to activation by
+    // the bare link. The second slug in the same callback is retained.
+    try std.testing.expectEqual(@as(usize, 2), pending_install.queued);
+    try std.testing.expectEqualStrings("queue-a", pending_install.queue[0][0..pending_install.queue_len[0]]);
+    try std.testing.expect(pending_install.activate[0]);
+    try std.testing.expectEqualStrings("queue-c", pending_install.queue[1][0..pending_install.queue_len[1]]);
+    try std.testing.expect(!pending_install.activate[1]);
+}
+
+test "install queue keeps activation per pet" {
+    var queue: InstallState = .{};
+    try std.testing.expect(queue.enqueueRequest("queue-a", false));
+    try std.testing.expect(queue.enqueueRequest("queue-b", true));
+    try std.testing.expect(queue.enqueueRequest("queue-c", false));
+    try std.testing.expect(queue.enqueueRequest("queue-a", true));
+    try std.testing.expectEqual(@as(usize, 3), queue.queued);
+    try std.testing.expect(queue.currentActivates());
+    queue.current = 1;
+    try std.testing.expect(queue.currentActivates());
+    queue.current = 2;
+    try std.testing.expect(!queue.currentActivates());
+    try std.testing.expect(queue.activate[0]);
+}
+
 test "empty-state copy fits the pet window" {
     // The label truncates rather than wrapping, and the window is 192pt,
     // so a sentence renders as an ellipsis (which is how the first
@@ -4405,14 +5390,35 @@ test "cached update versions restore the correct phase" {
     var model: Model = .{};
     updateCachePhase(&model);
     try std.testing.expectEqual(updates.Phase.idle, model.update_phase);
+    @memcpy(model.latest_version[0.."0.10.0".len], "0.10.0");
+    model.latest_version_len = "0.10.0".len;
+    updateCachePhase(&model);
+    try std.testing.expectEqual(updates.Phase.available, model.update_phase);
     @memcpy(model.latest_version[0.."0.9.0".len], "0.9.0");
     model.latest_version_len = "0.9.0".len;
     updateCachePhase(&model);
-    try std.testing.expectEqual(updates.Phase.available, model.update_phase);
-    @memcpy(model.latest_version[0.."0.8.0".len], "0.8.0");
-    model.latest_version_len = "0.8.0".len;
-    updateCachePhase(&model);
     try std.testing.expectEqual(updates.Phase.current, model.update_phase);
+}
+
+test "tray exposes website active pet and updater commands" {
+    try std.testing.expectEqual(std.meta.Tag(Msg).open_website, std.meta.activeTag(onCommand("petdex.website").?));
+    try std.testing.expectEqual(std.meta.Tag(Msg).open_active_pet_page, std.meta.activeTag(onCommand("petdex.pet-page").?));
+    try std.testing.expectEqual(std.meta.Tag(Msg).check_updates, std.meta.activeTag(onCommand("petdex.updates").?));
+
+    var model: Model = .{};
+    var scratch: PetdexApp.StatusItemScratch = .{};
+    var state = petdexStatusItem(&model, &scratch);
+    try std.testing.expectEqual(@as(usize, 11), state.items.len);
+    try std.testing.expectEqualStrings("Open petdex.dev", state.items[1].label);
+    try std.testing.expectEqualStrings("Show Flock", state.items[5].label);
+    try std.testing.expectEqualStrings("View Pet on Petdex", state.items[6].label);
+    try std.testing.expect(std.mem.startsWith(u8, state.items[8].label, "Check for Updates"));
+
+    model.update_phase = .available;
+    @memcpy(model.latest_version[0.."0.10.0".len], "0.10.0");
+    model.latest_version_len = "0.10.0".len;
+    state = petdexStatusItem(&model, &scratch);
+    try std.testing.expectEqualStrings("Update to Petdex 0.10.0…", state.items[8].label);
 }
 
 test "bubble text default is its own value, not the range floor" {
@@ -4925,6 +5931,31 @@ test "flipping sends the stack below the pet, clear of the sprite" {
     try std.testing.expect(bubbleWantY(&high, bubble_h) + @as(f64, @floatCast(bubble_h)) <= high.pet_y - bubble_pet_clearance + 0.01);
 }
 
+test "linux popup anchors clear the fixed canvas pet on both sides" {
+    const scale: f32 = 1;
+    const bubble_h: f32 = 115;
+    const pet_top = linuxPetTopLocal(scale);
+    const pet_bottom = win_h - pet_edge_pad;
+
+    const above = linuxBubbleAnchorY(scale, false, bubble_h);
+    try std.testing.expectApproxEqAbs(pet_top - @as(f32, @floatCast(bubble_pet_clearance)), above, 0.001);
+    try std.testing.expect(above <= pet_top - @as(f32, @floatCast(bubble_pet_clearance)) + 0.001);
+
+    const below = linuxBubbleAnchorY(scale, true, bubble_h);
+    try std.testing.expectApproxEqAbs(pet_bottom + @as(f32, @floatCast(bubble_pet_clearance)) + bubble_h, below, 0.001);
+    try std.testing.expect(below - bubble_h >= pet_bottom + @as(f32, @floatCast(bubble_pet_clearance)) - 0.001);
+
+    // The fixed Linux canvas keeps its bottom edge stable when the sprite is
+    // scaled; the above-side anchor follows the sprite's top edge.
+    const larger_above = linuxBubbleAnchorY(max_scale, false, bubble_h);
+    try std.testing.expect(larger_above < above);
+    try std.testing.expectEqual(below, linuxBubbleAnchorY(max_scale, true, bubble_h));
+    if (builtin.target.os.tag == .linux) {
+        try std.testing.expect(linuxPetTopLocal(max_scale) >= 0);
+        try std.testing.expect(linuxBubbleAnchorY(max_scale, false, bubble_h) >= 0);
+    }
+}
+
 test "the flip has hysteresis so a pet on the threshold does not flap" {
     var model: Model = .{};
     testPushBubble(&model, "alpha", "older", false, -1);
@@ -4943,6 +5974,38 @@ test "the flip has hysteresis so a pet on the threshold does not flap" {
     model.bubble_flipped = true;
     try std.testing.expect(bubbleShouldFlip(&model, needed + bubble_pet_clearance + bubble_flip_hysteresis - 1, needed));
     try std.testing.expect(!bubbleShouldFlip(&model, needed + bubble_pet_clearance + bubble_flip_hysteresis + 1, needed));
+}
+
+test "a pet above the primary screen keeps the first bubble candidate above" {
+    var model: Model = .{};
+    model.pet_y = -640;
+    model.bubble_flipped = false;
+    const needed: f64 = @floatCast(bubbleWindowHeight(&model));
+
+    // The host reports negative top-left y coordinates for monitors above
+    // the primary screen. The first candidate must therefore be above; the
+    // later clamp probe will flip it below only when that monitor has no
+    // room for the expanded bubble.
+    try std.testing.expect(!bubbleShouldFlip(&model, model.pet_y, needed));
+    model.bubble_flipped = true;
+    try std.testing.expect(!bubbleShouldFlip(&model, model.pet_y, needed));
+}
+
+test "a blocked above probe stays sticky until position or size changes" {
+    var model: Model = .{};
+    model.bubble_above_blocked = true;
+    model.bubble_above_blocked_x = 100;
+    model.bubble_above_blocked_y = -640;
+    model.bubble_above_blocked_h = 300;
+    model.pet_x = 100;
+    model.pet_y = -640;
+    try std.testing.expect(!bubbleAboveProbeStale(&model, 300));
+    model.pet_x += bubble_probe_position_epsilon + 1;
+    try std.testing.expect(bubbleAboveProbeStale(&model, 300));
+    model.pet_x = 100;
+    model.pet_y = -640;
+    try std.testing.expect(!bubbleAboveProbeStale(&model, 300));
+    try std.testing.expect(bubbleAboveProbeStale(&model, 301));
 }
 
 test "a flipped stack grows downward and is hit tested from the top" {
@@ -5066,15 +6129,26 @@ test "bubble movement crosses displays before applying target bounds" {
     const src = @embedFile("main.zig");
     const sync_start = std.mem.indexOf(u8, src, "fn syncBubbleWindow").?;
     const sync = src[sync_start..];
+    const settle_start = std.mem.indexOf(u8, src, "fn settleBubbleWindow").?;
+    const settle = src[settle_start..sync_start];
     const unbounded = std.mem.indexOf(u8, sync, "fx.moveWindow(\"bubble\", plan.dx, plan.dy, false)");
-    const bounded = std.mem.indexOf(u8, sync, "fx.moveWindow(\"bubble\", 0, 0, true)");
-    const readback = std.mem.indexOf(u8, sync, "const actual = fx.moveWindow(\"bubble\", 0, 0, false)");
-    const correction = std.mem.indexOf(u8, sync, "fx.moveWindow(\"bubble\", correction.dx, correction.dy, false)");
+    const sync_settle = std.mem.indexOf(u8, sync, "settleBubbleWindow(model, fx, bubble_h, want_x)");
+    // Search for comments rather than line-oriented snippets. Git for
+    // Windows may check this source out with CRLF, while macOS/Linux use
+    // LF; the ordering assertions must be independent of that EOL policy.
+    const no_move_boundary = std.mem.indexOf(u8, sync, "// Always run the constrained probe");
+    const flip_reprobe = std.mem.indexOf(u8, settle, "// Re-probe even when the flipped target");
+    const bounded = std.mem.indexOf(u8, settle, "fx.moveWindow(\"bubble\", 0, 0, true)");
+    const readback = std.mem.indexOf(u8, settle, "var actual = fx.moveWindow(\"bubble\", 0, 0, false)");
+    const correction = std.mem.indexOf(u8, settle, "fx.moveWindow(\"bubble\", correction.dx, correction.dy, false)");
     try std.testing.expect(unbounded != null);
+    try std.testing.expect(sync_settle != null);
+    try std.testing.expect(no_move_boundary != null);
+    try std.testing.expect(sync_settle.? > no_move_boundary.?);
+    try std.testing.expect(flip_reprobe != null);
     try std.testing.expect(bounded != null);
     try std.testing.expect(readback != null);
     try std.testing.expect(correction != null);
-    try std.testing.expect(unbounded.? < bounded.?);
     try std.testing.expect(bounded.? < readback.?);
     try std.testing.expect(readback.? < correction.?);
 }
