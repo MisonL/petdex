@@ -31,6 +31,8 @@ petdex submit ~/.petdex/pets/boba   # share a single pet
 petdex submit ~/.petdex/pets        # bulk submit every subfolder
 petdex whoami                      # confirm signed-in identity
 petdex logout                      # clear stored credentials
+petdex collection list             # list your collections
+petdex collection create --title "My pets" --all-approved
 ```
 
 After installing a pet, pick the active mascot in Petdex Desktop: hover the pet and
@@ -53,6 +55,10 @@ The `init`, `up`, `down`, `toggle`, `desktop`, `update`, `doctor`, and `hooks` c
 | `petdex install <slug>` | Install a pet into `~/.petdex/pets/<slug>/` and `~/.codex/pets/<slug>/`. |
 | `petdex submit <path>` | Submit a pet folder, zip, or parent of pets (bulk). |
 | `petdex edit <slug>` | Edit a pet you own (`--desc`, `--displayName`, `--sprite`, `--meta`, `--zip`). |
+| `petdex collection list` | List your collections (`--json` for machine output). |
+| `petdex collection create` | Create a collection (`--title`, `--desc`, `--pets`, `--cover`, `--external-url`, `--all-approved`). |
+| `petdex collection edit <id-or-slug>` | Update a personal collection (`--title`, `--desc`, `--pets`, `--cover`, `--external-url`, `--all-approved`). The reference can be the collection id or slug. |
+| `petdex collection delete <id-or-slug>` | Delete a personal collection; requires `--yes`. |
 | `petdex telemetry [on\|off\|status]` | Manage anonymous usage telemetry. |
 | `petdex --version` | Print the CLI version. |
 

@@ -7,6 +7,10 @@ import {
   canManageCreatorCollections,
   MAX_OWNER_COLLECTIONS,
 } from "@/lib/collection-access";
+import {
+  MAX_COLLECTION_DESCRIPTION,
+  MAX_COLLECTION_TITLE,
+} from "@/lib/collection-input";
 import { revalidateCollectionTags } from "@/lib/db/cached-aggregates";
 import { db, schema } from "@/lib/db/client";
 import { validateProfileHandle } from "@/lib/profiles";
@@ -15,8 +19,8 @@ import { requireSameOrigin } from "@/lib/same-origin";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const MAX_TITLE = 80;
-const MAX_DESCRIPTION = 280;
+const MAX_TITLE = MAX_COLLECTION_TITLE;
+const MAX_DESCRIPTION = MAX_COLLECTION_DESCRIPTION;
 
 type PostBody = {
   title: string;

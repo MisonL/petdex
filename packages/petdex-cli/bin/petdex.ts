@@ -11,6 +11,11 @@ import { isTrustedAssetUrl } from "../src/asset-hosts.js";
 import { resolveAuthConfig } from "../src/auth-config.js";
 import { ClerkCliAuth } from "../src/cli-auth/index.js";
 import {
+  type CollectionRecord,
+  collectionRequest,
+  parseCollectionArgs,
+} from "../src/collections.js";
+import {
   parseImageDims,
   readEditMetadataAsset,
   readEditSpriteAsset,
@@ -134,7 +139,9 @@ async function main() {
   // notice itself, so triggering it there creates a confusing UX. The
   // notice still fires on the first real command (install / submit).
   const META_COMMANDS = new Set(["version", "--version", "-v", "telemetry"]);
-  if (!META_COMMANDS.has(cmd)) {
+  const machineReadableCollection =
+    cmd === "collection" && args.includes("--json");
+  if (!META_COMMANDS.has(cmd) && !machineReadableCollection) {
     maybeShowFirstRunNotice();
   }
 
@@ -153,6 +160,9 @@ async function main() {
       break;
     case "edit":
       await cmdEdit(args.slice(1));
+      break;
+    case "collection":
+      await cmdCollection(args.slice(1));
       break;
     case "install":
       await cmdInstall(args.slice(1));
@@ -210,6 +220,7 @@ function printHelp() {
       `    ${pc.bold("whoami")}             Show signed-in user`,
       `    ${pc.bold("submit")} <path>      Submit a pet folder, zip, or parent of pets (bulk)`,
       `    ${pc.bold("edit")} <slug>        Edit a pet you own (--desc, --displayName, --sprite, --meta, --zip)`,
+      `    ${pc.bold("collection")} <cmd>  Manage collections (list/create/edit/delete; id or slug)`,
       `    ${pc.bold("telemetry")} [on|off|status]  Manage anonymous usage telemetry`,
       `    ${pc.bold("version")}            Print the CLI version`,
       "",
@@ -247,6 +258,75 @@ async function cmdLogin() {
     s.stop(pc.red("× login failed"));
     throw new Error(translateLoginError((err as Error).message));
   }
+}
+
+async function cmdCollection(args: string[]): Promise<void> {
+  let parsed: ReturnType<typeof parseCollectionArgs>;
+  try {
+    parsed = parseCollectionArgs(args);
+  } catch (error) {
+    const code = error instanceof Error ? error.message : "usage";
+    const message =
+      code === "missing_collection"
+        ? "Missing collection id or slug."
+        : code === "missing_title"
+          ? "Create requires --title."
+          : code === "nothing_to_update"
+            ? "Nothing to edit. Provide at least one flag."
+            : code === "pet_slug"
+              ? "Invalid pet slug in --pets."
+              : `Usage: ${pc.cyan("petdex collection list|create|edit|delete")}`;
+    p.cancel(message);
+    process.exit(1);
+  }
+  const token = await (await getAuth()).getAccessToken();
+  if (!token) {
+    p.cancel(`Not signed in. Run ${pc.cyan("petdex login")}.`);
+    process.exit(1);
+  }
+  const { action, ref, json } = parsed;
+  if (action === "list") {
+    const result = (await collectionRequest(
+      PETDEX_URL,
+      token,
+      "GET",
+      null,
+    )) as { collections: CollectionRecord[] };
+    if (json) console.log(JSON.stringify(result));
+    else
+      for (const c of result.collections)
+        console.log(`${c.slug}\t${c.title}\t${c.petSlugs.length} pets`);
+    return;
+  }
+  if (action === "delete") {
+    if (!parsed.yes) {
+      p.cancel("Deletion requires --yes.");
+      process.exit(1);
+    }
+    await collectionRequest(PETDEX_URL, token, "DELETE", ref);
+    if (json) console.log(JSON.stringify({ ok: true }));
+    else console.log(`${pc.green("✓")} Collection deleted`);
+    return;
+  }
+  const body: Record<string, unknown> = {};
+  if (parsed.title !== null) body.title = parsed.title;
+  if (parsed.description !== null) body.description = parsed.description;
+  if (parsed.petSlugs !== null) body.petSlugs = parsed.petSlugs;
+  if (parsed.coverPetSlug !== null) body.coverPetSlug = parsed.coverPetSlug;
+  if (parsed.externalUrl !== null) body.externalUrl = parsed.externalUrl;
+  if (parsed.allApproved) body.allApproved = true;
+  const result = await collectionRequest(
+    PETDEX_URL,
+    token,
+    action === "create" ? "POST" : "PATCH",
+    ref,
+    body,
+  );
+  if (json) console.log(JSON.stringify(result));
+  else
+    console.log(
+      `${pc.green("✓")} Collection ${action === "create" ? "created" : "updated"}`,
+    );
 }
 
 async function cmdLogout() {
