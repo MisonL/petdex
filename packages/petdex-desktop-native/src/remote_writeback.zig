@@ -320,6 +320,14 @@ test "Hermes watcher reconciles only current metadata" {
     try t.expect(std.mem.indexOf(u8, hermes_watcher_script, "\"status\": \"completed\" if ended else \"idle\"") != null);
 }
 
+test "remote hook drops Hermes background review forks" {
+    // The remote hook mirrors the local runner's filter: the fork's review
+    // prompt never seeds the title cache and never reaches the hook server.
+    try t.expect(std.mem.indexOf(u8, hook_script, "Review the conversation above and update the skill library") != null);
+    try t.expect(std.mem.indexOf(u8, hook_script, "Review the conversation above and consider saving to memory") != null);
+    try t.expect(std.mem.indexOf(u8, hook_script, "Review the conversation above and update two things") != null);
+}
+
 test "remote hook preserves Codex conversation metadata and rich updates" {
     try t.expect(std.mem.indexOf(u8, hook_script, "text_field prompt 60") != null);
     try t.expectEqual(@as(usize, 2), std.mem.count(u8, hook_script, "ord(ch) < 32 or ord(ch) == 127"));

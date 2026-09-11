@@ -209,6 +209,24 @@ child_role=$(text_field child_role 48)
 [ -n "$child_role" ] || child_role=$(text_field petdex_subagent_label 48)
 session_kind_hint=$(id_field petdex_session_kind)
 case "$session_kind_hint" in primary|subagent) ;; *) session_kind_hint= ;; esac
+
+# Hermes' background-review fork shares the parent session id and fires the same
+# lifecycle hooks as a real turn, so its own review prompt would otherwise seed
+# the title cache and open a card. Drop it here, before any title is written or
+# any POST is made — the local runner does the same in isBackgroundReview.
+# Both marks work on this side too: the fork's three review prompts, and the
+# fork naming itself as its own parent (no genuine session ever does). The raw
+# parent field is read directly; parent_session_hint below defaults to the
+# session id and would otherwise make every event look self-parented.
+if [ "$agent" = "hermes" ]; then
+    review_prompt=$(text_field user_message 96)
+    [ -n "$review_prompt" ] || review_prompt=$(text_field prompt 96)
+    case "$review_prompt" in "Review the conversation above and update the skill library"*|"Review the conversation above and consider saving to memory"*|"Review the conversation above and update two things"*) exit 0 ;; esac
+    review_parent=$(id_field parent_session_id)
+    [ -n "$review_parent" ] || review_parent=$(id_field petdex_parent_session_id)
+    if [ -n "$session_id" ] && [ "$review_parent" = "$session_id" ]; then exit 0; fi
+fi
+
 sessions="$runtime/sessions"
 
 # Read the title owned by each agent's server/session store. This runs on every
