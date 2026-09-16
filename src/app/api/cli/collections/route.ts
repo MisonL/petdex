@@ -1,12 +1,16 @@
 import { NextResponse } from "next/server";
 
-import { and, asc, count, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 
 import { verifyCliBearer } from "@/lib/cli-auth";
-import { MAX_OWNER_COLLECTIONS } from "@/lib/collection-access";
+import {
+  createOwnerCollection,
+  MAX_OWNER_COLLECTIONS,
+} from "@/lib/collection-access";
 import {
   type CollectionRequestBody,
   isCollectionRequestBody,
+  MAX_COLLECTION_PETS,
   normalizeCollectionCover,
   normalizeCollectionExternalUrl,
   normalizeCollectionInput,
@@ -28,6 +32,8 @@ export async function GET(req: Request): Promise<Response> {
   const principal = await verifyCliBearer(req.headers.get("authorization"));
   if (!principal)
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const includeApprovedPetCount =
+    new URL(req.url).searchParams.get("includeApprovedPetCount") === "1";
   const rows = await db
     .select()
     .from(schema.petCollections)
@@ -69,7 +75,24 @@ export async function GET(req: Request): Promise<Response> {
     updatedAt: row.updatedAt,
     petSlugs: slugsByCollection.get(row.id) ?? [],
   }));
-  return NextResponse.json({ collections: items });
+  if (!includeApprovedPetCount)
+    return NextResponse.json({ collections: items });
+
+  const approvedPets = await db
+    .select({ slug: schema.submittedPets.slug })
+    .from(schema.submittedPets)
+    .where(
+      and(
+        eq(schema.submittedPets.ownerId, principal.userId),
+        eq(schema.submittedPets.status, "approved"),
+      ),
+    )
+    .orderBy(asc(schema.submittedPets.slug));
+
+  return NextResponse.json({
+    collections: items,
+    approvedPetCount: approvedPets.length,
+  });
 }
 
 export async function POST(req: Request): Promise<Response> {
@@ -87,20 +110,6 @@ export async function POST(req: Request): Promise<Response> {
   } catch {
     return NextResponse.json({ error: "invalid_body" }, { status: 400 });
   }
-  const owned = await db
-    .select({ c: count() })
-    .from(schema.petCollections)
-    .where(
-      and(
-        eq(schema.petCollections.ownerId, principal.userId),
-        eq(schema.petCollections.featured, false),
-      ),
-    );
-  if (Number(owned[0]?.c ?? 0) >= MAX_OWNER_COLLECTIONS)
-    return NextResponse.json(
-      { error: "collection_cap_reached", max: MAX_OWNER_COLLECTIONS },
-      { status: 400 },
-    );
   let input: ReturnType<typeof normalizeCollectionInput>;
   try {
     input = normalizeCollectionInput({
@@ -126,6 +135,11 @@ export async function POST(req: Request): Promise<Response> {
   const allowed = new Set(approved.map((p) => p.slug));
   const requested =
     body.allApproved === true ? [...allowed].sort() : input.petSlugs;
+  if (requested.length > MAX_COLLECTION_PETS)
+    return NextResponse.json(
+      { error: "collection_pet_limit", max: MAX_COLLECTION_PETS },
+      { status: 400 },
+    );
   if (requested.some((slug) => !allowed.has(slug)))
     return NextResponse.json(
       { error: "pet_not_owned_or_approved" },
@@ -143,29 +157,34 @@ export async function POST(req: Request): Promise<Response> {
       { status: 400 },
     );
   const coverPetSlug = requestedCover ?? requested[0] ?? null;
-  const id = `col_${crypto.randomUUID().replace(/-/g, "").slice(0, 18)}`;
-  const slug = `collection-${id.slice(-8)}`;
-  await db.transaction(async (tx) => {
-    await tx.insert(schema.petCollections).values({
-      id,
-      slug,
-      title: input.title,
-      description: input.description,
-      ownerId: principal.userId,
-      featured: false,
-      externalUrl,
-      coverPetSlug,
-      updatedAt: new Date(),
-    });
-    if (requested.length)
-      await tx.insert(schema.petCollectionItems).values(
-        requested.map((petSlug, position) => ({
-          collectionId: id,
-          petSlug,
-          position: position + 1,
-        })),
-      );
+  const id = `col_${crypto.randomUUID().replace(/-/g, "")}`;
+  const requestedSlug = `collection-${crypto.randomUUID().replace(/-/g, "")}`;
+  const created = await createOwnerCollection({
+    id,
+    slug: requestedSlug,
+    title: input.title,
+    description: input.description,
+    ownerId: principal.userId,
+    externalUrl,
+    coverPetSlug,
+    petSlugs: requested,
   });
+  if (created.status === "cap")
+    return NextResponse.json(
+      { error: "collection_cap_reached", max: MAX_OWNER_COLLECTIONS },
+      { status: 400 },
+    );
+  if (created.status === "pets_not_owned_or_approved")
+    return NextResponse.json(
+      { error: "pet_not_owned_or_approved" },
+      { status: 422 },
+    );
+  if (created.status === "slug_conflict")
+    return NextResponse.json(
+      { error: "collection_slug_conflict" },
+      { status: 409 },
+    );
+  const slug = created.slug;
   await revalidateCollectionTags(slug);
   return NextResponse.json(
     {

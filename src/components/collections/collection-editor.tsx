@@ -12,6 +12,11 @@ import {
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import {
+  limitCollectionPetSlugs,
+  MAX_COLLECTION_PETS,
+} from "@/lib/collection-constants";
+
 type PetOption = {
   slug: string;
   displayName: string;
@@ -41,8 +46,13 @@ export function CollectionEditor({
   const [title, setTitle] = useState(initial?.title ?? fallbackTitle);
   const [description, setDescription] = useState(initial?.description ?? "");
   const [externalUrl, setExternalUrl] = useState(initial?.externalUrl ?? "");
-  const [petSlugs, setPetSlugs] = useState<string[]>(
-    initial ? initial.petSlugs : approvedPets.map((pet) => pet.slug),
+  const [petSlugs, setPetSlugs] = useState<string[]>(() =>
+    initial
+      ? [...new Set(initial.petSlugs)]
+      : limitCollectionPetSlugs(
+          approvedPets.map((pet) => pet.slug),
+          null,
+        ),
   );
   const [coverPetSlug, setCoverPetSlug] = useState<string | null>(
     initial?.coverPetSlug ?? petSlugs[0] ?? null,
@@ -67,6 +77,11 @@ export function CollectionEditor({
 
   function togglePet(slug: string) {
     setSaved(false);
+    if (!petSlugs.includes(slug) && petSlugs.length >= MAX_COLLECTION_PETS) {
+      setError(t("petLimit", { max: MAX_COLLECTION_PETS }));
+      return;
+    }
+    setError(null);
     setPetSlugs((current) =>
       current.includes(slug)
         ? current.filter((item) => item !== slug)
@@ -89,6 +104,10 @@ export function CollectionEditor({
   function save() {
     setError(null);
     setSaved(false);
+    if (petSlugs.length > MAX_COLLECTION_PETS) {
+      setError(t("petLimit", { max: MAX_COLLECTION_PETS }));
+      return;
+    }
     startTransition(async () => {
       try {
         const res = await fetch("/api/profile/collection", {
@@ -235,16 +254,24 @@ export function CollectionEditor({
             <p className="font-mono text-[10px] tracking-[0.16em] text-muted-3 uppercase">
               Pets in collection
             </p>
+            {approvedPets.length > MAX_COLLECTION_PETS ? (
+              <p className="mt-1 text-xs text-muted-3">
+                {t("petLimit", { max: MAX_COLLECTION_PETS })}
+              </p>
+            ) : null}
             <div className="mt-2 grid gap-2 sm:grid-cols-2">
               {approvedPets.map((pet) => {
                 const selected = petSlugs.includes(pet.slug);
+                const selectionFull =
+                  !selected && petSlugs.length >= MAX_COLLECTION_PETS;
                 return (
                   <button
                     key={pet.slug}
                     type="button"
                     onClick={() => togglePet(pet.slug)}
+                    disabled={selectionFull}
                     aria-pressed={selected}
-                    className={`flex h-11 items-center justify-between rounded-2xl border px-3 text-left text-sm transition ${
+                    className={`flex h-11 items-center justify-between rounded-2xl border px-3 text-left text-sm transition disabled:cursor-not-allowed disabled:opacity-45 ${
                       selected
                         ? "border-brand/40 bg-brand/15 text-brand"
                         : "border-border-base bg-background text-muted-2 hover:bg-surface-muted hover:text-foreground"

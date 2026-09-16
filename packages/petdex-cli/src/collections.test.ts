@@ -24,6 +24,38 @@ describe("collectionRequest", () => {
     }
   });
 
+  it("supports the approved-pet count preflight query", async () => {
+    const originalFetch = globalThis.fetch;
+    let request: Request | undefined;
+    globalThis.fetch = (async (
+      input: string | URL | Request,
+      init?: RequestInit,
+    ) => {
+      request = new Request(input as string, init);
+      return new Response(
+        JSON.stringify({ collections: [], approvedPetCount: 1 }),
+        { status: 200 },
+      );
+    }) as unknown as typeof fetch;
+    try {
+      await expect(
+        collectionRequest(
+          "https://petdex.test",
+          "token",
+          "GET",
+          null,
+          undefined,
+          "?includeApprovedPetCount=1",
+        ),
+      ).resolves.toMatchObject({ approvedPetCount: 1 });
+      expect(request?.url).toBe(
+        "https://petdex.test/api/cli/collections?includeApprovedPetCount=1",
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it("surfaces the server error code", async () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = (async () =>
@@ -73,6 +105,15 @@ describe("collectionRequest", () => {
     expect(() =>
       parseCollectionArgs(["create", "--title", "Pets", "--cover", "bad slug"]),
     ).toThrow("pet_slug");
+    expect(() =>
+      parseCollectionArgs([
+        "create",
+        "--title",
+        "Pets",
+        "--pets",
+        Array.from({ length: 25 }, (_, index) => `pet-${index}`).join(","),
+      ]),
+    ).toThrow("collection_pet_limit");
   });
 
   it("maps rate limits to an actionable error", async () => {
@@ -85,6 +126,21 @@ describe("collectionRequest", () => {
       await expect(
         collectionRequest("https://petdex.test", "token", "GET", null),
       ).rejects.toThrow("rate limited");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("maps collection pet limits to an actionable error", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ error: "collection_pet_limit" }), {
+        status: 400,
+      })) as unknown as typeof fetch;
+    try {
+      await expect(
+        collectionRequest("https://petdex.test", "token", "POST", null),
+      ).rejects.toThrow("collection cannot contain more than 24 pets");
     } finally {
       globalThis.fetch = originalFetch;
     }

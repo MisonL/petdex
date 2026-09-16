@@ -1,15 +1,26 @@
 import { NextResponse } from "next/server";
 
-import { and, eq, or } from "drizzle-orm";
+import { and, eq, or, sql } from "drizzle-orm";
 
 import { verifyCliBearer } from "@/lib/cli-auth";
 import {
+  collectionApprovedPetsCondition,
+  collectionMutationStatusQuery,
+  deleteCollectionItemsQuery,
+  hasCollectionMutationRow,
+  insertCollectionItemsQuery,
+  parseCollectionMutationStatus,
+  runCollectionMutation,
+} from "@/lib/collection-access";
+import {
   type CollectionRequestBody,
   isCollectionRequestBody,
+  MAX_COLLECTION_PETS,
   normalizeCollectionCover,
   normalizeCollectionExternalUrl,
   normalizeCollectionInput,
 } from "@/lib/collection-input";
+import { collectionCoverForPetSlugsQuery } from "@/lib/collection-sql";
 import { revalidateCollectionTags } from "@/lib/db/cached-aggregates";
 import { db, schema } from "@/lib/db/client";
 import { cliVerifyRatelimit } from "@/lib/ratelimit";
@@ -99,6 +110,11 @@ export async function PATCH(req: Request, ctx: Ctx): Promise<Response> {
       );
     const allowed = new Set(approved.map((p) => p.slug));
     pets = body.allApproved === true ? [...allowed].sort() : input.petSlugs;
+    if (pets.length > MAX_COLLECTION_PETS)
+      return NextResponse.json(
+        { error: "collection_pet_limit", max: MAX_COLLECTION_PETS },
+        { status: 400 },
+      );
     if (pets.some((slug) => !allowed.has(slug)))
       return NextResponse.json(
         { error: "pet_not_owned_or_approved" },
@@ -116,22 +132,19 @@ export async function PATCH(req: Request, ctx: Ctx): Promise<Response> {
         { error: "cover_not_in_collection" },
         { status: 400 },
       );
-    coverPetSlug = requestedCover ?? pets?.[0] ?? null;
+    coverPetSlug =
+      requestedCover ??
+      (body.coverPetSlug === undefined &&
+      collection.coverPetSlug !== null &&
+      pets?.includes(collection.coverPetSlug)
+        ? collection.coverPetSlug
+        : null) ??
+      pets?.[0] ??
+      null;
   } else if (body.coverPetSlug !== undefined) {
     const requestedCover = normalizeCollectionCover(body.coverPetSlug);
     if (requestedCover === false)
       return NextResponse.json({ error: "invalid_cover_pet" }, { status: 400 });
-    if (requestedCover !== null) {
-      const items = await db
-        .select({ slug: schema.petCollectionItems.petSlug })
-        .from(schema.petCollectionItems)
-        .where(eq(schema.petCollectionItems.collectionId, collection.id));
-      if (!items.some((item) => item.slug === requestedCover))
-        return NextResponse.json(
-          { error: "cover_not_in_collection" },
-          { status: 400 },
-        );
-    }
     coverPetSlug = requestedCover;
   }
 
@@ -145,33 +158,152 @@ export async function PATCH(req: Request, ctx: Ctx): Promise<Response> {
     externalUrl = normalizedExternalUrl;
   }
 
-  await db.transaction(async (tx) => {
-    if (petsChanged) {
-      await tx
-        .delete(schema.petCollectionItems)
-        .where(eq(schema.petCollectionItems.collectionId, collection.id));
-      if (pets?.length)
-        await tx.insert(schema.petCollectionItems).values(
-          pets.map((petSlug, position) => ({
-            collectionId: collection.id,
-            petSlug,
-            position: position + 1,
-          })),
-        );
-    }
-    await tx
-      .update(schema.petCollections)
-      .set({
-        title: input.title,
-        description: input.description,
-        ...(body.externalUrl !== undefined ? { externalUrl } : {}),
-        ...(petsChanged || body.coverPetSlug !== undefined
-          ? { coverPetSlug }
-          : {}),
-        updatedAt: new Date(),
+  // Keep omitted optional fields out of the write so concurrent partial PATCH
+  // requests cannot replay a stale snapshot over another field's update.
+  const updateSet = {
+    ...(body.title !== undefined ? { title: input.title } : {}),
+    ...(body.description !== undefined
+      ? { description: input.description }
+      : {}),
+    ...(body.externalUrl !== undefined ? { externalUrl } : {}),
+    ...(petsChanged || body.coverPetSlug !== undefined
+      ? {
+          coverPetSlug:
+            petsChanged && body.coverPetSlug === undefined
+              ? collectionCoverForPetSlugsQuery(pets ?? [])
+              : coverPetSlug,
+        }
+      : {}),
+    updatedAt: new Date(),
+  };
+  const coverValidationRequired =
+    !petsChanged && body.coverPetSlug !== undefined && coverPetSlug !== null;
+  const mutationPetSlugs = petsChanged
+    ? (pets ?? [])
+    : coverValidationRequired
+      ? [coverPetSlug as string]
+      : undefined;
+  const updateBaseWhere = and(
+    eq(schema.petCollections.id, collection.id),
+    eq(schema.petCollections.ownerId, principal.userId),
+    eq(schema.petCollections.featured, false),
+  );
+  const petAuthorization = mutationPetSlugs
+    ? collectionApprovedPetsCondition(principal.userId, mutationPetSlugs)
+    : sql`TRUE`;
+  const updateWhere = coverValidationRequired
+    ? and(
+        updateBaseWhere,
+        petAuthorization,
+        sql`EXISTS (
+          SELECT 1
+          FROM "pet_collection_items"
+          WHERE "collection_id" = ${collection.id}
+            AND "pet_slug" = ${coverPetSlug}
+        )`,
+      )
+    : and(updateBaseWhere, petAuthorization);
+  const mutationStatusCheck =
+    mutationPetSlugs || coverValidationRequired
+      ? collectionMutationStatusQuery({
+          collectionId: collection.id,
+          ownerId: principal.userId,
+          petAuthorization,
+          ...(coverValidationRequired
+            ? { coverPetSlug: coverPetSlug as string }
+            : {}),
+        })
+      : null;
+  const deletedItems = petsChanged
+    ? deleteCollectionItemsQuery(collection.id, principal.userId, pets ?? [], {
+        requireSuccessfulParentUpdate: true,
       })
-      .where(eq(schema.petCollections.id, collection.id));
+    : null;
+  const insertedItems = petsChanged
+    ? insertCollectionItemsQuery(collection.id, pets ?? [], principal.userId, {
+        requireSuccessfulParentUpdate: true,
+      })
+    : null;
+  const mutation = await runCollectionMutation({
+    collectionId: collection.id,
+    petMutation: mutationPetSlugs
+      ? { ownerId: principal.userId, petSlugs: mutationPetSlugs }
+      : undefined,
+    buildBatch: (client) => [
+      client
+        .update(schema.petCollections)
+        .set(updateSet)
+        .where(updateWhere)
+        .returning({ id: schema.petCollections.id }),
+      ...(deletedItems ? [client.execute(deletedItems)] : []),
+      ...(insertedItems ? [client.execute(insertedItems)] : []),
+      ...(mutationStatusCheck ? [client.execute(mutationStatusCheck)] : []),
+    ],
+    runTransaction: async (tx) => {
+      const updatedRows = await tx
+        .update(schema.petCollections)
+        .set(updateSet)
+        .where(updateWhere)
+        .returning({ id: schema.petCollections.id });
+      if (updatedRows.length > 0) {
+        if (deletedItems) await tx.execute(deletedItems);
+        if (insertedItems) await tx.execute(insertedItems);
+        return {
+          updated: true,
+          collectionExists: true,
+          petsValid: true,
+          coverExists: true,
+        };
+      }
+      if (mutationStatusCheck) {
+        const status = parseCollectionMutationStatus(
+          await tx.execute(mutationStatusCheck),
+        );
+        return { updated: false, ...status };
+      }
+      return {
+        updated: false,
+        collectionExists: false,
+        petsValid: true,
+        coverExists: true,
+      };
+    },
+    parseBatch: (results) => {
+      const updateResult = results[0];
+      const updated = hasCollectionMutationRow(updateResult);
+      if (!mutationStatusCheck) {
+        return {
+          updated,
+          collectionExists: updated,
+          petsValid: true,
+          coverExists: true,
+        };
+      }
+      const status = parseCollectionMutationStatus(results[results.length - 1]);
+      return {
+        updated,
+        ...status,
+      };
+    },
   });
+  if (!mutation.updated) {
+    if (!mutation.collectionExists) {
+      return NextResponse.json({ error: "not_found" }, { status: 404 });
+    }
+    if (!mutation.petsValid) {
+      return NextResponse.json(
+        { error: "pet_not_owned_or_approved" },
+        { status: 422 },
+      );
+    }
+    if (coverValidationRequired && !mutation.coverExists) {
+      return NextResponse.json(
+        { error: "cover_not_in_collection" },
+        { status: 400 },
+      );
+    }
+    return NextResponse.json({ error: "not_found" }, { status: 404 });
+  }
   await revalidateCollectionTags(collection.slug);
   return NextResponse.json({ ok: true });
 }
@@ -192,9 +324,38 @@ export async function DELETE(req: Request, ctx: Ctx): Promise<Response> {
       { error: "featured_not_deletable" },
       { status: 403 },
     );
-  await db
-    .delete(schema.petCollections)
-    .where(eq(schema.petCollections.id, collection.id));
+  const deleted = await runCollectionMutation({
+    collectionId: collection.id,
+    lockExistingPetSlugs: true,
+    buildBatch: (client) => [
+      client
+        .delete(schema.petCollections)
+        .where(
+          and(
+            eq(schema.petCollections.id, collection.id),
+            eq(schema.petCollections.ownerId, principal.userId),
+            eq(schema.petCollections.featured, false),
+          ),
+        )
+        .returning({ id: schema.petCollections.id }),
+    ],
+    runTransaction: async (tx) => {
+      const deletedRows = await tx
+        .delete(schema.petCollections)
+        .where(
+          and(
+            eq(schema.petCollections.id, collection.id),
+            eq(schema.petCollections.ownerId, principal.userId),
+            eq(schema.petCollections.featured, false),
+          ),
+        )
+        .returning({ id: schema.petCollections.id });
+      return deletedRows.length > 0;
+    },
+    parseBatch: (results) => hasCollectionMutationRow(results[0]),
+  });
+  if (!deleted)
+    return NextResponse.json({ error: "not_found" }, { status: 404 });
   await revalidateCollectionTags(collection.slug);
   return NextResponse.json({ ok: true });
 }

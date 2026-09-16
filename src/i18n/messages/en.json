@@ -1313,10 +1313,12 @@
     "deleteAria": "Delete collection",
     "cancelAria": "Cancel",
     "namePlaceholder": "South Park crew",
-    "petsSelected": "Pets ({selected} of {total} selected)"
+    "petsSelected": "Pets ({selected} of {total} selected)",
+    "petLimit": "Collections can include up to {max} pets. Deselect one to add another."
   },
   "collectionEditor": {
-    "selectPetsFirst": "Select pets first"
+    "selectPetsFirst": "Select pets first",
+    "petLimit": "Collections can include up to {max} pets. Deselect one to add another."
   },
   "onboarding": {
     "skip": "Skip tour"

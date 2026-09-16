@@ -112,9 +112,27 @@ export function isSafeExternalUrl(raw: string | null | undefined): boolean {
     return false;
   }
   if (url.protocol !== "https:") return false;
-  // Block bare IPs.
-  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(url.hostname)) return false;
-  // Block localhost / lan.
-  if (url.hostname === "localhost") return false;
+  const hostname = url.hostname.toLowerCase().replace(/\.$/, "");
+  // Block IPv4/IPv6 literals. URL normalizes decimal, octal, and hexadecimal
+  // IPv4 forms to dotted-decimal hostnames before this check.
+  if (
+    /^\d{1,3}(\.\d{1,3}){3}$/.test(hostname) ||
+    (hostname.startsWith("[") && hostname.endsWith("]"))
+  ) {
+    return false;
+  }
+  // Block names reserved for local networks and service discovery. DNS
+  // resolution is intentionally not performed on this hot input path.
+  if (
+    hostname === "localhost" ||
+    hostname === "intranet" ||
+    hostname.endsWith(".localhost") ||
+    hostname.endsWith(".local") ||
+    hostname.endsWith(".internal") ||
+    hostname.endsWith(".lan") ||
+    hostname.endsWith(".home.arpa")
+  ) {
+    return false;
+  }
   return true;
 }

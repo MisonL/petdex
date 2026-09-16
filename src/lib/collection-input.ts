@@ -1,3 +1,7 @@
+import { isSafeExternalUrl } from "@/lib/url-allowlist";
+
+export { MAX_COLLECTION_PETS } from "@/lib/collection-constants";
+
 export const MAX_COLLECTION_TITLE = 80;
 export const MAX_COLLECTION_DESCRIPTION = 280;
 
@@ -36,13 +40,8 @@ export function normalizeCollectionExternalUrl(
   const raw = value.trim();
   if (!raw) return null;
   if (raw.length > 300) return false;
-  try {
-    const url = new URL(raw);
-    if (url.protocol !== "https:" && url.protocol !== "http:") return false;
-    return url.toString();
-  } catch {
-    return false;
-  }
+  if (!isSafeExternalUrl(raw)) return false;
+  return new URL(raw).toString();
 }
 
 export function normalizeCollectionCover(
@@ -61,6 +60,23 @@ export type NormalizedCollectionInput = {
   petSlugs: string[];
 };
 
+export function resolveCollectionCover(
+  requestedCover: string | null,
+  petSlugs: string[],
+  existingCover: string | null = null,
+  preserveExisting = false,
+): string | null {
+  if (requestedCover !== null) return requestedCover;
+  if (
+    preserveExisting &&
+    existingCover !== null &&
+    petSlugs.includes(existingCover)
+  ) {
+    return existingCover;
+  }
+  return petSlugs[0] ?? null;
+}
+
 export function normalizeCollectionInput(
   input: CollectionInput,
 ): NormalizedCollectionInput {
@@ -69,6 +85,12 @@ export function normalizeCollectionInput(
     throw new Error("title_length");
   }
 
+  if (
+    input.description !== undefined &&
+    typeof input.description !== "string"
+  ) {
+    throw new Error("description_type");
+  }
   const description =
     typeof input.description === "string" ? input.description.trim() : "";
   if (description.length > MAX_COLLECTION_DESCRIPTION) {

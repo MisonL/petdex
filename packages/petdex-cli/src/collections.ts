@@ -26,16 +26,21 @@ export type ParsedCollectionArgs = {
   json: boolean;
 };
 
+export const MAX_COLLECTION_PETS = 24;
+
 const PET_SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 const ERROR_MESSAGES: Record<string, string> = {
   collection_cap_reached: "collection limit reached",
+  collection_pet_limit: `collection cannot contain more than ${MAX_COLLECTION_PETS} pets; use --pets with at most ${MAX_COLLECTION_PETS} slugs instead of --all-approved`,
+  collection_slug_conflict: "could not allocate a unique collection slug",
   cover_not_in_collection: "cover pet must be in the collection",
+  description_type: "description must be a string",
   featured_not_deletable: "featured collections cannot be deleted",
   featured_not_editable: "featured collections cannot be edited",
   invalid_body: "request body must be a JSON object",
   invalid_cover_pet: "invalid cover pet slug",
-  invalid_url: "external URL must use http or https",
+  invalid_url: "external URL must use https",
   nothing_to_update: "nothing to update",
   not_found: "collection not found or not owned by you",
   pet_not_owned_or_approved: "all pets must be approved and owned by you",
@@ -82,6 +87,8 @@ export function parseCollectionArgs(args: string[]): ParsedCollectionArgs {
         );
   if (petSlugs?.some((slug) => !PET_SLUG.test(slug)))
     throw new Error("pet_slug");
+  if (petSlugs && petSlugs.length > MAX_COLLECTION_PETS)
+    throw new Error("collection_pet_limit");
   const title = readFlag("--title");
   if (action === "create" && title === null) throw new Error("missing_title");
   const description = readFlag("--desc");
@@ -122,8 +129,9 @@ export async function collectionRequest(
   method: string,
   id: string | null,
   body?: Record<string, unknown>,
+  query = "",
 ): Promise<unknown> {
-  const url = `${baseUrl.replace(/\/+$/, "")}/api/cli/collections${id ? `/${encodeURIComponent(id)}` : ""}`;
+  const url = `${baseUrl.replace(/\/+$/, "")}/api/cli/collections${id ? `/${encodeURIComponent(id)}` : ""}${query}`;
   const res = await fetch(url, {
     method,
     headers: {

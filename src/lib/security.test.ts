@@ -432,6 +432,13 @@ describe("isSafeExternalUrl", () => {
   it("rejects localhost", () => {
     expect(isSafeExternalUrl("https://localhost/foo")).toBe(false);
   });
+  it("rejects IPv6 literals and local network hostnames", () => {
+    expect(isSafeExternalUrl("https://[::1]/admin")).toBe(false);
+    expect(isSafeExternalUrl("https://[fd00::1]/service")).toBe(false);
+    expect(isSafeExternalUrl("https://printer.local/status")).toBe(false);
+    expect(isSafeExternalUrl("https://api.internal/health")).toBe(false);
+    expect(isSafeExternalUrl("https://router.home.arpa/")).toBe(false);
+  });
 });
 
 describe("JsonLd escape", () => {

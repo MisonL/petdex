@@ -1,0 +1,215 @@
+import { describe, expect, it, mock } from "bun:test";
+
+import { PgDialect } from "drizzle-orm/pg-core";
+
+mock.module("server-only", () => ({}));
+mock.module("@/lib/db/client", () => ({ db: {} }));
+
+const {
+  collectionApprovedPetsCondition,
+  collectionApprovedPetsLockQuery,
+  collectionLocksForPetSlugQuery,
+  collectionPetSlugLockQuery,
+  collectionMutationStatusQuery,
+  deleteCollectionItemsQuery,
+  insertCollectionItemsQuery,
+  parseCollectionMutationStatus,
+} = await import("@/lib/collection-access");
+
+const dialect = new PgDialect();
+
+function requireQuery<T>(query: T | null): T {
+  if (query === null) throw new Error("expected SQL query");
+  return query;
+}
+
+describe("collection access SQL", () => {
+  it("authorizes item writes against approved pets owned by the collection owner", () => {
+    const query = dialect.sqlToQuery(
+      requireQuery(
+        insertCollectionItemsQuery(
+          "collection-id",
+          ["boba", "dora"],
+          "user-id",
+        ),
+      ),
+    );
+
+    expect(query.sql).toContain('"owner_id" =');
+    expect(query.sql).toContain("\"status\" = 'approved'");
+    expect(query.sql).toContain('"position"');
+    expect(query.sql).toContain("$3::integer");
+    expect(query.params).toEqual([
+      "collection-id",
+      "boba",
+      1,
+      "dora",
+      2,
+      "collection-id",
+      "user-id",
+      "user-id",
+      "boba",
+      "dora",
+      2,
+    ]);
+  });
+
+  it("uses the same authorization condition for replacement deletes", () => {
+    const query = dialect.sqlToQuery(
+      requireQuery(
+        deleteCollectionItemsQuery("collection-id", "user-id", ["boba"]),
+      ),
+    );
+
+    expect(query.sql).toContain('"owner_id" =');
+    expect(query.sql).toContain("\"status\" = 'approved'");
+    expect(query.params).toContain("user-id");
+    expect(query.params).toContain("boba");
+  });
+
+  it("gates replacement item writes on a successful parent update when requested", () => {
+    const options = { requireSuccessfulParentUpdate: true } as const;
+    const insert = dialect.sqlToQuery(
+      requireQuery(
+        insertCollectionItemsQuery(
+          "collection-id",
+          ["boba"],
+          "user-id",
+          options,
+        ),
+      ),
+    );
+    const remove = dialect.sqlToQuery(
+      requireQuery(
+        deleteCollectionItemsQuery(
+          "collection-id",
+          "user-id",
+          ["boba"],
+          options,
+        ),
+      ),
+    );
+
+    expect(insert.sql).toContain('"pet_collections"."xmin"');
+    expect(insert.sql).toContain("pg_current_xact_id()::xid");
+    expect(remove.sql).toContain('"pet_collections"."xmin"');
+    expect(remove.sql).toContain("pg_current_xact_id()::xid");
+  });
+
+  it("can gate creation items on a parent inserted in the same transaction", () => {
+    const query = dialect.sqlToQuery(
+      requireQuery(
+        insertCollectionItemsQuery("collection-id", ["boba"], "user-id", {
+          requireSuccessfulParentUpdate: true,
+        }),
+      ),
+    );
+
+    expect(query.sql).toContain('"pet_collections"."xmin"');
+    expect(query.sql).toContain("pg_current_xact_id()::xid");
+  });
+
+  it("locks approved pet rows in deterministic slug order", () => {
+    const query = dialect.sqlToQuery(
+      requireQuery(
+        collectionApprovedPetsLockQuery("user-id", ["dora", "boba", "dora"]),
+      ),
+    );
+
+    expect(query.sql).toContain("FOR SHARE");
+    expect(query.sql).toContain('ORDER BY "slug"');
+    expect(query.params).toEqual(["user-id", "boba", "dora"]);
+  });
+
+  it("serializes pet slug mutations in deterministic order", () => {
+    const query = dialect.sqlToQuery(
+      requireQuery(collectionPetSlugLockQuery(["dora", "boba", "dora"])),
+    );
+
+    expect(query.sql).toContain("pg_advisory_xact_lock");
+    expect(query.sql).toContain('ORDER BY locked."slug"');
+    expect(query.params).toEqual(["boba", "dora"]);
+  });
+
+  it("locks current collection members before replacement or deletion", () => {
+    const query = dialect.sqlToQuery(
+      requireQuery(collectionPetSlugLockQuery(["dora"], "collection-id")),
+    );
+
+    expect(query.sql).toContain('FROM "pet_collection_items"');
+    expect(query.sql).toContain('"cover_pet_slug"');
+    expect(query.sql).toContain('"collection_id" =');
+    expect(query.sql).toContain('ORDER BY locked."slug"');
+    expect(query.params).toEqual(["dora", "collection-id", "collection-id"]);
+  });
+
+  it("locks collections that reference a pet before takedown cleanup", () => {
+    const query = dialect.sqlToQuery(collectionLocksForPetSlugQuery("boba"));
+
+    expect(query.sql).toContain('FROM "pet_collection_items"');
+    expect(query.sql).toContain('FROM "pet_collections"');
+    expect(query.sql).toContain('ORDER BY locked."id"');
+    expect(query.params).toEqual(["boba", "boba"]);
+  });
+
+  it("accepts an empty pet list without an always-false condition", () => {
+    expect(
+      dialect.sqlToQuery(collectionApprovedPetsCondition("user-id", [])),
+    ).toEqual({
+      sql: "TRUE",
+      params: [],
+    });
+  });
+
+  it("deduplicates pet slugs in the approval guard", () => {
+    const query = dialect.sqlToQuery(
+      collectionApprovedPetsCondition("user-id", ["boba", "boba"]),
+    );
+
+    expect(query.sql).toContain('"slug" IN ($2)');
+    expect(query.sql).toContain(") = $3");
+    expect(query.params).toEqual(["user-id", "boba", 1]);
+  });
+
+  it("builds a post-write status check for all mutation guards", () => {
+    const query = dialect.sqlToQuery(
+      collectionMutationStatusQuery({
+        collectionId: "collection-id",
+        ownerId: "user-id",
+        petAuthorization: collectionApprovedPetsCondition("user-id", ["boba"]),
+        coverPetSlug: "boba",
+      }),
+    );
+
+    expect(query.sql).toContain('AS "collection_exists"');
+    expect(query.sql).toContain('AS "pets_valid"');
+    expect(query.sql).toContain('AS "cover_exists"');
+    expect(query.sql).toContain('"pet_slug"');
+    expect(query.params).toEqual([
+      "collection-id",
+      "user-id",
+      "user-id",
+      "boba",
+      1,
+      "collection-id",
+      "boba",
+    ]);
+  });
+
+  it("parses Postgres and Neon mutation status result shapes", () => {
+    expect(
+      parseCollectionMutationStatus({
+        rows: [{ collection_exists: "t", pets_valid: true, cover_exists: 1 }],
+      }),
+    ).toEqual({ collectionExists: true, petsValid: true, coverExists: true });
+    expect(
+      parseCollectionMutationStatus([
+        { collection_exists: false, pets_valid: "f", cover_exists: 0 },
+      ]),
+    ).toEqual({
+      collectionExists: false,
+      petsValid: false,
+      coverExists: false,
+    });
+  });
+});

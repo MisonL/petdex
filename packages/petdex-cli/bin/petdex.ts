@@ -13,6 +13,7 @@ import { ClerkCliAuth } from "../src/cli-auth/index.js";
 import {
   type CollectionRecord,
   collectionRequest,
+  MAX_COLLECTION_PETS,
   parseCollectionArgs,
 } from "../src/collections.js";
 import {
@@ -270,7 +271,9 @@ async function cmdCollection(args: string[]): Promise<void> {
             ? "Nothing to edit. Provide at least one flag."
             : code === "pet_slug"
               ? "Invalid pet slug in --pets."
-              : `Usage: ${pc.cyan("petdex collection list|create|edit|delete")}`;
+              : code === "collection_pet_limit"
+                ? `A collection can contain at most ${MAX_COLLECTION_PETS} pets. Use --pets with a subset, or remove --all-approved.`
+                : `Usage: ${pc.cyan("petdex collection list|create|edit|delete")}`;
     p.cancel(message);
     process.exit(1);
   }
@@ -302,6 +305,29 @@ async function cmdCollection(args: string[]): Promise<void> {
     if (json) console.log(JSON.stringify({ ok: true }));
     else console.log(`${pc.green("✓")} Collection deleted`);
     return;
+  }
+  if (parsed.allApproved) {
+    const approvedResult = (await collectionRequest(
+      PETDEX_URL,
+      token,
+      "GET",
+      null,
+      undefined,
+      "?includeApprovedPetCount=1",
+    )) as { approvedPetCount?: unknown };
+    if (
+      typeof approvedResult.approvedPetCount !== "number" ||
+      !Number.isInteger(approvedResult.approvedPetCount) ||
+      approvedResult.approvedPetCount < 0
+    ) {
+      throw new Error("invalid approved pets response");
+    }
+    if (approvedResult.approvedPetCount > MAX_COLLECTION_PETS) {
+      p.cancel(
+        `--all-approved found ${approvedResult.approvedPetCount} approved pets. A collection can contain at most ${MAX_COLLECTION_PETS}; use --pets with a subset.`,
+      );
+      process.exit(1);
+    }
   }
   const body: Record<string, unknown> = {};
   if (parsed.title !== null) body.title = parsed.title;
