@@ -2,8 +2,10 @@ import { describe, expect, it, mock } from "bun:test";
 
 import { PgDialect } from "drizzle-orm/pg-core";
 
+import * as schema from "@/lib/db/schema";
+
 mock.module("server-only", () => ({}));
-mock.module("@/lib/db/client", () => ({ db: {} }));
+mock.module("@/lib/db/client", () => ({ db: {}, schema }));
 
 const {
   collectionApprovedPetsCondition,
