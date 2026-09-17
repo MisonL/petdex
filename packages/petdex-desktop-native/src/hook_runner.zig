@@ -53,6 +53,12 @@ pub fn run(phase: []const u8, arg_agent: ?[]const u8, origin_app: plat.OriginApp
     if (token.len == 0) return;
 
     const agent = resolveAgent(payload, arg_agent);
+
+    // A Hermes background-review fork is internal machinery, not a session:
+    // drop it before it can seed a title, move the pet, or open a card. The
+    // stdin drain above is already complete, so returning here is safe.
+    if (std.mem.eql(u8, agent, "hermes") and isBackgroundReview(payload)) return;
+
     const source_app = origin_app.wireName();
     var tty_buf: [64]u8 = undefined;
     const source_tty = if (origin_app == .terminal) (plat.controllingTty(&tty_buf) orelse "") else "";
@@ -138,6 +144,43 @@ fn resolveAgent(payload: []const u8, arg_agent: ?[]const u8) []const u8 {
         if (agent.len > 0) return agent;
     }
     return jsonString(payload, "agent_source") orelse "";
+}
+
+/// Review prompts Hermes' `agent/background_review.py` feeds its post-turn
+/// fork, verbatim (the module's `_MEMORY_REVIEW_PROMPT` / `_SKILL_REVIEW_PROMPT`
+/// / `_COMBINED_REVIEW_PROMPT`). The fork runs its prompt through the ordinary
+/// `pre_llm_call` path, so the prompt arrives as this runner's `user_message`.
+const background_review_prompts = [_][]const u8{
+    "Review the conversation above and update the skill library",
+    "Review the conversation above and consider saving to memory",
+    "Review the conversation above and update two things",
+};
+
+/// True when a Hermes payload comes from a background-review fork rather than a
+/// user turn. The fork is internal machinery: it shares the parent's session id
+/// and fires the same lifecycle hooks as a real turn, so without this filter its
+/// own review prompt becomes a session title (and the fork's events keep the
+/// parent card busy long after the user's turn ended).
+///
+/// Two independent marks, either one decisive:
+///   * the payload carries one of the fork's review prompts; or
+///   * it names itself as its own parent — how a fork that reuses the parent
+///     session id appears (`build_cache_parity_fork` sets `session_id` and
+///     `_parent_session_id` to the same value, which no real session does).
+/// The second mark also covers the fork's later hooks (post_llm_call,
+/// approvals) that carry no prompt at all, and the first still catches a fork
+/// that Hermes someday gives a session id of its own.
+pub fn isBackgroundReview(payload: []const u8) bool {
+    if (jsonString(payload, "user_message") orelse jsonString(payload, "prompt")) |message| {
+        const trimmed = std.mem.trimStart(u8, message, " \t\r\n");
+        for (background_review_prompts) |prompt| {
+            if (std.mem.startsWith(u8, trimmed, prompt)) return true;
+        }
+    }
+    const session = jsonString(payload, "session_id") orelse return false;
+    if (session.len == 0) return false;
+    const parent = jsonString(payload, "parent_session_id") orelse return false;
+    return std.mem.eql(u8, session, parent);
 }
 
 fn isPromptPhase(phase: []const u8) bool {
@@ -960,4 +1003,37 @@ test "the states only direct hooks can see reach the bubble" {
     try std.testing.expectEqualStrings("failed", stateForEvent("tool-failure", "Bash").?);
     try std.testing.expectEqualStrings("review", stateForEvent("pre", "Read").?);
     try std.testing.expectEqualStrings("waiting", stateForEvent("approval-request", null).?);
+}
+
+test "Hermes background review forks are recognised" {
+    // The fork's own prompt is its `user_message` on the ordinary
+    // pre_llm_call path; unfiltered it becomes the session title.
+    try t.expect(isBackgroundReview(
+        "{\"session_id\":\"s1\",\"user_message\":\"Review the conversation above and update the skill library. Be ACTIVE — most sessions produce at least one skill update, even if small.\"}",
+    ));
+    try t.expect(isBackgroundReview(
+        "{\"session_id\":\"s1\",\"user_message\":\"Review the conversation above and consider saving to memory if appropriate.\\n\\nFocus on:\"}",
+    ));
+    // Carried under `prompt` rather than `user_message`, as the /refine scope does.
+    try t.expect(isBackgroundReview(
+        "{\"session_id\":\"s1\",\"prompt\":\"Review the conversation above and update two things:\\n\\n**Memory**\"}",
+    ));
+    // Later fork hooks carry no prompt: the fork is its own parent, which no
+    // genuine session or delegated worker ever is.
+    try t.expect(isBackgroundReview(
+        "{\"session_id\":\"s1\",\"parent_session_id\":\"s1\",\"assistant_response\":\"Nothing to save.\"}",
+    ));
+}
+
+test "real sessions and subagents are not taken for a background review" {
+    // A user turn that merely opens with the phrase must stay visible.
+    try t.expect(!isBackgroundReview(
+        "{\"session_id\":\"s1\",\"user_message\":\"Review the conversation above and tell me which decisions we settled on.\"}",
+    ));
+    // A delegated worker points at a DIFFERENT session as its parent.
+    try t.expect(!isBackgroundReview("{\"session_id\":\"child-1\",\"parent_session_id\":\"parent-1\"}"));
+    // An ordinary top-level turn, and an empty payload.
+    try t.expect(!isBackgroundReview("{\"session_id\":\"s1\",\"user_message\":\"ship the fix\"}"));
+    try t.expect(!isBackgroundReview("{\"parent_session_id\":\"parent-1\"}"));
+    try t.expect(!isBackgroundReview("{}"));
 }

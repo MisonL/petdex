@@ -198,3 +198,37 @@ payload='{"session_id":"00000000-0000-0000-0000-000000000001","last_assistant_me
 printf '%s' "$payload" | HOME="$fixture/home" PATH="$fixture/bin:/usr/bin:/bin" \
     PETDEX_CAPTURE="$fixture/capture" sh "$root/src/assets/petdex-remote-hook.sh" bubble stop codex
 tail -n 1 "$fixture/capture" | grep -q '"title":"Parent conversation"'
+
+# Hermes' background-review fork fires the same pre_llm_call hook as a real
+# turn, with its own review prompt as the user message. It must never seed a
+# title or reach the hook server, and it must not damage the earlier sessions.
+before=$(wc -l < "$fixture/capture")
+printf '%s' '{"session_id":"custom-raw","user_message":"Review the conversation above and update the skill library. Be ACTIVE — most sessions produce at least one skill update."}' \
+| HOME="$fixture/home" PATH="$fixture/bin:$test_path" \
+    PETDEX_CAPTURE="$fixture/capture" sh "$root/src/assets/petdex-remote-hook.sh" bubble user-prompt hermes
+after=$(wc -l < "$fixture/capture")
+test "$before" -eq "$after"
+test ! -f "$fixture/home/.petdex/runtime/sessions/custom-raw.title"
+
+# The fork also reuses the parent session id and points at it as its own
+# parent, which catches its prompt-less hooks (assistant/approval).
+printf '%s' '{"session_id":"custom-raw","parent_session_id":"custom-raw","assistant_response":"Nothing to save."}' \
+| HOME="$fixture/home" PATH="$fixture/bin:$test_path" \
+    PETDEX_CAPTURE="$fixture/capture" sh "$root/src/assets/petdex-remote-hook.sh" bubble assistant hermes
+after_self_parent=$(wc -l < "$fixture/capture")
+test "$before" -eq "$after_self_parent"
+
+# A user turn that merely opens with the same words stays visible, and so does
+# a genuinely parented worker whose parent is a different session.
+printf '%s' '{"session_id":"custom-raw","user_message":"Review the conversation above and tell me which decisions we settled on."}' \
+| HOME="$fixture/home" PATH="$fixture/bin:$test_path" \
+    PETDEX_CAPTURE="$fixture/capture" sh "$root/src/assets/petdex-remote-hook.sh" bubble user-prompt hermes
+after_user_prompt=$(wc -l < "$fixture/capture")
+test "$after_user_prompt" -gt "$before"
+grep -q '"title":"Custom server title"' "$fixture/capture"
+
+before=$after_user_prompt
+printf '%s' '{"session_id":"child","parent_session_id":"parent","last_assistant_message":"worker done"}' \
+| HOME="$fixture/home" PATH="$fixture/bin:$test_path" \
+    PETDEX_CAPTURE="$fixture/capture" sh "$root/src/assets/petdex-remote-hook.sh" bubble assistant hermes
+test "$before" -lt "$(wc -l < "$fixture/capture")"
