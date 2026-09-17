@@ -35,6 +35,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   collection_pet_limit: `collection cannot contain more than ${MAX_COLLECTION_PETS} pets; use --pets with at most ${MAX_COLLECTION_PETS} slugs instead of --all-approved`,
   collection_slug_conflict: "could not allocate a unique collection slug",
   cover_not_in_collection: "cover pet must be in the collection",
+  description_length: "description must be at most 280 characters",
   description_type: "description must be a string",
   featured_not_deletable: "featured collections cannot be deleted",
   featured_not_editable: "featured collections cannot be edited",
@@ -44,6 +45,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   nothing_to_update: "nothing to update",
   not_found: "collection not found or not owned by you",
   pet_not_owned_or_approved: "all pets must be approved and owned by you",
+  title_length: "title must be between 2 and 80 characters",
 };
 
 export function parseCollectionArgs(args: string[]): ParsedCollectionArgs {

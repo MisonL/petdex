@@ -1,6 +1,7 @@
 import "server-only";
 
 import { type SQL, sql } from "drizzle-orm";
+import type { BatchItem } from "drizzle-orm/batch";
 
 import { db } from "@/lib/db/client";
 
@@ -22,7 +23,7 @@ export type CreateOwnerCollectionInput = {
 };
 
 type CollectionMutationBatchRunner = {
-  batch: (queries: readonly unknown[]) => Promise<readonly unknown[]>;
+  batch: (queries: readonly BatchItem<"pg">[]) => Promise<readonly unknown[]>;
 };
 
 export type CollectionMutationTransaction = Parameters<
@@ -317,7 +318,7 @@ export async function runCollectionMutation<T>(input: {
   petMutation?: CollectionPetMutation;
   /** Lock current item slugs before deleting a collection parent. */
   lockExistingPetSlugs?: boolean;
-  buildBatch: (client: typeof db) => readonly unknown[];
+  buildBatch: (client: typeof db) => readonly BatchItem<"pg">[];
   runTransaction: (tx: CollectionMutationTransaction) => Promise<T>;
   parseBatch: (results: readonly unknown[]) => T;
 }): Promise<T> {

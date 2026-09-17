@@ -1,6 +1,7 @@
 import "server-only";
 
 import { sql } from "drizzle-orm";
+import type { BatchItem } from "drizzle-orm/batch";
 import { Resend } from "resend";
 
 import { collectionLocksForPetSlugQuery } from "@/lib/collection-access";
@@ -32,7 +33,7 @@ import { getPreferredLocaleForUser } from "@/lib/user-locale";
 type TakedownPetRow = typeof schema.submittedPets.$inferSelect;
 
 type TakedownBatchRunner = {
-  batch: (queries: readonly unknown[]) => Promise<readonly unknown[]>;
+  batch: (queries: readonly BatchItem<"pg">[]) => Promise<readonly unknown[]>;
 };
 
 export type TakedownContext = {
