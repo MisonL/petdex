@@ -79,9 +79,10 @@ petdex collection delete my-pets --yes
 `--pets` takes a comma-separated list of pet slugs. `collection edit` accepts
 any subset of the update flags, so omitted fields are preserved. `--all-approved`
 selects every approved pet owned by you; use it only when that set has 24 or
-fewer pets. Each account can have up to 10 personal collections, each
-collection can contain at most 24 pets, and `--cover` must name a pet in the
-collection. `--external-url` accepts safe HTTPS links only.
+fewer pets. If you pass both `--all-approved` and `--pets`, `--all-approved`
+wins and the explicit list is ignored. Each account can have up to 10 personal
+collections, each collection can contain at most 24 pets, and `--cover` must
+name a pet in the collection. `--external-url` accepts safe HTTPS links only.
 
 ## How `submit` works
 

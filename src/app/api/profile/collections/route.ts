@@ -16,9 +16,12 @@ import {
   normalizeCollectionExternalUrl,
   normalizeCollectionInput,
 } from "@/lib/collection-input";
+import {
+  collectionSlugBase,
+  collectionSlugCandidates,
+} from "@/lib/collection-slug";
 import { revalidateCollectionTags } from "@/lib/db/cached-aggregates";
 import { db, schema } from "@/lib/db/client";
-import { validateProfileHandle } from "@/lib/profiles";
 import { requireSameOrigin } from "@/lib/same-origin";
 
 export const runtime = "nodejs";
@@ -156,25 +159,12 @@ export async function POST(req: Request): Promise<Response> {
 }
 
 async function collectionSlugForOwner(seed: string): Promise<string> {
-  let base = slugify(seed);
-  if (!base || validateProfileHandle(base) === "reserved") {
-    base = `collection-${crypto.randomUUID().replace(/-/g, "")}`;
-  }
-  for (let i = 0; i < 20; i++) {
-    const candidate = i === 0 ? base : `${base}-${i + 1}`;
+  const base = collectionSlugBase(seed);
+  for (const candidate of collectionSlugCandidates(base)) {
     const existing = await db.query.petCollections.findFirst({
       where: eq(schema.petCollections.slug, candidate),
     });
     if (!existing) return candidate;
   }
   return `collection-${crypto.randomUUID().replace(/-/g, "")}`;
-}
-
-function slugify(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48);
 }
