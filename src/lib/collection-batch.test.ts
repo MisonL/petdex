@@ -4,6 +4,8 @@ import { sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import { PgDialect } from "drizzle-orm/pg-core";
 
+import * as schema from "@/lib/db/schema";
+
 // The Neon HTTP path is the only one that calls db.batch, and it is the path
 // the collection mutations were designed around: batch() has no interactive
 // transaction, so the advisory locks and the xmin guard have to do the work a
@@ -51,7 +53,10 @@ mock.module("@/lib/db/client", () => {
       throw new Error("the batch path must not open a transaction");
     },
   };
-  return { db, schema: {} };
+  // mock.module leaks across files in the same run, so this has to export the
+  // real schema rather than an empty object: other suites that import the
+  // client would otherwise see a schema with no tables.
+  return { db, schema };
 });
 
 const { createOwnerCollection, runCollectionMutation } = await import(
