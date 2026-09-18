@@ -3,11 +3,13 @@ import "server-only";
 import { type SQL, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 
+import { MAX_OWNER_COLLECTIONS } from "@/lib/collection-constants";
 import { db } from "@/lib/db/client";
 
-// Cap on personal (unfeatured) collections per creator. Featured ones
-// are admin-curated promotions and do not count.
-export const MAX_OWNER_COLLECTIONS = 10;
+// Re-exported so the existing server callers keep importing it from here.
+// The value itself lives in collection-constants so client components can
+// read the same cap without pulling in this server-only module.
+export { MAX_OWNER_COLLECTIONS };
 
 const MAX_COLLECTION_SLUG_ATTEMPTS = 6;
 

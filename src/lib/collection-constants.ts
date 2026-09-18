@@ -1,3 +1,9 @@
+/** Cap on personal (unfeatured) collections per creator. Featured ones are
+ *  admin-curated promotions and do not count toward it. Lives here rather
+ *  than in collection-access.ts because that module is server-only and the
+ *  owner manager UI needs to render the same limit. */
+export const MAX_OWNER_COLLECTIONS = 10;
+
 export const MAX_COLLECTION_PETS = 24;
 
 /** Keep a client-side selection within the server collection limit. */
