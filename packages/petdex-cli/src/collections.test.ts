@@ -1,6 +1,10 @@
 import { describe, expect, it } from "bun:test";
 
-import { collectionRequest, parseCollectionArgs } from "./collections";
+import {
+  collectionRequest,
+  MAX_COLLECTION_PETS,
+  parseCollectionArgs,
+} from "./collections";
 
 describe("collectionRequest", () => {
   it("sends bearer credentials and parses a successful response", async () => {
@@ -114,6 +118,50 @@ describe("collectionRequest", () => {
         Array.from({ length: 25 }, (_, index) => `pet-${index}`).join(","),
       ]),
     ).toThrow("collection_pet_limit");
+  });
+
+  it("ignores --pets validation when --all-approved wins", () => {
+    // The server replaces the explicit list with every approved pet whenever
+    // allApproved is set, so a --pets list that is oversized or malformed is
+    // never sent and must not fail the command locally.
+    const oversized = Array.from(
+      { length: MAX_COLLECTION_PETS + 1 },
+      (_, index) => `pet-${index}`,
+    ).join(",");
+
+    expect(
+      parseCollectionArgs([
+        "create",
+        "--title",
+        "Pets",
+        "--all-approved",
+        "--pets",
+        oversized,
+      ]),
+    ).toMatchObject({ allApproved: true });
+
+    expect(
+      parseCollectionArgs([
+        "create",
+        "--title",
+        "Pets",
+        "--all-approved",
+        "--pets",
+        "not a slug",
+      ]),
+    ).toMatchObject({ allApproved: true });
+  });
+
+  it("still validates --pets when --all-approved is absent", () => {
+    expect(() =>
+      parseCollectionArgs([
+        "create",
+        "--title",
+        "Pets",
+        "--pets",
+        "not a slug",
+      ]),
+    ).toThrow("pet_slug");
   });
 
   it("maps rate limits to an actionable error", async () => {

@@ -71,10 +71,15 @@ output.
 ```sh
 petdex collection list --json
 petdex collection create --title "My pets" --pets boba,mochi --cover boba
-petdex collection edit my-pets --desc "A small desk crew" --external-url https://example.com
-petdex collection edit my-pets --all-approved
-petdex collection delete my-pets --yes
+petdex collection list                       # copy the slug from here
+petdex collection edit <slug> --desc "A small desk crew" --external-url https://example.com
+petdex collection edit <slug> --all-approved
+petdex collection delete <slug> --yes
 ```
+
+`collection edit` and `collection delete` take either the collection id or its
+slug. New collections get a generated slug (`collection-<32 hex chars>`);
+there is no flag to set one, so read it from `petdex collection list` first.
 
 `--pets` takes a comma-separated list of pet slugs. `collection edit` accepts
 any subset of the update flags, so omitted fields are preserved. `--all-approved`

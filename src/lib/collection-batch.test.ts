@@ -41,12 +41,16 @@ mock.module("@/lib/db/client", () => {
           dialect.sqlToQuery((query as SqlCarrier).__sql ?? (query as never))
             .params,
       );
-      return queries.map((query) => {
+      // Tag every result with its submission index so a test can prove which
+      // rows the production slicing actually handed to parseBatch. Without
+      // this, a slice that returns the lock rows parses to the same length and
+      // the assertion cannot tell the difference.
+      return queries.map((query, index) => {
         const text = queryText(query);
         if (rowsForMarker && text.includes(rowsForMarker.marker)) {
-          return { rows: rowsForMarker.rows };
+          return { rows: rowsForMarker.rows, batchIndex: index };
         }
-        return { rows: [] };
+        return { rows: [], batchIndex: index };
       });
     },
     transaction: async () => {
@@ -102,6 +106,7 @@ describe("runCollectionMutation batch result slicing", () => {
     it(`parses only the build results: ${testCase.name}`, async () => {
       const built = [markerQuery("a"), markerQuery("b")];
       let parsed: unknown[] = [];
+      let submittedCount = 0;
       await runCollectionMutation({
         collectionId: "col_1",
         ...(testCase.petMutation ? { petMutation: testCase.petMutation } : {}),
@@ -118,8 +123,20 @@ describe("runCollectionMutation batch result slicing", () => {
         },
       });
 
+      submittedCount = submittedSql.length;
       expect(parsed).toHaveLength(built.length);
       expect(submittedSql).toHaveLength(
+        testCase.expectedLeadingStatements + built.length,
+      );
+      // The parsed rows must be the trailing build statements, not the leading
+      // locks. Their batchIndex is the position they were submitted at.
+      expect(
+        (parsed as Array<{ batchIndex: number }>).map((r) => r.batchIndex),
+      ).toEqual([
+        testCase.expectedLeadingStatements,
+        testCase.expectedLeadingStatements + 1,
+      ]);
+      expect(submittedCount).toBe(
         testCase.expectedLeadingStatements + built.length,
       );
       // Every statement before the build results is a lock acquisition:

@@ -43,7 +43,8 @@ describe("collection limits shared with the client", () => {
     ).text();
 
     expect(source).toContain("server-only");
-    expect(source).not.toMatch(/export const MAX_OWNER_COLLECTIONS =/);
-    expect(source).toMatch(/export \{ MAX_OWNER_COLLECTIONS \}/);
+    // Anchored to line starts so a commented-out re-export cannot satisfy it.
+    expect(source).not.toMatch(/^export const MAX_OWNER_COLLECTIONS =/m);
+    expect(source).toMatch(/^export \{ MAX_OWNER_COLLECTIONS \};$/m);
   });
 });

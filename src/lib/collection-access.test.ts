@@ -63,10 +63,24 @@ describe("collection access SQL", () => {
       ),
     );
 
-    expect(query.sql).toContain('"owner_id" =');
+    // The parent-row ownership guard sits inside the EXISTS subquery. Assert
+    // it there specifically: a bare toContain('"owner_id" =') is also
+    // satisfied by the pet-authorization subquery below, so it would pass even
+    // with the ownership guard deleted.
+    expect(query.sql).toMatch(
+      /WHERE "id" = \$\d+\s+AND "featured" = false AND "owner_id" = \$\d+/,
+    );
     expect(query.sql).toContain("\"status\" = 'approved'");
-    expect(query.params).toContain("user-id");
-    expect(query.params).toContain("boba");
+    expect(query.sql).toContain('"slug" IN');
+    // ownerId is bound twice: once for the parent guard, once for the pets.
+    expect(query.params).toEqual([
+      "collection-id",
+      "collection-id",
+      "user-id",
+      "user-id",
+      "boba",
+      1,
+    ]);
   });
 
   it("gates replacement item writes on a successful parent update when requested", () => {

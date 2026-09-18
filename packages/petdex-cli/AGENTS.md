@@ -56,7 +56,8 @@ Removed in v1.0.0: `init`, `up`, `down`, `toggle`, `desktop`, `update`, `doctor`
 4. Organize approved pets into a collection:
    ```bash
    petdex collection create --title "Desk crew" --pets boba,mochi --cover boba
-   petdex collection edit desk-crew --desc "Small companions for focused work"
+   petdex collection list   # the new collection's slug is generated; copy it here
+   petdex collection edit <slug> --desc "Small companions for focused work"
    ```
 5. Check identity / sign out:
    ```bash

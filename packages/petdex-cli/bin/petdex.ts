@@ -256,6 +256,17 @@ async function cmdLogin() {
   }
 }
 
+/**
+ * Report a collection command failure and exit. In --json mode the message
+ * goes to stderr so stdout stays parseable as JSON; clack writes to stdout,
+ * which would corrupt machine output.
+ */
+function failCollection(message: string, json: boolean): never {
+  if (json) process.stderr.write(`${message}\n`);
+  else p.cancel(message);
+  process.exit(1);
+}
+
 async function cmdCollection(args: string[]): Promise<void> {
   let parsed: ReturnType<typeof parseCollectionArgs>;
   try {
@@ -271,18 +282,25 @@ async function cmdCollection(args: string[]): Promise<void> {
             ? "Nothing to edit. Provide at least one flag."
             : code === "pet_slug"
               ? "Invalid pet slug in --pets."
-              : code === "collection_pet_limit"
-                ? `A collection can contain at most ${MAX_COLLECTION_PETS} pets. Use --pets with a subset, or remove --all-approved.`
-                : `Usage: ${pc.cyan("petdex collection list|create|edit|delete")}`;
-    p.cancel(message);
-    process.exit(1);
-  }
-  const token = await (await getAuth()).getAccessToken();
-  if (!token) {
-    p.cancel(`Not signed in. Run ${pc.cyan("petdex login")}.`);
-    process.exit(1);
+              : code === "cover_pet_slug"
+                ? "Invalid pet slug in --cover."
+                : code === "collection_pet_limit"
+                  ? `A collection can contain at most ${MAX_COLLECTION_PETS} pets. Use --pets with a subset, or remove --all-approved.`
+                  : `Usage: petdex collection list|create|edit|delete`;
+    failCollection(message, args.includes("--json"));
   }
   const { action, ref, json } = parsed;
+  const notSignedIn = `Not signed in. Run ${json ? "petdex login" : pc.cyan("petdex login")}.`;
+  let token: string;
+  try {
+    const accessToken = await (await getAuth()).getAccessToken();
+    if (!accessToken) failCollection(notSignedIn, json);
+    token = accessToken;
+  } catch {
+    // An expired or revoked refresh token throws here; surface the same
+    // guidance submit/edit give instead of the raw Clerk error.
+    failCollection(notSignedIn, json);
+  }
   if (action === "list") {
     const result = (await collectionRequest(
       PETDEX_URL,
@@ -297,10 +315,7 @@ async function cmdCollection(args: string[]): Promise<void> {
     return;
   }
   if (action === "delete") {
-    if (!parsed.yes) {
-      p.cancel("Deletion requires --yes.");
-      process.exit(1);
-    }
+    if (!parsed.yes) failCollection("Deletion requires --yes.", json);
     await collectionRequest(PETDEX_URL, token, "DELETE", ref);
     if (json) console.log(JSON.stringify({ ok: true }));
     else console.log(`${pc.green("✓")} Collection deleted`);
@@ -323,10 +338,10 @@ async function cmdCollection(args: string[]): Promise<void> {
       throw new Error("invalid approved pets response");
     }
     if (approvedResult.approvedPetCount > MAX_COLLECTION_PETS) {
-      p.cancel(
+      failCollection(
         `--all-approved found ${approvedResult.approvedPetCount} approved pets. A collection can contain at most ${MAX_COLLECTION_PETS}; use --pets with a subset.`,
+        json,
       );
-      process.exit(1);
     }
   }
   const body: Record<string, unknown> = {};

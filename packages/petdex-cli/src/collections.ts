@@ -46,6 +46,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   not_found: "collection not found or not owned by you",
   pet_not_owned_or_approved: "all pets must be approved and owned by you",
   title_length: "title must be between 2 and 80 characters",
+  unauthorized: "not signed in; run `petdex login`",
 };
 
 export function parseCollectionArgs(args: string[]): ParsedCollectionArgs {
@@ -75,9 +76,12 @@ export function parseCollectionArgs(args: string[]): ParsedCollectionArgs {
     const value = args[index + 1];
     return value !== undefined && !value.startsWith("--") ? value : null;
   };
+  const allApproved = args.includes("--all-approved");
   const petsArg = readFlag("--pets");
+  // --all-approved replaces the explicit list server-side, so an oversized or
+  // malformed --pets is never sent and must not fail the command locally.
   const petSlugs =
-    petsArg === null
+    petsArg === null || allApproved
       ? null
       : Array.from(
           new Set(
@@ -96,10 +100,9 @@ export function parseCollectionArgs(args: string[]): ParsedCollectionArgs {
   const description = readFlag("--desc");
   const coverPetSlug = readFlag("--cover")?.trim().toLowerCase() ?? null;
   if (coverPetSlug && !PET_SLUG.test(coverPetSlug.trim().toLowerCase())) {
-    throw new Error("pet_slug");
+    throw new Error("cover_pet_slug");
   }
   const externalUrl = readFlag("--external-url");
-  const allApproved = args.includes("--all-approved");
   if (
     action === "edit" &&
     title === null &&

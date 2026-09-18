@@ -43,12 +43,12 @@ describe("collection slug candidates", () => {
   });
 
   it("probes the same number of candidates the old inline loop did", () => {
-    expect(collectionSlugCandidates("boba")).toHaveLength(
-      COLLECTION_SLUG_ATTEMPTS,
-    );
-    expect(collectionSlugCandidates("boba").at(-1)).toBe(
-      `boba-${COLLECTION_SLUG_ATTEMPTS}`,
-    );
+    // Hardcoded rather than compared against COLLECTION_SLUG_ATTEMPTS: the
+    // old inline loop in the two profile routes probed 20 candidates, and
+    // comparing against the constant would pass even if that changed.
+    expect(COLLECTION_SLUG_ATTEMPTS).toBe(20);
+    expect(collectionSlugCandidates("boba")).toHaveLength(20);
+    expect(collectionSlugCandidates("boba").at(-1)).toBe("boba-20");
   });
 
   it("bounds the number of candidates it will probe", () => {
