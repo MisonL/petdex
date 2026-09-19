@@ -1,5 +1,6 @@
 import { describe, expect, it, mock } from "bun:test";
 
+import { sql } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
 
 import * as schema from "@/lib/db/schema";
@@ -74,7 +75,6 @@ describe("runCollectionMutation transaction branch", () => {
 
   for (const testCase of cases) {
     it(`takes the locks in order: ${testCase.name}`, async () => {
-      let sawBuild = false;
       await runCollectionMutation({
         collectionId: "col_1",
         ...(testCase.petMutation ? { petMutation: testCase.petMutation } : {}),
@@ -82,38 +82,64 @@ describe("runCollectionMutation transaction branch", () => {
           ? { lockExistingPetSlugs: true }
           : {}),
         buildBatch: () => [],
-        runTransaction: async () => {
-          // The build statements run inside the same transaction, after every
-          // lock has been taken.
-          sawBuild = true;
+        runTransaction: async (tx) => {
+          // The caller's body runs inside the same transaction, after every lock
+          // has been taken. It has to write through `tx` for the ordering claim
+          // below to be testable at all: with an empty body, txStatements holds
+          // only locks, so "the first statement is a lock" is true by
+          // construction and would hold for any lock order.
+          await tx.execute(
+            sql`SELECT 'build-body' AS "run_transaction_marker"`,
+          );
           return null;
         },
         parseBatch: () => null,
       });
 
-      expect(sawBuild).toBe(true);
-
       const advisoryLocks = txStatements.filter((s) =>
         s.includes("pg_advisory_xact_lock"),
       );
       const rowLocks = txStatements.filter((s) => s.includes("FOR SHARE"));
+      const bodyIndex = txStatements.findIndex((s) =>
+        s.includes("run_transaction_marker"),
+      );
 
       // The collection lock is always taken.
       expect(advisoryLocks.length).toBeGreaterThanOrEqual(1);
-      expect(
-        txStatements.some((s) => s.includes("pg_advisory_xact_lock")),
-      ).toBe(true);
 
       expect(
         advisoryLocks.some((s) => s.includes("pet_collection_items")),
       ).toBe(testCase.expectSlugLock);
       expect(rowLocks.length > 0).toBe(testCase.expectPetRowLock);
 
-      // Locks must precede the build statements.
-      const firstAdvisory = txStatements.findIndex((s) =>
-        s.includes("pg_advisory_xact_lock"),
+      // Every lock precedes the caller's body, and the body is reached.
+      expect(bodyIndex).toBeGreaterThan(0);
+      for (const lock of [...advisoryLocks, ...rowLocks]) {
+        expect(txStatements.indexOf(lock)).toBeLessThan(bodyIndex);
+      }
+      // The declared order is: pet-slug lock, then collection lock, then the
+      // approved-pet row lock. That exact order is what keeps a collection
+      // mutation and a takedown — which takes the slug lock before the
+      // collections that reference that slug — from acquiring the same two
+      // locks in opposite directions. Pinning the sequence, not just "a lock
+      // came first", is what makes a reordering fail here.
+      // collectionMutationLock hashes the id it was handed and selects nothing;
+      // the pet-slug lock selects the ids to lock and so has a FROM clause.
+      const order = txStatements.map((s) =>
+        s.includes("pg_advisory_xact_lock")
+          ? s.includes("FROM")
+            ? "slug-lock"
+            : "collection-lock"
+          : s.includes("FOR SHARE")
+            ? "pet-row-lock"
+            : "body",
       );
-      expect(firstAdvisory).toBe(0);
+      expect(order).toEqual([
+        ...(testCase.expectSlugLock ? ["slug-lock"] : []),
+        "collection-lock",
+        ...(testCase.expectPetRowLock ? ["pet-row-lock"] : []),
+        "body",
+      ]);
     });
   }
 

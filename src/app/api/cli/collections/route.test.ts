@@ -1,6 +1,7 @@
 import * as BunTest from "bun:test";
 import { beforeEach, describe, expect, it } from "bun:test";
 
+import * as realCachedAggregates from "@/lib/db/cached-aggregates";
 import * as schema from "@/lib/db/schema";
 import * as realRatelimit from "@/lib/ratelimit";
 
@@ -80,7 +81,11 @@ testMock.module("@/lib/collection-access", () => ({
   },
 }));
 
+// Spread the real module. mock.module is process-wide for the whole run, so a
+// partial stub here is a SyntaxError in every suite loaded afterwards that
+// links a name this factory omits — and 15+ modules import from this one.
 testMock.module("@/lib/db/cached-aggregates", () => ({
+  ...realCachedAggregates,
   revalidateCollectionTags: async () => {},
 }));
 

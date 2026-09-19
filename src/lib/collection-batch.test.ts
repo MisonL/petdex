@@ -109,7 +109,7 @@ describe("runCollectionMutation batch result slicing", () => {
     it(`parses only the build results: ${testCase.name}`, async () => {
       const built = [markerQuery("a"), markerQuery("b")];
       let parsed: unknown[] = [];
-      let submittedCount = 0;
+
       await runCollectionMutation({
         collectionId: "col_1",
         ...(testCase.petMutation ? { petMutation: testCase.petMutation } : {}),
@@ -126,7 +126,6 @@ describe("runCollectionMutation batch result slicing", () => {
         },
       });
 
-      submittedCount = submittedSql.length;
       expect(parsed).toHaveLength(built.length);
       expect(submittedSql).toHaveLength(
         testCase.expectedLeadingStatements + built.length,
@@ -139,9 +138,6 @@ describe("runCollectionMutation batch result slicing", () => {
         testCase.expectedLeadingStatements,
         testCase.expectedLeadingStatements + 1,
       ]);
-      expect(submittedCount).toBe(
-        testCase.expectedLeadingStatements + built.length,
-      );
       // Every statement before the build results is a lock acquisition:
       // advisory locks for the collection and pet slugs, and a FOR SHARE row
       // lock on the approved pet rows.

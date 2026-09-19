@@ -112,17 +112,23 @@ describe("collection access SQL", () => {
     expect(remove.sql).toContain("pg_current_xact_id()::xid");
   });
 
-  it("can gate creation items on a parent inserted in the same transaction", () => {
-    const query = dialect.sqlToQuery(
+  it("omits the parent guard when the caller does not request it", () => {
+    // The off-state of the option above. Without this, dropping the option
+    // entirely would still pass every test here, since both the insert and the
+    // delete would simply always carry the guard.
+    const insert = dialect.sqlToQuery(
       requireQuery(
-        insertCollectionItemsQuery("collection-id", ["boba"], "user-id", {
-          requireSuccessfulParentUpdate: true,
-        }),
+        insertCollectionItemsQuery("collection-id", ["boba"], "user-id"),
+      ),
+    );
+    const remove = dialect.sqlToQuery(
+      requireQuery(
+        deleteCollectionItemsQuery("collection-id", "user-id", ["boba"]),
       ),
     );
 
-    expect(query.sql).toContain('"pet_collections"."xmin"');
-    expect(query.sql).toContain("pg_current_xact_id()::xid");
+    expect(insert.sql).not.toContain('"pet_collections"."xmin"');
+    expect(remove.sql).not.toContain('"pet_collections"."xmin"');
   });
 
   it("locks approved pet rows in deterministic slug order", () => {
