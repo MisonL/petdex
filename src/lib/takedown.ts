@@ -25,11 +25,13 @@ import { getPreferredLocaleForUser } from "@/lib/user-locale";
 // profile pins, fulfilled requests), nulls collection covers, drops
 // the R2 assets, and notifies the owner. The slug is freed.
 //
-// Caller is responsible for authz — this helper trusts whoever invoked
-// it. Used by:
-//   - DELETE /api/admin/[id]   — admin or moderator takedown via UI
-//   - DELETE /api/pets/[slug]/owner — owner self-service via card menu
-//   - scripts/takedown-pet.ts  — one-shot CLI for ops
+// Caller is responsible for authz — this helper trusts whoever invoked it.
+// The only caller in this repository is DELETE /api/pets/[slug]/owner (owner
+// self-service via the card menu); the admin surfaces moved to a separate app
+// in #380. The ops scripts (scripts/takedown-pet.ts, takedown-by-keyword.ts)
+// reimplement the cleanup inline and do NOT come through here, so they also
+// do not take the advisory locks this helper relies on — worth knowing before
+// trusting the lock story for an ops takedown.
 type TakedownPetRow = typeof schema.submittedPets.$inferSelect;
 
 type TakedownBatchRunner = {
