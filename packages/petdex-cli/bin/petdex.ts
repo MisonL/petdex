@@ -11,6 +11,7 @@ import { isTrustedAssetUrl } from "../src/asset-hosts.js";
 import { resolveAuthConfig } from "../src/auth-config.js";
 import { ClerkCliAuth } from "../src/cli-auth/index.js";
 import {
+  approvedPetCountProblem,
   type CollectionRecord,
   collectionRequest,
   hasBooleanFlag,
@@ -288,9 +289,11 @@ async function cmdCollection(args: string[]): Promise<void> {
                 ? "Invalid pet slug in --pets."
                 : code === "cover_pet_slug"
                   ? "Invalid pet slug in --cover."
-                  : code === "collection_pet_limit"
-                    ? `A collection can contain at most ${MAX_COLLECTION_PETS} pets. Use --pets with a subset, or remove --all-approved.`
-                    : `Usage: petdex collection list|create|edit|delete`;
+                  : code === "cover_without_pets"
+                    ? "Create with --cover also needs --pets including the cover slug, or --all-approved."
+                    : code === "collection_pet_limit"
+                      ? `A create can hold at most ${MAX_COLLECTION_PETS} pets. Use --pets with a subset, or remove --all-approved.`
+                      : `Usage: petdex collection list|create|edit|delete`;
     failCollection(message, hasBooleanFlag(args, "--json"));
   }
   const { action, ref, json } = parsed;
@@ -320,11 +323,25 @@ async function cmdCollection(args: string[]): Promise<void> {
         token,
         "GET",
         null,
-      )) as { collections: CollectionRecord[] };
-      if (json) console.log(JSON.stringify(result));
-      else
-        for (const c of result.collections)
-          console.log(`${c.slug}\t${c.title}\t${c.petSlugs.length} pets`);
+      )) as { collections?: CollectionRecord[] };
+      if (json) {
+        console.log(JSON.stringify(result));
+        return;
+      }
+      // collectionRequest only proves the body parsed to a JSON object, not
+      // that it has the shape this branch indexes into. A version-skewed
+      // deployment, or an error envelope sent with 200, would otherwise throw
+      // a raw engine string ("{} is not iterable") at the caller.
+      const collections = result.collections;
+      if (!Array.isArray(collections)) {
+        throw new Error(
+          "Unexpected response from the server: the body has no collection list. Check PETDEX_URL, or retry.",
+        );
+      }
+      for (const c of collections)
+        console.log(
+          `${c.slug}\t${c.title}\t${Array.isArray(c.petSlugs) ? c.petSlugs.length : 0} pets`,
+        );
       return;
     }
     if (action === "delete") {
@@ -342,12 +359,17 @@ async function cmdCollection(args: string[]): Promise<void> {
         undefined,
         "?includeApprovedPetCount=1",
       )) as { approvedPetCount?: unknown };
-      if (
-        typeof approvedResult.approvedPetCount !== "number" ||
-        !Number.isInteger(approvedResult.approvedPetCount) ||
-        approvedResult.approvedPetCount < 0
-      ) {
-        throw new Error("invalid approved pets response");
+      const countProblem = approvedPetCountProblem(
+        approvedResult.approvedPetCount,
+      );
+      if (countProblem === "invalid approved pets response") {
+        throw new Error(countProblem);
+      }
+      if (countProblem === "empty_approved_pets") {
+        failCollection(
+          "No approved pets to select. --all-approved would set an empty member list, so it was not sent. Approve a pet first, or set members with --pets.",
+          json,
+        );
       }
       // The cap bounds growth, so only a create can be judged from the
       // approved count alone. An edit depends on what the collection already

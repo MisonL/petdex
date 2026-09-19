@@ -153,6 +153,14 @@ export async function PATCH(
         { status: 422 },
       );
     }
+    // An empty list is never a legitimate intent — the editor disables save
+    // with nothing selected — and it is destructive rather than a no-op:
+    // deleteCollectionItemsQuery with an empty list emits a DELETE with no
+    // pet_slug filter, so it removes every member. Refuse it instead of
+    // reading it as "clear the collection".
+    if (input.petSlugs.length === 0) {
+      return NextResponse.json({ error: "empty_pet_slugs" }, { status: 400 });
+    }
     petSlugs = input.petSlugs;
     if (requestedCover !== null && !petSlugs.includes(requestedCover)) {
       return NextResponse.json(

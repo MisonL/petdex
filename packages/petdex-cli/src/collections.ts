@@ -64,11 +64,20 @@ export function overCollectionPetLimit(
 
 const ERROR_MESSAGES: Record<string, string> = {
   collection_cap_reached: "collection limit reached",
-  collection_pet_limit: `collection cannot contain more than ${MAX_COLLECTION_PETS} pets; use --pets with at most ${MAX_COLLECTION_PETS} slugs instead of --all-approved`,
+  // Only an edit reaches this: the create path is refused locally by
+  // overCollectionPetLimit() and by the --all-approved preflight, and both
+  // report their own message. So this must describe the growth rule the server
+  // enforces — an over-cap row keeps its members and may still be renamed or
+  // shrunk — rather than a flat "cannot contain" the row already disproves.
+  collection_pet_limit: `collection cannot grow past ${MAX_COLLECTION_PETS} pets; drop members with --pets before adding new ones`,
   collection_slug_conflict: "could not allocate a unique collection slug",
   cover_not_in_collection: "cover pet must be in the collection",
+  cover_without_pets:
+    "cover pet must be in the collection; pass --pets including the cover slug, or drop --cover",
   description_length: "description must be at most 280 characters",
   description_type: "description must be a string",
+  empty_pet_slugs:
+    "refusing to set an empty member list; the server reads it as removing every member",
   featured_not_deletable: "featured collections cannot be deleted",
   featured_not_editable: "featured collections cannot be edited",
   invalid_body: "request body must be a JSON object",
@@ -149,6 +158,19 @@ export function parseCollectionArgs(args: string[]): ParsedCollectionArgs {
   const coverPetSlug = readFlag("--cover")?.trim().toLowerCase() ?? null;
   if (coverPetSlug && !PET_SLUG.test(coverPetSlug.trim().toLowerCase())) {
     throw new Error("cover_pet_slug");
+  }
+  // A cover must name a member. On create the member list is the only source
+  // of members, so --cover with neither --pets nor --all-approved can never
+  // satisfy the server's cover_not_in_collection check: the request is
+  // guaranteed to come back 400. Refuse it locally so the message names the
+  // flag the caller has to add instead of the server restating the rule.
+  if (
+    action === "create" &&
+    coverPetSlug !== null &&
+    petSlugs === null &&
+    !allApproved
+  ) {
+    throw new Error("cover_without_pets");
   }
   const externalUrl = readFlag("--external-url");
   if (
@@ -241,4 +263,30 @@ export async function collectionRequest(
     throw new Error(code ?? `request_failed_${res.status}`);
   }
   return data;
+}
+
+/**
+ * Validate the approved-pet count the `--all-approved` preflight fetched.
+ *
+ * Split out of the entrypoint so it can be tested without the keychain-backed
+ * auth the entrypoint needs: the decision is pure, and it is the guard that
+ * stands between `edit <ref> --all-approved` and an empty member list.
+ *
+ * Returns a reason string when the count must stop the command, or null when it
+ * may proceed.
+ */
+export function approvedPetCountProblem(count: unknown): string | null {
+  if (typeof count !== "number" || !Number.isInteger(count) || count < 0) {
+    return "invalid approved pets response";
+  }
+  // --all-approved resolves server-side to the approved set, so an account with
+  // none sends an empty member list — which the server reads as "replace the
+  // members with nothing". On an edit that silently empties the collection and
+  // still reports success. parseCollectionArgs refuses the same hazard for an
+  // explicit `--pets ""`; refuse it here too, or the guard is bypassable by
+  // spelling the empty list differently.
+  if (count === 0) {
+    return "empty_approved_pets";
+  }
+  return null;
 }

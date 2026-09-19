@@ -193,6 +193,15 @@ export async function PATCH(req: Request): Promise<Response> {
         { status: 422 },
       );
     }
+    // An empty list is destructive rather than a no-op on an existing
+    // collection: deleteCollectionItemsQuery with an empty list emits a DELETE
+    // with no pet_slug filter, so it removes every member. No client produces
+    // one deliberately — the editor disables save with nothing selected — so
+    // refuse it instead of reading it as "clear the collection". Creating with
+    // no members is left alone: there is nothing to lose.
+    if (collection && input.petSlugs.length === 0) {
+      return NextResponse.json({ error: "empty_pet_slugs" }, { status: 400 });
+    }
     petSlugs = input.petSlugs;
   } else if (collection) {
     const existingItems = await db

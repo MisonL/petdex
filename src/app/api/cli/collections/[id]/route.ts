@@ -130,6 +130,16 @@ export async function PATCH(req: Request, ctx: Ctx): Promise<Response> {
       );
     const allowed = new Set(approved.map((p) => p.slug));
     pets = body.allApproved === true ? [...allowed].sort() : input.petSlugs;
+    // An empty member list is never a legitimate intent: no client can produce
+    // one deliberately (the profile editor disables save with nothing selected,
+    // and the CLI refuses `--pets ""`), so it is always an accident — and an
+    // expensive one. deleteCollectionItemsQuery with an empty list emits a
+    // DELETE with no pet_slug filter, so it removes every member. --all-approved
+    // reaches this with an empty list whenever the account has no approved pets
+    // left (un-approving a pet leaves its item rows behind), which would report
+    // success while silently emptying the collection.
+    if (petsChanged && pets.length === 0)
+      return NextResponse.json({ error: "empty_pet_slugs" }, { status: 400 });
     // The cap bounds growth, not the stored row: a collection created before
     // the cap existed must stay editable, so an over-cap list is accepted
     // while it adds no member that is not already stored.

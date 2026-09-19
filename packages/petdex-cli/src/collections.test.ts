@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import {
+  approvedPetCountProblem,
   collectionRequest,
   hasBooleanFlag,
   MAX_COLLECTION_PETS,
@@ -206,6 +207,50 @@ describe("collectionRequest", () => {
     });
   });
 
+  it("refuses a create --cover that names no member", () => {
+    // The server requires the cover to be a member. On a create the member list
+    // is the only source of members, so --cover with neither --pets nor
+    // --all-approved is guaranteed to come back cover_not_in_collection. Catch
+    // it locally so the message names the flag to add.
+    for (const args of [
+      ["create", "--title", "T", "--cover", "boba"],
+      ["create", "--title", "T", "--pets", "", "--cover", "boba"],
+    ]) {
+      // `--pets ""` is already refused earlier as empty_pets; either refusal is
+      // correct, and which one fires must not depend on argument order.
+      expect(() => parseCollectionArgs(args)).toThrow(
+        /empty_pets|cover_without_pets/,
+      );
+    }
+
+    // Both ways of supplying members make the cover legal again.
+    expect(
+      parseCollectionArgs([
+        "create",
+        "--title",
+        "T",
+        "--pets",
+        "boba",
+        "--cover",
+        "boba",
+      ]),
+    ).toMatchObject({ coverPetSlug: "boba" });
+    expect(
+      parseCollectionArgs([
+        "create",
+        "--title",
+        "T",
+        "--all-approved",
+        "--cover",
+        "boba",
+      ]),
+    ).toMatchObject({ coverPetSlug: "boba" });
+    // An edit derives the cover from the stored members, so it is unaffected.
+    expect(
+      parseCollectionArgs(["edit", "c1", "--cover", "boba"]),
+    ).toMatchObject({ coverPetSlug: "boba" });
+  });
+
   it("refuses an empty --pets list instead of emptying the collection", () => {
     // `--pets ""` and `--pets $UNSET_VAR` both parse to []. The server treats
     // an empty list as "replace the members with nothing", so sending it would
@@ -323,11 +368,52 @@ describe("collectionRequest", () => {
         status: 400,
       })) as unknown as typeof fetch;
     try {
-      await expect(
-        collectionRequest("https://petdex.test", "token", "POST", null),
-      ).rejects.toThrow("collection cannot contain more than 24 pets");
+      // Only an edit reaches this string: create is refused locally. So it has
+      // to describe the growth rule, not a flat cap the stored row may already
+      // exceed — and it must not blame --all-approved, which the caller of an
+      // edit that hits this has not passed.
+      const message = await collectionRequest(
+        "https://petdex.test",
+        "token",
+        "POST",
+        null,
+      ).then(
+        () => "",
+        (error: Error) => error.message,
+      );
+
+      expect(message).toContain("cannot grow past 24 pets");
+      expect(message).not.toContain("--all-approved");
     } finally {
       globalThis.fetch = originalFetch;
+    }
+  });
+});
+
+describe("approvedPetCountProblem", () => {
+  it("refuses a zero count, which would send an empty member list", () => {
+    // The server reads an empty list as "replace the members with nothing", and
+    // deleteCollectionItemsQuery then emits a DELETE with no pet_slug filter —
+    // so --all-approved on an account with no approved pets left wiped the
+    // collection and still answered 200. Un-approving a pet leaves its member
+    // rows behind, so a non-empty collection with an empty approved set is
+    // reachable, not theoretical.
+    expect(approvedPetCountProblem(0)).toBe("empty_approved_pets");
+  });
+
+  it("rejects a malformed count instead of trusting it", () => {
+    for (const bad of [undefined, null, "3", 1.5, -1, Number.NaN, {}]) {
+      expect(approvedPetCountProblem(bad)).toBe(
+        "invalid approved pets response",
+      );
+    }
+  });
+
+  it("lets a real count through so the documented flag keeps working", () => {
+    // Guards against the fix overshooting: petdex collection edit <ref>
+    // --all-approved is the documented invocation and must still run.
+    for (const good of [1, 24, 500]) {
+      expect(approvedPetCountProblem(good)).toBeNull();
     }
   });
 });

@@ -1,6 +1,7 @@
 import * as BunTest from "bun:test";
 import { beforeEach, describe, expect, it } from "bun:test";
 
+import * as realCachedAggregates from "@/lib/db/cached-aggregates";
 import * as schema from "@/lib/db/schema";
 import * as realRatelimit from "@/lib/ratelimit";
 
@@ -26,6 +27,12 @@ let userLimitVerdict: { success: boolean; reset?: number } = { success: true };
 let storedCollection: Record<string, unknown> | null = null;
 /** Rows the stored-items select returns for the cap comparison. */
 let storedItems: Array<{ slug: string }> = [];
+/**
+ * Rows the approved-pets select returns. Null mirrors `storedItems`, which is
+ * what the cap tests want (every stored member is also approved); a test that
+ * needs the two to differ — the account with no approved pets left — sets it.
+ */
+let approvedPets: Array<{ slug: string }> | null = null;
 /** Set when runCollectionMutation is reached, so early returns are provable. */
 let mutationCalls = 0;
 
@@ -71,9 +78,18 @@ testMock.module("@/lib/collection-access", () => ({
   hasCollectionMutationRow: () => false,
   insertCollectionItemsQuery: () => ({}),
   parseCollectionMutationStatus: () => "ok",
+  // The route reads this result directly: `updated` truthy is what makes it
+  // answer 200. Returning `{ results: [] }` left `updated` undefined, so every
+  // non-rejected PATCH fell through to the 404 branch — and a test asserting
+  // only "not 400" could not tell a successful edit from a missing collection.
   runCollectionMutation: async () => {
     mutationCalls += 1;
-    return { results: [] };
+    return {
+      updated: true,
+      collectionExists: true,
+      petsValid: true,
+      coverExists: true,
+    };
   },
 }));
 
@@ -81,7 +97,11 @@ testMock.module("@/lib/collection-sql", () => ({
   collectionCoverForPetSlugsQuery: () => ({}),
 }));
 
+// Spread the real module. mock.module is process-wide for the whole run, so a
+// partial stub here is a SyntaxError in every suite loaded afterwards that
+// links a name this factory omits — and 15+ modules import from this one.
 testMock.module("@/lib/db/cached-aggregates", () => ({
+  ...realCachedAggregates,
   revalidateCollectionTags: async () => {},
 }));
 
@@ -91,7 +111,15 @@ testMock.module("@/lib/db/client", () => {
       petCollections: { findFirst: async () => storedCollection },
     },
     select: () => ({
-      from: () => ({ where: async () => storedItems }),
+      from: (table: unknown) => ({
+        where: async () =>
+          // Keyed on the table so the approved-pets select and the stored-items
+          // select can return different rows. Collapsing them made every stored
+          // member implicitly approved, which hid the empty-approved-set case.
+          table === schema.petCollectionItems
+            ? storedItems
+            : (approvedPets ?? storedItems),
+      }),
     }),
   };
   // mock.module is process-wide for the whole run: export the real schema so a
@@ -122,6 +150,7 @@ beforeEach(() => {
   ipLimitKeys.length = 0;
   userLimitKeys.length = 0;
   mutationCalls = 0;
+  approvedPets = null;
   ipLimitVerdict = { success: true };
   userLimitVerdict = { success: true };
   // The route reads the stored row for any field the request omits, so the
@@ -202,10 +231,12 @@ describe("PATCH /api/cli/collections/[id] pet cap", () => {
       petSlugs: stored.map((p) => p.slug),
     });
 
-    expect(response.status).not.toBe(400);
-    expect(await response.json()).not.toMatchObject({
-      error: "collection_pet_limit",
-    });
+    // Assert the success itself, not merely "not the cap error": a 404 from a
+    // failed lookup also satisfies `not.toBe(400)`, so the weaker assertion
+    // passed without ever observing the editability it names.
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true });
+    expect(mutationCalls).toBe(1);
   });
 
   it("rejects growth past the cap on an over-cap collection", async () => {
@@ -244,8 +275,51 @@ describe("PATCH /api/cli/collections/[id] pet cap", () => {
       petSlugs: stored.slice(0, 5).map((p) => p.slug),
     });
 
-    expect(await response.json()).not.toMatchObject({
-      error: "collection_pet_limit",
-    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true });
+    expect(mutationCalls).toBe(1);
+  });
+});
+
+describe("PATCH /api/cli/collections/[id] empty member list", () => {
+  // deleteCollectionItemsQuery with an empty list emits a DELETE with no
+  // pet_slug filter, so an empty list removes every member. It is never a
+  // legitimate intent, so both spellings of it are refused before the mutation.
+  it("refuses an explicit empty --pets list", async () => {
+    storedItems = [{ slug: "boba" }, { slug: "mochi" }];
+
+    const response = await patch({ petSlugs: [] });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "empty_pet_slugs" });
+    expect(mutationCalls).toBe(0);
+  });
+
+  it("refuses --all-approved when the account has no approved pets left", async () => {
+    // Un-approving a pet leaves its pet_collection_items row behind, so this is
+    // reachable: the collection still holds members while the approved set is
+    // empty. Resolving --all-approved to [] then wiped the collection and
+    // answered 200, which is the data loss this guard closes.
+    storedItems = [{ slug: "boba" }, { slug: "mochi" }];
+    approvedPets = [];
+
+    const response = await patch({ allApproved: true });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "empty_pet_slugs" });
+    expect(mutationCalls).toBe(0);
+  });
+
+  it("still accepts a non-empty --all-approved list", async () => {
+    // Guards against the fix overshooting: an account with approved pets keeps
+    // the documented `edit <ref> --all-approved` behavior.
+    storedItems = [{ slug: "boba" }];
+    approvedPets = [{ slug: "boba" }, { slug: "mochi" }];
+
+    const response = await patch({ allApproved: true });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true });
+    expect(mutationCalls).toBe(1);
   });
 });
