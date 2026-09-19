@@ -439,6 +439,19 @@ describe("isSafeExternalUrl", () => {
     expect(isSafeExternalUrl("https://api.internal/health")).toBe(false);
     expect(isSafeExternalUrl("https://router.home.arpa/")).toBe(false);
   });
+  it("rejects repeated trailing dots on private hosts", () => {
+    // Stripping a single trailing dot leaves "localhost.." -> "localhost.",
+    // which matches none of the private-name checks and was accepted.
+    expect(isSafeExternalUrl("https://localhost../")).toBe(false);
+    expect(isSafeExternalUrl("https://127.0.0.1../")).toBe(false);
+    expect(isSafeExternalUrl("https://169.254.169.254../")).toBe(false);
+    expect(isSafeExternalUrl("https://api.internal../")).toBe(false);
+    expect(isSafeExternalUrl("https://printer.local../")).toBe(false);
+  });
+  it("still accepts a public host written with a trailing dot", () => {
+    // A single trailing dot is a valid fully-qualified name.
+    expect(isSafeExternalUrl("https://example.com./")).toBe(true);
+  });
 });
 
 describe("JsonLd escape", () => {

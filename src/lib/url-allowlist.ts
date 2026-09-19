@@ -112,7 +112,9 @@ export function isSafeExternalUrl(raw: string | null | undefined): boolean {
     return false;
   }
   if (url.protocol !== "https:") return false;
-  const hostname = url.hostname.toLowerCase().replace(/\.$/, "");
+  // Strip every trailing dot, not just one: "localhost.." survives a single
+  // strip and then matches none of the private-name suffixes below.
+  const hostname = url.hostname.toLowerCase().replace(/\.+$/, "");
   // Block IPv4/IPv6 literals. URL normalizes decimal, octal, and hexadecimal
   // IPv4 forms to dotted-decimal hostnames before this check.
   if (
