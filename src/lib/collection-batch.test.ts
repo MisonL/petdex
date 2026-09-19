@@ -57,15 +57,18 @@ mock.module("@/lib/db/client", () => {
       throw new Error("the batch path must not open a transaction");
     },
   };
-  // mock.module leaks across files in the same run, so this has to export the
-  // real schema rather than an empty object: other suites that import the
-  // client would otherwise see a schema with no tables.
+  // mock.module is process-wide for the whole run: every suite that imports
+  // @/lib/db/client resolves this factory's exports, and one that links a
+  // missing name fails with a SyntaxError. Export the real schema so an
+  // unrelated DB-backed suite still sees real tables.
   return { db, schema };
 });
 
-const { createOwnerCollection, runCollectionMutation } = await import(
-  "@/lib/collection-access"
-);
+const {
+  createOrReuseOwnerCollection,
+  createOwnerCollection,
+  runCollectionMutation,
+} = await import("@/lib/collection-access");
 
 // A real SQL object so the driver can render it, tagged so the fake runner
 // can tell build results apart from lock statements.
@@ -244,6 +247,76 @@ describe("createOwnerCollection batch state", () => {
     setCreateState({ created: true, under_cap: true, pets_valid: true });
 
     await createOwnerCollection(baseInput);
+
+    const itemInsert = submittedSql.find((sql) =>
+      sql.includes('INSERT INTO "pet_collection_items"'),
+    );
+    expect(itemInsert).toBeDefined();
+    expect(itemInsert).toContain("pg_current_xact_id()");
+  });
+});
+
+describe("createOrReuseOwnerCollection batch state", () => {
+  const baseInput = {
+    id: "col_1",
+    slug: "boba",
+    title: "My pets",
+    description: "",
+    ownerId: "u1",
+    externalUrl: null,
+    coverPetSlug: "boba",
+    petSlugs: ["boba"],
+  };
+
+  function setReuseState(state: Record<string, unknown>) {
+    // The reuse state select projects the status literal.
+    rowsForMarker = { marker: 'AS "status"', rows: [state] };
+  }
+
+  it("reports created when the first-use insert landed", async () => {
+    setReuseState({ status: "created", id: "col_1", slug: "boba" });
+
+    await expect(createOrReuseOwnerCollection(baseInput)).resolves.toEqual({
+      status: "created",
+      id: "col_1",
+      slug: "boba",
+    });
+  });
+
+  it("reports the existing collection instead of creating a second one", async () => {
+    setReuseState({ status: "existing", id: "col_old", slug: "older" });
+
+    await expect(createOrReuseOwnerCollection(baseInput)).resolves.toEqual({
+      status: "existing",
+      id: "col_old",
+      slug: "older",
+    });
+  });
+
+  it("reports unapproved pets from the state row", async () => {
+    setReuseState({
+      status: "pets_not_owned_or_approved",
+      id: null,
+      slug: null,
+    });
+
+    await expect(createOrReuseOwnerCollection(baseInput)).resolves.toEqual({
+      status: "pets_not_owned_or_approved",
+    });
+  });
+
+  it("rejects an unknown state row rather than guessing", async () => {
+    setReuseState({ status: "something_new", id: null, slug: null });
+
+    await expect(createOrReuseOwnerCollection(baseInput)).rejects.toThrow(
+      "collection_create_state_invalid",
+    );
+  });
+
+  it("guards the first-use item insert on the parent row", async () => {
+    setReuseState({ status: "created", id: "col_1", slug: "boba" });
+
+    await createOrReuseOwnerCollection(baseInput);
 
     const itemInsert = submittedSql.find((sql) =>
       sql.includes('INSERT INTO "pet_collection_items"'),
