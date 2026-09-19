@@ -30,6 +30,11 @@ concurrency:
 jobs:
   publish:
     name: Publish manifest snapshots
+    # Scheduled workflows run in every fork that inherits them, and a fork
+    # cannot receive this repository's secrets, so the run would fail before
+    # the publisher starts. This job owns production database and R2
+    # credentials, so restrict it to the upstream production repository.
+    if: github.repository == 'crafter-station/petdex'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: manifest-snapshot
