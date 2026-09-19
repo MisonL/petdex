@@ -262,7 +262,7 @@ export function CollectionEditor({
             </p>
             {approvedPets.length > MAX_COLLECTION_PETS ? (
               <p className="mt-1 text-xs text-muted-3">
-                {t("petLimit", { max: MAX_COLLECTION_PETS })}
+                {t("petLimitHint", { max: MAX_COLLECTION_PETS })}
               </p>
             ) : null}
             <div className="mt-2 grid gap-2 sm:grid-cols-2">

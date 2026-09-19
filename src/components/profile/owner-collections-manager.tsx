@@ -395,7 +395,7 @@ function CollectionForm({
         </div>
         {approvedPets.length > MAX_COLLECTION_PETS ? (
           <p className="mt-2 text-xs text-muted-3">
-            {t("petLimit", { max: MAX_COLLECTION_PETS })}
+            {t("petLimitHint", { max: MAX_COLLECTION_PETS })}
           </p>
         ) : null}
       </fieldset>

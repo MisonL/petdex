@@ -1578,11 +1578,13 @@
     "cancelAria": "取消",
     "namePlaceholder": "南方公园小队",
     "petsSelected": "宠物（已选 {selected}/{total}）",
-    "petLimit": "每个合集最多包含 {max} 个宠物。请先取消一个选择，再添加其他宠物。"
+    "petLimit": "每个合集最多包含 {max} 个宠物。请先移除成员，降到 {max} 个以下才能再添加。",
+    "petLimitHint": "你已批准的宠物超过单个合集的上限，最多可选择 {max} 个。"
   },
   "collectionEditor": {
     "selectPetsFirst": "请先选择宠物",
-    "petLimit": "每个合集最多包含 {max} 个宠物。请先取消一个选择，再添加其他宠物。"
+    "petLimit": "每个合集最多包含 {max} 个宠物。请先移除成员，降到 {max} 个以下才能再添加。",
+    "petLimitHint": "你已批准的宠物超过单个合集的上限，最多可选择 {max} 个。"
   },
   "onboarding": {
     "skip": "跳过引导"

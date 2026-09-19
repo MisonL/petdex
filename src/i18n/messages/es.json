@@ -1314,11 +1314,13 @@
     "cancelAria": "Cancelar",
     "namePlaceholder": "Pandilla de South Park",
     "petsSelected": "Mascotas ({selected} de {total} seleccionadas)",
-    "petLimit": "Las colecciones pueden incluir hasta {max} mascotas. Quita una para añadir otra."
+    "petLimit": "Las colecciones pueden incluir hasta {max} mascotas. Quita miembros hasta quedar por debajo de {max} para añadir otra.",
+    "petLimitHint": "Tienes más mascotas aprobadas de las que caben en una colección. Elige hasta {max}."
   },
   "collectionEditor": {
     "selectPetsFirst": "Selecciona mascotas primero",
-    "petLimit": "Las colecciones pueden incluir hasta {max} mascotas. Quita una para añadir otra."
+    "petLimit": "Las colecciones pueden incluir hasta {max} mascotas. Quita miembros hasta quedar por debajo de {max} para añadir otra.",
+    "petLimitHint": "Tienes más mascotas aprobadas de las que caben en una colección. Elige hasta {max}."
   },
   "onboarding": {
     "skip": "Saltar tour"
