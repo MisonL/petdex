@@ -83,11 +83,13 @@ there is no flag to set one, so read it from `petdex collection list` first.
 
 `--pets` takes a comma-separated list of pet slugs. `collection edit` accepts
 any subset of the update flags, so omitted fields are preserved. `--all-approved`
-selects every approved pet owned by you; use it only when that set has 24 or
-fewer pets. If you pass both `--all-approved` and `--pets`, `--all-approved`
+selects every approved pet owned by you; on `create`, use it only when that set
+has 24 or fewer pets. If you pass both `--all-approved` and `--pets`, `--all-approved`
 wins and the explicit list is ignored. Each account can have up to 10 personal
-collections, each collection can contain at most 24 pets, and `--cover` must
-name a pet in the collection. `--external-url` accepts safe HTTPS links only.
+collections, each collection can hold at most 24 pets, and `--cover` must name
+a pet in the collection. `--external-url` accepts safe HTTPS links only. The
+24-pet limit bounds growth: a collection that already exceeds it — one created
+before the limit existed — can still be renamed or shrunk, but not grown.
 
 ## How `submit` works
 

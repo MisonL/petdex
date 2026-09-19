@@ -1646,7 +1646,7 @@
         "collectionCreate": "<strong>Crear</strong>: <code>petdex collection create --title \"My pets\" --pets boba,mochi</code>. Usa <code>--all-approved</code> solo si tienes 24 mascotas aprobadas o menos.",
         "collectionEdit": "<strong>Editar</strong>: <code>petdex collection edit {collectionRef} --desc \"...\"</code>. Las opciones de actualización son opcionales y los campos omitidos no cambian.",
         "collectionDelete": "<strong>Eliminar</strong>: <code>petdex collection delete {collectionRef} --yes</code>.",
-        "collectionLimits": "Cada cuenta puede tener hasta 10 colecciones personales y cada colección puede contener como máximo 24 mascotas aprobadas. <code>--pets</code> usa slugs separados por comas, <code>--cover</code> debe indicar una mascota seleccionada y <code>--external-url</code> debe ser un enlace HTTPS seguro.",
+        "collectionLimits": "Cada cuenta puede tener hasta 10 colecciones personales y una colección puede contener como máximo 24 mascotas aprobadas. Ese límite acota el crecimiento: una colección que ya lo supera todavía se puede reducir o renombrar, pero no ampliar. <code>--pets</code> usa slugs separados por comas, <code>--cover</code> debe indicar una mascota seleccionada y <code>--external-url</code> debe ser un enlace HTTPS seguro.",
         "authBody": "See the Authenticate section above.",
         "installSyntax": "petdex install {petName}",
         "submitSyntax": "petdex submit {path}"

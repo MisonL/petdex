@@ -86,8 +86,9 @@ npx petdex collection create --title "My pets" --pets boba,mochi
 Full CLI reference: [`packages/petdex-cli/README.md`](./packages/petdex-cli/README.md).
 
 Personal collections are limited to 10 per account and 24 approved pets per
-collection. The CLI supports listing, creating, editing, deleting, and JSON
-output for automation.
+collection; the pet limit bounds growth, so a collection created before it
+existed can still be renamed or shrunk. The CLI supports listing, creating,
+editing, deleting, and JSON output for automation.
 
 ## For builders
 
