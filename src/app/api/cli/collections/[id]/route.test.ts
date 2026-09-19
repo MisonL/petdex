@@ -10,6 +10,14 @@ const testMock = (
   }
 ).mock;
 
+// collection-access imports "server-only", which throws outside a server
+// component context, so it is imported dynamically: a static import is
+// evaluated before the stubs below run. The real module is spread into the
+// mock so a name this suite does not stub is still exported — mock.module is
+// process-wide, and a partial mock is a SyntaxError in the sibling suite.
+testMock.module("server-only", () => ({}));
+const realCollectionAccess = await import("@/lib/collection-access");
+
 const ipLimitKeys: string[] = [];
 const userLimitKeys: string[] = [];
 let ipLimitVerdict: { success: boolean; reset?: number } = { success: true };
@@ -52,7 +60,11 @@ testMock.module("@/lib/ratelimit", () => ({
   },
 }));
 
+// Spread the real module. mock.module is process-wide for the whole run, so a
+// partial mock here is a SyntaxError in the sibling route suite, which links
+// names from the same specifier that this stub does not define.
 testMock.module("@/lib/collection-access", () => ({
+  ...realCollectionAccess,
   collectionApprovedPetsCondition: () => "TRUE",
   collectionMutationStatusQuery: () => ({}),
   deleteCollectionItemsQuery: () => ({}),

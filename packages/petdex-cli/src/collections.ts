@@ -176,6 +176,29 @@ export function parseCollectionArgs(args: string[]): ParsedCollectionArgs {
   };
 }
 
+/**
+ * Parse a response body into a JSON object, or null when the body is not one.
+ *
+ * A non-JSON body is NOT the same as an empty object: a captive portal, a
+ * misconfigured proxy, or a CDN error page answers with HTTP 200 and HTML.
+ * Collapsing that to {} made `delete` report success and `list` print
+ * nothing, so a caller could not tell a real result from a proxy page.
+ */
+function parseCollectionResponse(
+  raw: string | null,
+): { error?: string; [key: string]: unknown } | null {
+  if (raw === null) return null;
+  try {
+    const value = JSON.parse(raw);
+    if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+      return value as { error?: string; [key: string]: unknown };
+    }
+  } catch {
+    /* not JSON */
+  }
+  return null;
+}
+
 export async function collectionRequest(
   baseUrl: string,
   token: string,
@@ -193,10 +216,20 @@ export async function collectionRequest(
     },
     body: body ? JSON.stringify(body) : undefined,
   });
-  const data = (await res.json().catch(() => ({}))) as {
-    error?: string;
-    [key: string]: unknown;
-  };
+  // A non-JSON body is NOT the same as an empty object. A captive portal, a
+  // misconfigured proxy, or a CDN error page answers with HTTP 200 and HTML;
+  // collapsing that to {} made `delete` report success and `list` print
+  // nothing, so the caller could not tell a real result from a proxy page.
+  const data = parseCollectionResponse(await res.text().catch(() => null));
+  if (!data) {
+    // Report the transport failure as itself. Deriving it from res.ok would
+    // call a 200 with an unreadable body a success.
+    throw new Error(
+      res.ok
+        ? `unexpected_response_${res.status} (expected JSON)`
+        : `request_failed_${res.status}`,
+    );
+  }
   if (!res.ok) {
     if (res.status === 429 || data.error === "rate_limited") {
       throw new Error("rate limited; retry later (rate_limited)");

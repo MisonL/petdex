@@ -282,6 +282,40 @@ describe("collectionRequest", () => {
     }
   });
 
+  it("rejects a 200 whose body is not a JSON object", async () => {
+    // A captive portal, a misconfigured proxy, or a CDN error page answers
+    // with HTTP 200 and HTML. Collapsing that to {} made `delete` report
+    // success and `list` print nothing, so the caller could not tell a real
+    // result from a proxy page.
+    const originalFetch = globalThis.fetch;
+    for (const body of ["<html>WiFi login</html>", "", "{not json", "[1,2]"]) {
+      globalThis.fetch = (async () =>
+        new Response(body, { status: 200 })) as unknown as typeof fetch;
+      try {
+        await expect(
+          collectionRequest("https://petdex.test", "token", "GET", null),
+        ).rejects.toThrow("unexpected_response_200");
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    }
+  });
+
+  it("still returns a real JSON body on success", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ collections: [] }), {
+        status: 200,
+      })) as unknown as typeof fetch;
+    try {
+      await expect(
+        collectionRequest("https://petdex.test", "token", "GET", null),
+      ).resolves.toEqual({ collections: [] });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it("maps collection pet limits to an actionable error", async () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = (async () =>
