@@ -54,4 +54,24 @@ describe("collection slug candidates", () => {
   it("bounds the number of candidates it will probe", () => {
     expect(collectionSlugCandidates("boba", 3)).toHaveLength(3);
   });
+
+  it("keeps every candidate distinct even at the base length cap", () => {
+    // The probe only works if the candidates differ from each other. A base at
+    // the cap is the case that would break it: re-applying the cap after
+    // appending the suffix collapses every candidate onto the base, so all 20
+    // probes would test the same slug and the caller would fall back to a
+    // random one. The suffix is therefore allowed past the cap.
+    const base = collectionSlugBase("a".repeat(80));
+
+    expect(base).toHaveLength(48);
+
+    const candidates = collectionSlugCandidates(base);
+
+    expect(new Set(candidates).size).toBe(candidates.length);
+    // The suffix is what exceeds the base budget; assert the bound rather than
+    // a fixed length so a longer suffix form would not silently pass.
+    expect(Math.max(...candidates.map((c) => c.length))).toBeLessThanOrEqual(
+      48 + "-20".length,
+    );
+  });
 });

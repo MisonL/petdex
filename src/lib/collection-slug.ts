@@ -1,8 +1,12 @@
 import { validateProfileHandle } from "@/lib/profiles";
 
-// Collections use a longer slug budget than pets (src/lib/slug.ts caps at
-// 40) because the base is seeded from a profile handle and still has to
-// read as a name after the uniqueness suffix is appended.
+// Cap on the slugified base, not on the final slug: a uniqueness suffix is
+// appended after this, so a stored slug can run a few characters longer. The
+// budget is longer than the pet one (src/lib/slug.ts caps at 40) because the
+// base is seeded from a profile handle and should still read as a name once
+// the suffix lands. Truncating the suffixed candidates instead would collapse
+// them all onto the base and defeat the probe, so the suffix is deliberately
+// allowed past this.
 const MAX_COLLECTION_SLUG_LENGTH = 48;
 
 /** How many `base`, `base-2`, `base-3`, ... candidates a caller probes
