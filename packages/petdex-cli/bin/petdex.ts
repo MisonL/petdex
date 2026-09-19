@@ -11,13 +11,13 @@ import { isTrustedAssetUrl } from "../src/asset-hosts.js";
 import { resolveAuthConfig } from "../src/auth-config.js";
 import { ClerkCliAuth } from "../src/cli-auth/index.js";
 import {
-  approvedPetCountProblem,
   type CollectionRecord,
   collectionRequest,
   hasBooleanFlag,
   MAX_COLLECTION_PETS,
   overCollectionPetLimit,
   parseCollectionArgs,
+  readApprovedPetCount,
 } from "../src/collections.js";
 import {
   parseImageDims,
@@ -359,26 +359,24 @@ async function cmdCollection(args: string[]): Promise<void> {
         undefined,
         "?includeApprovedPetCount=1",
       )) as { approvedPetCount?: unknown };
-      const countProblem = approvedPetCountProblem(
-        approvedResult.approvedPetCount,
-      );
-      if (countProblem === "invalid approved pets response") {
-        throw new Error(countProblem);
-      }
-      if (countProblem === "empty_approved_pets") {
-        failCollection(
-          "No approved pets to select. --all-approved would set an empty member list, so it was not sent. Approve a pet first, or set members with --pets.",
-          json,
-        );
+      const approved = readApprovedPetCount(approvedResult.approvedPetCount);
+      if (!approved.ok) {
+        if (approved.reason === "empty_approved_pets") {
+          failCollection(
+            "No approved pets to select. --all-approved would set an empty member list, so it was not sent. Approve a pet first, or set members with --pets.",
+            json,
+          );
+        }
+        throw new Error("invalid approved pets response");
       }
       // The cap bounds growth, so only a create can be judged from the
       // approved count alone. An edit depends on what the collection already
       // stores: a row that predates the cap, or one that already holds every
       // approved pet, stays editable. Share the predicate with the argument
       // parser so both gates agree.
-      if (overCollectionPetLimit(action, approvedResult.approvedPetCount)) {
+      if (overCollectionPetLimit(action, approved.count)) {
         failCollection(
-          `--all-approved found ${approvedResult.approvedPetCount} approved pets. A collection can contain at most ${MAX_COLLECTION_PETS}; use --pets with a subset.`,
+          `--all-approved found ${approved.count} approved pets. A collection can contain at most ${MAX_COLLECTION_PETS}; use --pets with a subset.`,
           json,
         );
       }

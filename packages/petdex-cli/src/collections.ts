@@ -265,19 +265,21 @@ export async function collectionRequest(
   return data;
 }
 
+export type ApprovedPetCount =
+  | { ok: true; count: number }
+  | { ok: false; reason: "invalid_approved_pets" | "empty_approved_pets" };
+
 /**
  * Validate the approved-pet count the `--all-approved` preflight fetched.
  *
  * Split out of the entrypoint so it can be tested without the keychain-backed
- * auth the entrypoint needs: the decision is pure, and it is the guard that
- * stands between `edit <ref> --all-approved` and an empty member list.
- *
- * Returns a reason string when the count must stop the command, or null when it
- * may proceed.
+ * auth the entrypoint needs. Returning the narrowed count rather than a verdict
+ * keeps the entrypoint from re-checking the type to satisfy the compiler, which
+ * would be a second copy of the same rule.
  */
-export function approvedPetCountProblem(count: unknown): string | null {
-  if (typeof count !== "number" || !Number.isInteger(count) || count < 0) {
-    return "invalid approved pets response";
+export function readApprovedPetCount(value: unknown): ApprovedPetCount {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
+    return { ok: false, reason: "invalid_approved_pets" };
   }
   // --all-approved resolves server-side to the approved set, so an account with
   // none sends an empty member list — which the server reads as "replace the
@@ -285,8 +287,8 @@ export function approvedPetCountProblem(count: unknown): string | null {
   // still reports success. parseCollectionArgs refuses the same hazard for an
   // explicit `--pets ""`; refuse it here too, or the guard is bypassable by
   // spelling the empty list differently.
-  if (count === 0) {
-    return "empty_approved_pets";
+  if (value === 0) {
+    return { ok: false, reason: "empty_approved_pets" };
   }
-  return null;
+  return { ok: true, count: value };
 }

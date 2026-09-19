@@ -1,12 +1,12 @@
 import { describe, expect, it } from "bun:test";
 
 import {
-  approvedPetCountProblem,
   collectionRequest,
   hasBooleanFlag,
   MAX_COLLECTION_PETS,
   overCollectionPetLimit,
   parseCollectionArgs,
+  readApprovedPetCount,
 } from "./collections";
 
 describe("collectionRequest", () => {
@@ -390,7 +390,7 @@ describe("collectionRequest", () => {
   });
 });
 
-describe("approvedPetCountProblem", () => {
+describe("readApprovedPetCount", () => {
   it("refuses a zero count, which would send an empty member list", () => {
     // The server reads an empty list as "replace the members with nothing", and
     // deleteCollectionItemsQuery then emits a DELETE with no pet_slug filter —
@@ -398,22 +398,29 @@ describe("approvedPetCountProblem", () => {
     // collection and still answered 200. Un-approving a pet leaves its member
     // rows behind, so a non-empty collection with an empty approved set is
     // reachable, not theoretical.
-    expect(approvedPetCountProblem(0)).toBe("empty_approved_pets");
+    expect(readApprovedPetCount(0)).toEqual({
+      ok: false,
+      reason: "empty_approved_pets",
+    });
   });
 
   it("rejects a malformed count instead of trusting it", () => {
     for (const bad of [undefined, null, "3", 1.5, -1, Number.NaN, {}]) {
-      expect(approvedPetCountProblem(bad)).toBe(
-        "invalid approved pets response",
-      );
+      expect(readApprovedPetCount(bad)).toEqual({
+        ok: false,
+        reason: "invalid_approved_pets",
+      });
     }
   });
 
-  it("lets a real count through so the documented flag keeps working", () => {
+  it("narrows a real count so the caller does not re-check the type", () => {
     // Guards against the fix overshooting: petdex collection edit <ref>
-    // --all-approved is the documented invocation and must still run.
+    // --all-approved is the documented invocation and must still run. The
+    // narrowed count is what the entrypoint compares against the cap, so a
+    // helper that returned a bare verdict would need a second, duplicating
+    // typeof check at the callsite.
     for (const good of [1, 24, 500]) {
-      expect(approvedPetCountProblem(good)).toBeNull();
+      expect(readApprovedPetCount(good)).toEqual({ ok: true, count: good });
     }
   });
 });
