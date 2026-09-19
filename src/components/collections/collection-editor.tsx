@@ -13,6 +13,7 @@ import {
 import { useTranslations } from "next-intl";
 
 import {
+  collectionPetLimitExceeded,
   limitCollectionPetSlugs,
   MAX_COLLECTION_PETS,
 } from "@/lib/collection-constants";
@@ -104,7 +105,12 @@ export function CollectionEditor({
   function save() {
     setError(null);
     setSaved(false);
-    if (petSlugs.length > MAX_COLLECTION_PETS) {
+    // A stored collection that predates the cap may already hold more than
+    // MAX_COLLECTION_PETS. Blocking that here would make it uneditable — not
+    // even a title fix — so only growth past the cap is refused.
+    if (
+      collectionPetLimitExceeded(petSlugs, initial ? initial.petSlugs : null)
+    ) {
       setError(t("petLimit", { max: MAX_COLLECTION_PETS }));
       return;
     }

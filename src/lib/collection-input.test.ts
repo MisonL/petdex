@@ -1,7 +1,9 @@
 import { describe, expect, it } from "bun:test";
 
 import {
+  collectionInputErrorCode,
   isCollectionRequestBody,
+  MAX_COLLECTION_PETS,
   normalizeCollectionCover,
   normalizeCollectionExternalUrl,
   normalizeCollectionInput,
@@ -94,5 +96,154 @@ describe("normalizeCollectionInput", () => {
     expect(normalizeCollectionCover(" Boba ")).toBe("boba");
     expect(normalizeCollectionCover("")).toBeNull();
     expect(normalizeCollectionCover(42)).toBe(false);
+  });
+
+  it("rejects an oversized pet list as a shape error before walking it", () => {
+    // Each element goes through a trim, a regex and a Set, so a huge array is
+    // a cheap CPU amplification vector if the bound is only checked by the
+    // caller after this returns. 500k entries took ~300ms before this guard.
+    // The rejection is a payload-shape error: the collection cap is a growth
+    // limit over the deduplicated list and cannot be decided here, so
+    // reporting collection_pet_limit would misdescribe the request.
+    const oversized = Array.from(
+      { length: 500_000 },
+      (_, index) => `pet-${index % MAX_COLLECTION_PETS}`,
+    );
+
+    expect(() =>
+      normalizeCollectionInput({ title: "Pets", petSlugs: oversized }),
+    ).toThrow("pet_slugs");
+  });
+
+  it("never rejects a legal deduplicated list for being duplicated", () => {
+    // The bounds are payload size guards, so they must sit far above any
+    // legitimate list however many times a client repeats it. A cap-sized
+    // selection sent with a high repeat factor is still a legal request: the
+    // list dedupes to exactly the cap. Pinning the old ceiling at 200 made a
+    // 24-slug list rejected once each slug appeared 9 times, and reported it
+    // as a cap violation.
+    const base = Array.from(
+      { length: MAX_COLLECTION_PETS },
+      (_, index) => `pet-${index}`,
+    );
+
+    for (const repeats of [2, 10, 100, 500]) {
+      const duplicated = base.flatMap((slug) =>
+        Array.from({ length: repeats }, () => slug),
+      );
+
+      expect(() =>
+        normalizeCollectionInput({ title: "Pets", petSlugs: duplicated }),
+      ).not.toThrow();
+      expect(
+        normalizeCollectionInput({ title: "Pets", petSlugs: duplicated })
+          .petSlugs,
+      ).toHaveLength(MAX_COLLECTION_PETS);
+    }
+  });
+
+  it("bounds the payload by total length, not just by entry count", () => {
+    // Entry count alone leaves the expensive case open: few entries, each an
+    // enormous string, still goes through a trim and a regex per entry. The
+    // character ceiling is what holds the validation cost down.
+    expect(() =>
+      normalizeCollectionInput({
+        title: "Pets",
+        petSlugs: ["a".repeat(200_000)],
+      }),
+    ).toThrow("pet_slugs");
+    // A single long-but-plausible slug is still fine.
+    expect(
+      normalizeCollectionInput({
+        title: "Pets",
+        petSlugs: [`a${"b".repeat(60)}`],
+      }).petSlugs,
+    ).toHaveLength(1);
+  });
+
+  it("does not enforce the collection cap itself", () => {
+    // The cap is a growth limit that depends on what the row already stores,
+    // so it cannot be decided here: a collection created before the cap
+    // existed must still be able to submit its unchanged member list. Callers
+    // apply collectionPetLimitExceeded() once they know the stored members.
+    const overCap = Array.from(
+      { length: MAX_COLLECTION_PETS + 6 },
+      (_, index) => `pet-${index}`,
+    );
+
+    expect(
+      normalizeCollectionInput({ title: "Pets", petSlugs: overCap }).petSlugs,
+    ).toHaveLength(MAX_COLLECTION_PETS + 6);
+  });
+
+  it("still accepts exactly the pet cap", () => {
+    const atCap = Array.from(
+      { length: MAX_COLLECTION_PETS },
+      (_, index) => `pet-${index}`,
+    );
+
+    expect(
+      normalizeCollectionInput({ title: "Pets", petSlugs: atCap }).petSlugs,
+    ).toHaveLength(MAX_COLLECTION_PETS);
+  });
+
+  it("validates a non-array pet list as a type error, not a limit", () => {
+    expect(() =>
+      normalizeCollectionInput({ title: "Pets", petSlugs: "boba" }),
+    ).toThrow("pet_slugs");
+  });
+});
+
+describe("collectionInputErrorCode", () => {
+  // The routes used to return `(error as Error).message` verbatim, so any
+  // throw this validator did not anticipate — a driver error, a future
+  // helper — reached the client as a 400 body. The mapping is a whitelist.
+  it("passes through every code the validator is allowed to raise", () => {
+    const raised = new Set<string>();
+    const capture = (input: Parameters<typeof normalizeCollectionInput>[0]) => {
+      try {
+        normalizeCollectionInput(input);
+      } catch (error) {
+        raised.add(collectionInputErrorCode(error));
+      }
+    };
+
+    capture({ title: "x" });
+    capture({ title: "valid", description: 1 });
+    capture({ title: "valid", description: "x".repeat(281) });
+    capture({ title: "valid", petSlugs: "boba" });
+    capture({ title: "valid", petSlugs: ["bad slug"] });
+    capture({
+      title: "valid",
+      petSlugs: Array.from({ length: 500_000 }, (_, index) => `pet-${index}`),
+    });
+
+    // collection_pet_limit is deliberately absent: the validator no longer
+    // raises it. The cap is a growth limit that depends on the stored members,
+    // so it is decided by collectionPetLimitExceeded() in the routes, and this
+    // list stays the set of codes the validator alone can produce.
+    expect([...raised].sort()).toEqual([
+      "description_length",
+      "description_type",
+      "pet_slug",
+      "pet_slugs",
+      "title_length",
+    ]);
+    for (const code of raised) expect(code).not.toBe("invalid_body");
+  });
+
+  it("collapses anything unrecognized to invalid_body", () => {
+    expect(collectionInputErrorCode(new Error("connection terminated"))).toBe(
+      "invalid_body",
+    );
+    expect(
+      collectionInputErrorCode(
+        new Error("duplicate key value violates unique constraint"),
+      ),
+    ).toBe("invalid_body");
+    expect(collectionInputErrorCode(new Error(""))).toBe("invalid_body");
+    expect(collectionInputErrorCode("title_length")).toBe("invalid_body");
+    expect(collectionInputErrorCode(null)).toBe("invalid_body");
+    expect(collectionInputErrorCode(undefined)).toBe("invalid_body");
   });
 });

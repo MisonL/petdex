@@ -12,8 +12,10 @@ import {
   parseCollectionMutationStatus,
   runCollectionMutation,
 } from "@/lib/collection-access";
+import { collectionPetLimitExceeded } from "@/lib/collection-constants";
 import {
   type CollectionRequestBody,
+  collectionInputErrorCode,
   isCollectionRequestBody,
   MAX_COLLECTION_PETS,
   normalizeCollectionCover,
@@ -23,13 +25,25 @@ import {
 import { collectionCoverForPetSlugsQuery } from "@/lib/collection-sql";
 import { revalidateCollectionTags } from "@/lib/db/cached-aggregates";
 import { db, schema } from "@/lib/db/client";
-import { cliVerifyRatelimit } from "@/lib/ratelimit";
+import { publicTrafficGuardKey } from "@/lib/public-traffic-guard";
+import { cliCollectionRatelimit, cliVerifyRatelimit } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
 type Ctx = { params: Promise<{ id: string }> };
 
-function clientIp(req: Request): string {
-  return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
+// Per-user ceiling on top of the per-IP one, so an account cannot spread
+// collection writes across source IPs.
+async function collectionUserLimit(userId: string): Promise<Response | null> {
+  const limit = await cliCollectionRatelimit.limit(userId);
+  if (limit.success) return null;
+  return NextResponse.json(
+    {
+      error: "rate_limited",
+      message: "Limit reached: 60 CLI collection requests / 1h.",
+      retryAfter: limit.reset,
+    },
+    { status: 429 },
+  );
 }
 
 async function findOwnedCollection(reference: string, userId: string) {
@@ -45,12 +59,16 @@ async function findOwnedCollection(reference: string, userId: string) {
 }
 
 export async function PATCH(req: Request, ctx: Ctx): Promise<Response> {
-  const limit = await cliVerifyRatelimit.limit(clientIp(req));
+  const limit = await cliVerifyRatelimit.limit(
+    publicTrafficGuardKey(req.headers),
+  );
   if (!limit.success)
     return NextResponse.json({ error: "rate_limited" }, { status: 429 });
   const principal = await verifyCliBearer(req.headers.get("authorization"));
   if (!principal)
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const userLimited = await collectionUserLimit(principal.userId);
+  if (userLimited) return userLimited;
   const { id: reference } = await ctx.params;
   const collection = await findOwnedCollection(reference, principal.userId);
   if (!collection)
@@ -88,11 +106,13 @@ export async function PATCH(req: Request, ctx: Ctx): Promise<Response> {
         body.description === undefined
           ? collection.description
           : body.description,
-      petSlugs: body.petSlugs,
+      // allApproved replaces the explicit list below, so it must not be
+      // validated (or length-checked) here first.
+      petSlugs: body.allApproved === true ? undefined : body.petSlugs,
     });
   } catch (error) {
     return NextResponse.json(
-      { error: (error as Error).message },
+      { error: collectionInputErrorCode(error) },
       { status: 400 },
     );
   }
@@ -110,7 +130,19 @@ export async function PATCH(req: Request, ctx: Ctx): Promise<Response> {
       );
     const allowed = new Set(approved.map((p) => p.slug));
     pets = body.allApproved === true ? [...allowed].sort() : input.petSlugs;
-    if (pets.length > MAX_COLLECTION_PETS)
+    // The cap bounds growth, not the stored row: a collection created before
+    // the cap existed must stay editable, so an over-cap list is accepted
+    // while it adds no member that is not already stored.
+    const storedItems = await db
+      .select({ slug: schema.petCollectionItems.petSlug })
+      .from(schema.petCollectionItems)
+      .where(eq(schema.petCollectionItems.collectionId, collection.id));
+    if (
+      collectionPetLimitExceeded(
+        pets,
+        storedItems.map((item) => item.slug),
+      )
+    )
       return NextResponse.json(
         { error: "collection_pet_limit", max: MAX_COLLECTION_PETS },
         { status: 400 },
@@ -224,6 +256,10 @@ export async function PATCH(req: Request, ctx: Ctx): Promise<Response> {
         requireSuccessfulParentUpdate: true,
       })
     : null;
+  // update(0) then the optional deletes/inserts, then the optional status
+  // select last. Keep this expression next to the buildBatch that matches it.
+  const statusResultIndex =
+    1 + (deletedItems ? 1 : 0) + (insertedItems ? 1 : 0);
   const mutation = await runCollectionMutation({
     collectionId: collection.id,
     petMutation: mutationPetSlugs
@@ -279,7 +315,10 @@ export async function PATCH(req: Request, ctx: Ctx): Promise<Response> {
           coverExists: true,
         };
       }
-      const status = parseCollectionMutationStatus(results[results.length - 1]);
+      // Derived from the same conditions that built the array above, so
+      // appending a statement to buildBatch cannot silently move the status
+      // row out from under this lookup.
+      const status = parseCollectionMutationStatus(results[statusResultIndex]);
       return {
         updated,
         ...status,
@@ -309,12 +348,16 @@ export async function PATCH(req: Request, ctx: Ctx): Promise<Response> {
 }
 
 export async function DELETE(req: Request, ctx: Ctx): Promise<Response> {
-  const limit = await cliVerifyRatelimit.limit(clientIp(req));
+  const limit = await cliVerifyRatelimit.limit(
+    publicTrafficGuardKey(req.headers),
+  );
   if (!limit.success)
     return NextResponse.json({ error: "rate_limited" }, { status: 429 });
   const principal = await verifyCliBearer(req.headers.get("authorization"));
   if (!principal)
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const userLimited = await collectionUserLimit(principal.userId);
+  if (userLimited) return userLimited;
   const { id: reference } = await ctx.params;
   const collection = await findOwnedCollection(reference, principal.userId);
   if (!collection)

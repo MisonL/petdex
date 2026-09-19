@@ -7,8 +7,10 @@ import {
   createOwnerCollection,
   MAX_OWNER_COLLECTIONS,
 } from "@/lib/collection-access";
+import { collectionPetLimitExceeded } from "@/lib/collection-constants";
 import {
   type CollectionRequestBody,
+  collectionInputErrorCode,
   isCollectionRequestBody,
   MAX_COLLECTION_PETS,
   normalizeCollectionCover,
@@ -17,16 +19,30 @@ import {
 } from "@/lib/collection-input";
 import { revalidateCollectionTags } from "@/lib/db/cached-aggregates";
 import { db, schema } from "@/lib/db/client";
-import { cliVerifyRatelimit } from "@/lib/ratelimit";
+import { publicTrafficGuardKey } from "@/lib/public-traffic-guard";
+import { cliCollectionRatelimit, cliVerifyRatelimit } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
 
-function ip(req: Request): string {
-  return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
+// Per-user ceiling on top of the per-IP one, so an account cannot spread
+// collection writes across source IPs.
+async function collectionUserLimit(userId: string): Promise<Response | null> {
+  const limit = await cliCollectionRatelimit.limit(userId);
+  if (limit.success) return null;
+  return NextResponse.json(
+    {
+      error: "rate_limited",
+      message: "Limit reached: 60 CLI collection requests / 1h.",
+      retryAfter: limit.reset,
+    },
+    { status: 429 },
+  );
 }
 
 export async function GET(req: Request): Promise<Response> {
-  const limit = await cliVerifyRatelimit.limit(ip(req));
+  const limit = await cliVerifyRatelimit.limit(
+    publicTrafficGuardKey(req.headers),
+  );
   if (!limit.success)
     return NextResponse.json({ error: "rate_limited" }, { status: 429 });
   const principal = await verifyCliBearer(req.headers.get("authorization"));
@@ -96,12 +112,16 @@ export async function GET(req: Request): Promise<Response> {
 }
 
 export async function POST(req: Request): Promise<Response> {
-  const limit = await cliVerifyRatelimit.limit(ip(req));
+  const limit = await cliVerifyRatelimit.limit(
+    publicTrafficGuardKey(req.headers),
+  );
   if (!limit.success)
     return NextResponse.json({ error: "rate_limited" }, { status: 429 });
   const principal = await verifyCliBearer(req.headers.get("authorization"));
   if (!principal)
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const userLimited = await collectionUserLimit(principal.userId);
+  if (userLimited) return userLimited;
   let body: CollectionRequestBody;
   try {
     const parsed = await req.json();
@@ -115,11 +135,13 @@ export async function POST(req: Request): Promise<Response> {
     input = normalizeCollectionInput({
       title: body.title ?? "",
       description: body.description,
-      petSlugs: body.petSlugs,
+      // allApproved replaces the explicit list below, so it must not be
+      // validated (or length-checked) here first.
+      petSlugs: body.allApproved === true ? undefined : body.petSlugs,
     });
   } catch (error) {
     return NextResponse.json(
-      { error: (error as Error).message },
+      { error: collectionInputErrorCode(error) },
       { status: 400 },
     );
   }
@@ -135,7 +157,8 @@ export async function POST(req: Request): Promise<Response> {
   const allowed = new Set(approved.map((p) => p.slug));
   const requested =
     body.allApproved === true ? [...allowed].sort() : input.petSlugs;
-  if (requested.length > MAX_COLLECTION_PETS)
+  // A create has no stored row to preserve, so the cap applies outright.
+  if (collectionPetLimitExceeded(requested, null))
     return NextResponse.json(
       { error: "collection_pet_limit", max: MAX_COLLECTION_PETS },
       { status: 400 },

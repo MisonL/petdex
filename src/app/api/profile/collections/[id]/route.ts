@@ -13,8 +13,10 @@ import {
   parseCollectionMutationStatus,
   runCollectionMutation,
 } from "@/lib/collection-access";
+import { collectionPetLimitExceeded } from "@/lib/collection-constants";
 import {
   type CollectionRequestBody,
+  collectionInputErrorCode,
   isCollectionRequestBody,
   MAX_COLLECTION_PETS,
   normalizeCollectionCover,
@@ -86,7 +88,7 @@ export async function PATCH(
     });
   } catch (error) {
     return NextResponse.json(
-      { error: (error as Error).message },
+      { error: collectionInputErrorCode(error) },
       { status: 400 },
     );
   }
@@ -126,7 +128,20 @@ export async function PATCH(
         ),
       );
     const allowedSlugs = new Set(approvedPets.map((p) => p.slug));
-    if (input.petSlugs.length > MAX_COLLECTION_PETS) {
+    // The cap bounds growth, not the stored row. A collection created before
+    // the cap existed can hold more than MAX_COLLECTION_PETS, and rejecting
+    // that list would leave the row uneditable — not even a title fix — until
+    // its owner deleted members. Over-cap is allowed while it adds nothing.
+    const storedItems = await db
+      .select({ slug: schema.petCollectionItems.petSlug })
+      .from(schema.petCollectionItems)
+      .where(eq(schema.petCollectionItems.collectionId, id));
+    if (
+      collectionPetLimitExceeded(
+        input.petSlugs,
+        storedItems.map((item) => item.slug),
+      )
+    ) {
       return NextResponse.json(
         { error: "collection_pet_limit", max: MAX_COLLECTION_PETS },
         { status: 400 },
@@ -233,6 +248,10 @@ export async function PATCH(
           requireSuccessfulParentUpdate: true,
         })
       : null;
+  // update(0) then the optional deletes/inserts, then the optional status
+  // select last. Keep this expression next to the buildBatch that matches it.
+  const statusResultIndex =
+    1 + (deletedItems ? 1 : 0) + (insertedItems ? 1 : 0);
   const mutation = await runCollectionMutation({
     collectionId: id,
     petMutation: mutationPetSlugs
@@ -288,7 +307,10 @@ export async function PATCH(
           coverExists: true,
         };
       }
-      const status = parseCollectionMutationStatus(results[results.length - 1]);
+      // Derived from the same conditions that built the array above, so
+      // appending a statement to buildBatch cannot silently move the status
+      // row out from under this lookup.
+      const status = parseCollectionMutationStatus(results[statusResultIndex]);
       return {
         updated,
         ...status,

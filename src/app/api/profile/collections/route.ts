@@ -8,8 +8,10 @@ import {
   createOwnerCollection,
   MAX_OWNER_COLLECTIONS,
 } from "@/lib/collection-access";
+import { collectionPetLimitExceeded } from "@/lib/collection-constants";
 import {
   type CollectionRequestBody,
+  collectionInputErrorCode,
   isCollectionRequestBody,
   MAX_COLLECTION_PETS,
   normalizeCollectionCover,
@@ -59,7 +61,7 @@ export async function POST(req: Request): Promise<Response> {
     });
   } catch (error) {
     return NextResponse.json(
-      { error: (error as Error).message },
+      { error: collectionInputErrorCode(error) },
       { status: 400 },
     );
   }
@@ -84,7 +86,8 @@ export async function POST(req: Request): Promise<Response> {
       ),
     );
   const allowedSlugs = new Set(approvedPets.map((p) => p.slug));
-  if (input.petSlugs.length > MAX_COLLECTION_PETS) {
+  // A create has no stored row to preserve, so the cap applies outright.
+  if (collectionPetLimitExceeded(input.petSlugs, null)) {
     return NextResponse.json(
       { error: "collection_pet_limit", max: MAX_COLLECTION_PETS },
       { status: 400 },

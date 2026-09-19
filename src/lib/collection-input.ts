@@ -1,9 +1,32 @@
+import { MAX_COLLECTION_PETS } from "@/lib/collection-constants";
 import { isSafeExternalUrl } from "@/lib/url-allowlist";
 
-export { MAX_COLLECTION_PETS } from "@/lib/collection-constants";
+export { MAX_COLLECTION_PETS };
 
 export const MAX_COLLECTION_TITLE = 80;
 export const MAX_COLLECTION_DESCRIPTION = 280;
+
+/**
+ * Ceilings on the raw petSlugs array before any element is examined. These are
+ * payload-size bounds, not the collection limit: MAX_COLLECTION_PETS is enforced
+ * on the deduplicated result, and the two must not be confused.
+ *
+ * A duplicate-heavy caller is legal — the list is deduplicated below, and a
+ * client that resends its selection alongside a new one repeats entries. So
+ * both bounds sit far above any legitimate payload: 24 members would have to
+ * repeat 500x to reach them. Rejecting on either reports a shape error
+ * (`pet_slugs`) rather than the cap, which would misdescribe the request.
+ *
+ * The character ceiling is the one that normally binds: real slugs run well
+ * over 8 characters, so 96k chars is reached before 12k entries. The entry
+ * ceiling is the cheaper guard that catches a flood of tiny or non-string
+ * elements without summing them first, and it is checked first because its
+ * length test is O(1). Every entry then goes through a trim, a regex and a Set,
+ * so together the two hold a worst-case admissible request to tens of ms.
+ */
+const MAX_COLLECTION_PET_SLUG_CHARS = 96_000;
+/** Checked first: O(1), so a flood of elements is rejected without summing. */
+const MAX_COLLECTION_PET_SLUG_ENTRIES = 12_000;
 
 export type CollectionInput = {
   title: unknown;
@@ -100,6 +123,25 @@ export function normalizeCollectionInput(
   if (input.petSlugs !== undefined && !Array.isArray(input.petSlugs)) {
     throw new Error("pet_slugs");
   }
+  // Bound the walk. Every element goes through a trim, a regex and a Set, so
+  // an unbounded array is a cheap CPU amplification vector: 500k entries took
+  // ~300ms before this guard. This is only a size bound — the collection cap
+  // is a growth limit that depends on what the row already stores, so it
+  // cannot be decided here. Callers apply collectionPetLimitExceeded().
+  if (Array.isArray(input.petSlugs)) {
+    // Length first: it is O(1), so a huge array is rejected without walking
+    // it. Only then is the O(n) character sum worth paying.
+    if (input.petSlugs.length > MAX_COLLECTION_PET_SLUG_ENTRIES) {
+      throw new Error("pet_slugs");
+    }
+    let totalChars = 0;
+    for (const raw of input.petSlugs) {
+      if (typeof raw === "string") totalChars += raw.length;
+    }
+    if (totalChars > MAX_COLLECTION_PET_SLUG_CHARS) {
+      throw new Error("pet_slugs");
+    }
+  }
   const petSlugs: string[] = [];
   const seen = new Set<string>();
   for (const raw of input.petSlugs ?? []) {
@@ -115,4 +157,27 @@ export function normalizeCollectionInput(
     }
   }
   return { title, description, petSlugs };
+}
+
+/**
+ * Error codes normalizeCollectionInput is allowed to report to a client.
+ * collection_pet_limit is not here: the cap is a growth limit decided against
+ * the stored members, so the validator cannot raise it.
+ */
+const COLLECTION_INPUT_ERROR_CODES = new Set([
+  "description_length",
+  "description_type",
+  "pet_slug",
+  "pet_slugs",
+  "title_length",
+]);
+
+/**
+ * Map a normalizeCollectionInput failure to a client-safe code. The routes
+ * used to return `(error as Error).message` directly, which would leak any
+ * future unexpected throw (and misreport it as a 400).
+ */
+export function collectionInputErrorCode(error: unknown): string {
+  const message = error instanceof Error ? error.message : "";
+  return COLLECTION_INPUT_ERROR_CODES.has(message) ? message : "invalid_body";
 }

@@ -7,7 +7,10 @@ import { useState, useTransition } from "react";
 import { Loader2, Lock, Pencil, Plus, Trash2, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { MAX_COLLECTION_PETS } from "@/lib/collection-constants";
+import {
+  collectionPetLimitExceeded,
+  MAX_COLLECTION_PETS,
+} from "@/lib/collection-constants";
 
 type ApprovedPet = {
   slug: string;
@@ -258,7 +261,15 @@ function CollectionForm({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (selected.size > MAX_COLLECTION_PETS) {
+    // A stored collection that predates the cap may already hold more than
+    // MAX_COLLECTION_PETS. Blocking that here would make it uneditable — not
+    // even a title fix — so only growth past the cap is refused.
+    if (
+      collectionPetLimitExceeded(
+        [...selected],
+        mode === "edit" ? (collection?.petSlugs ?? null) : null,
+      )
+    ) {
       setError(t("petLimit", { max: MAX_COLLECTION_PETS }));
       return;
     }
