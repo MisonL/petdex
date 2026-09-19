@@ -13,7 +13,9 @@ import { ClerkCliAuth } from "../src/cli-auth/index.js";
 import {
   type CollectionRecord,
   collectionRequest,
+  hasBooleanFlag,
   MAX_COLLECTION_PETS,
+  overCollectionPetLimit,
   parseCollectionArgs,
 } from "../src/collections.js";
 import {
@@ -136,7 +138,7 @@ async function main() {
   // notice still fires on the first real command (install / submit).
   const META_COMMANDS = new Set(["version", "--version", "-v", "telemetry"]);
   const machineReadableCollection =
-    cmd === "collection" && args.includes("--json");
+    cmd === "collection" && hasBooleanFlag(args, "--json");
   if (!META_COMMANDS.has(cmd) && !machineReadableCollection) {
     maybeShowFirstRunNotice();
   }
@@ -280,16 +282,23 @@ async function cmdCollection(args: string[]): Promise<void> {
           ? "Create requires --title."
           : code === "nothing_to_update"
             ? "Nothing to edit. Provide at least one flag."
-            : code === "pet_slug"
-              ? "Invalid pet slug in --pets."
-              : code === "cover_pet_slug"
-                ? "Invalid pet slug in --cover."
-                : code === "collection_pet_limit"
-                  ? `A collection can contain at most ${MAX_COLLECTION_PETS} pets. Use --pets with a subset, or remove --all-approved.`
-                  : `Usage: petdex collection list|create|edit|delete`;
-    failCollection(message, args.includes("--json"));
+            : code === "empty_pets"
+              ? "Empty --pets list. Provide at least one slug, or omit --pets to keep the current members."
+              : code === "pet_slug"
+                ? "Invalid pet slug in --pets."
+                : code === "cover_pet_slug"
+                  ? "Invalid pet slug in --cover."
+                  : code === "collection_pet_limit"
+                    ? `A collection can contain at most ${MAX_COLLECTION_PETS} pets. Use --pets with a subset, or remove --all-approved.`
+                    : `Usage: petdex collection list|create|edit|delete`;
+    failCollection(message, hasBooleanFlag(args, "--json"));
   }
   const { action, ref, json } = parsed;
+  // Argument checks come before the network so a missing --yes is reported as
+  // itself rather than as a sign-in problem the caller cannot act on.
+  if (action === "delete" && !parsed.yes) {
+    failCollection("Deletion requires --yes.", json);
+  }
   const notSignedIn = `Not signed in. Run ${json ? "petdex login" : pc.cyan("petdex login")}.`;
   let token: string;
   try {
@@ -301,68 +310,82 @@ async function cmdCollection(args: string[]): Promise<void> {
     // guidance submit/edit give instead of the raw Clerk error.
     failCollection(notSignedIn, json);
   }
-  if (action === "list") {
-    const result = (await collectionRequest(
+  // Every request below can throw (404, 429, a network failure). Letting it
+  // reach main().catch() would print through clack to stdout, which is the
+  // stream a --json caller is parsing. Route failures through failCollection.
+  try {
+    if (action === "list") {
+      const result = (await collectionRequest(
+        PETDEX_URL,
+        token,
+        "GET",
+        null,
+      )) as { collections: CollectionRecord[] };
+      if (json) console.log(JSON.stringify(result));
+      else
+        for (const c of result.collections)
+          console.log(`${c.slug}\t${c.title}\t${c.petSlugs.length} pets`);
+      return;
+    }
+    if (action === "delete") {
+      await collectionRequest(PETDEX_URL, token, "DELETE", ref);
+      if (json) console.log(JSON.stringify({ ok: true }));
+      else console.log(`${pc.green("✓")} Collection deleted`);
+      return;
+    }
+    if (parsed.allApproved) {
+      const approvedResult = (await collectionRequest(
+        PETDEX_URL,
+        token,
+        "GET",
+        null,
+        undefined,
+        "?includeApprovedPetCount=1",
+      )) as { approvedPetCount?: unknown };
+      if (
+        typeof approvedResult.approvedPetCount !== "number" ||
+        !Number.isInteger(approvedResult.approvedPetCount) ||
+        approvedResult.approvedPetCount < 0
+      ) {
+        throw new Error("invalid approved pets response");
+      }
+      // The cap bounds growth, so only a create can be judged from the
+      // approved count alone. An edit depends on what the collection already
+      // stores: a row that predates the cap, or one that already holds every
+      // approved pet, stays editable. Share the predicate with the argument
+      // parser so both gates agree.
+      if (overCollectionPetLimit(action, approvedResult.approvedPetCount)) {
+        failCollection(
+          `--all-approved found ${approvedResult.approvedPetCount} approved pets. A collection can contain at most ${MAX_COLLECTION_PETS}; use --pets with a subset.`,
+          json,
+        );
+      }
+    }
+    const body: Record<string, unknown> = {};
+    if (parsed.title !== null) body.title = parsed.title;
+    if (parsed.description !== null) body.description = parsed.description;
+    if (parsed.petSlugs !== null) body.petSlugs = parsed.petSlugs;
+    if (parsed.coverPetSlug !== null) body.coverPetSlug = parsed.coverPetSlug;
+    if (parsed.externalUrl !== null) body.externalUrl = parsed.externalUrl;
+    if (parsed.allApproved) body.allApproved = true;
+    const result = await collectionRequest(
       PETDEX_URL,
       token,
-      "GET",
-      null,
-    )) as { collections: CollectionRecord[] };
+      action === "create" ? "POST" : "PATCH",
+      ref,
+      body,
+    );
     if (json) console.log(JSON.stringify(result));
     else
-      for (const c of result.collections)
-        console.log(`${c.slug}\t${c.title}\t${c.petSlugs.length} pets`);
-    return;
-  }
-  if (action === "delete") {
-    if (!parsed.yes) failCollection("Deletion requires --yes.", json);
-    await collectionRequest(PETDEX_URL, token, "DELETE", ref);
-    if (json) console.log(JSON.stringify({ ok: true }));
-    else console.log(`${pc.green("✓")} Collection deleted`);
-    return;
-  }
-  if (parsed.allApproved) {
-    const approvedResult = (await collectionRequest(
-      PETDEX_URL,
-      token,
-      "GET",
-      null,
-      undefined,
-      "?includeApprovedPetCount=1",
-    )) as { approvedPetCount?: unknown };
-    if (
-      typeof approvedResult.approvedPetCount !== "number" ||
-      !Number.isInteger(approvedResult.approvedPetCount) ||
-      approvedResult.approvedPetCount < 0
-    ) {
-      throw new Error("invalid approved pets response");
-    }
-    if (approvedResult.approvedPetCount > MAX_COLLECTION_PETS) {
-      failCollection(
-        `--all-approved found ${approvedResult.approvedPetCount} approved pets. A collection can contain at most ${MAX_COLLECTION_PETS}; use --pets with a subset.`,
-        json,
+      console.log(
+        `${pc.green("✓")} Collection ${action === "create" ? "created" : "updated"}`,
       );
-    }
-  }
-  const body: Record<string, unknown> = {};
-  if (parsed.title !== null) body.title = parsed.title;
-  if (parsed.description !== null) body.description = parsed.description;
-  if (parsed.petSlugs !== null) body.petSlugs = parsed.petSlugs;
-  if (parsed.coverPetSlug !== null) body.coverPetSlug = parsed.coverPetSlug;
-  if (parsed.externalUrl !== null) body.externalUrl = parsed.externalUrl;
-  if (parsed.allApproved) body.allApproved = true;
-  const result = await collectionRequest(
-    PETDEX_URL,
-    token,
-    action === "create" ? "POST" : "PATCH",
-    ref,
-    body,
-  );
-  if (json) console.log(JSON.stringify(result));
-  else
-    console.log(
-      `${pc.green("✓")} Collection ${action === "create" ? "created" : "updated"}`,
+  } catch (error) {
+    failCollection(
+      error instanceof Error ? error.message : String(error),
+      json,
     );
+  }
 }
 
 async function cmdLogout() {

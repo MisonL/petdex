@@ -30,6 +30,38 @@ export const MAX_COLLECTION_PETS = 24;
 
 const PET_SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
+/**
+ * Whether a boolean flag is set, accepting both `--flag` and `--flag=true`.
+ * Exported because the entrypoint has to answer the same question before it
+ * has parsed the arguments: the first-run notice is suppressed for
+ * machine-readable output, and `--json=true` counts.
+ */
+export function hasBooleanFlag(args: string[], name: string): boolean {
+  const prefix = `${name}=`;
+  const equals = args.find((arg) => arg.startsWith(prefix));
+  if (equals !== undefined) {
+    const value = equals.slice(prefix.length).trim().toLowerCase();
+    return value !== "false" && value !== "0";
+  }
+  return args.includes(name);
+}
+
+/**
+ * Whether a locally-computed member list is definitely going to be rejected.
+ *
+ * Mirrors collectionPetLimitExceeded() on the server: the cap bounds growth, so
+ * only a create — which has no stored members to compare against — can be
+ * decided from the list alone. An edit may legitimately hold more than the cap
+ * (a collection created before it existed), so it is left to the server, which
+ * knows what the row already stores.
+ */
+export function overCollectionPetLimit(
+  action: CollectionAction,
+  memberCount: number,
+): boolean {
+  return action === "create" && memberCount > MAX_COLLECTION_PETS;
+}
+
 const ERROR_MESSAGES: Record<string, string> = {
   collection_cap_reached: "collection limit reached",
   collection_pet_limit: `collection cannot contain more than ${MAX_COLLECTION_PETS} pets; use --pets with at most ${MAX_COLLECTION_PETS} slugs instead of --all-approved`,
@@ -45,6 +77,9 @@ const ERROR_MESSAGES: Record<string, string> = {
   nothing_to_update: "nothing to update",
   not_found: "collection not found or not owned by you",
   pet_not_owned_or_approved: "all pets must be approved and owned by you",
+  pet_slug:
+    "every pet slug must be lowercase letters, digits and single hyphens",
+  pet_slugs: "petSlugs must be a list of pet slugs",
   title_length: "title must be between 2 and 80 characters",
   unauthorized: "not signed in; run `petdex login`",
 };
@@ -67,6 +102,8 @@ export function parseCollectionArgs(args: string[]): ParsedCollectionArgs {
         : null;
   if ((action === "edit" || action === "delete") && !ref)
     throw new Error("missing_collection");
+  const readBoolean = (name: string): boolean => hasBooleanFlag(args, name);
+
   const readFlag = (name: string): string | null => {
     const prefix = `${name}=`;
     const equals = args.find((arg) => arg.startsWith(prefix));
@@ -76,7 +113,7 @@ export function parseCollectionArgs(args: string[]): ParsedCollectionArgs {
     const value = args[index + 1];
     return value !== undefined && !value.startsWith("--") ? value : null;
   };
-  const allApproved = args.includes("--all-approved");
+  const allApproved = readBoolean("--all-approved");
   const petsArg = readFlag("--pets");
   // --all-approved replaces the explicit list server-side, so an oversized or
   // malformed --pets is never sent and must not fail the command locally.
@@ -91,9 +128,20 @@ export function parseCollectionArgs(args: string[]): ParsedCollectionArgs {
               .filter(Boolean),
           ),
         );
+  // `--pets ""` (or `--pets $UNSET_VAR`) parses to an empty list, which the
+  // server reads as "replace the members with nothing" and silently empties
+  // the collection. Refuse it: an accidental empty expansion must not destroy
+  // data, and there is no way to tell the two apart.
+  if (petSlugs !== null && petSlugs.length === 0) throw new Error("empty_pets");
   if (petSlugs?.some((slug) => !PET_SLUG.test(slug)))
     throw new Error("pet_slug");
-  if (petSlugs && petSlugs.length > MAX_COLLECTION_PETS)
+  // Only a create can be judged here. The pet cap bounds growth, so whether an
+  // over-cap list is allowed depends on what the collection already stores: a
+  // row created before the cap existed keeps its members and may still be
+  // renamed or shrunk. A create has no stored row, so over-cap is always a
+  // rejection; an edit knows nothing about the stored members yet and has to
+  // let the server decide instead of blocking a legal rename locally.
+  if (petSlugs && overCollectionPetLimit(action, petSlugs.length))
     throw new Error("collection_pet_limit");
   const title = readFlag("--title");
   if (action === "create" && title === null) throw new Error("missing_title");
@@ -123,8 +171,8 @@ export function parseCollectionArgs(args: string[]): ParsedCollectionArgs {
     coverPetSlug,
     externalUrl,
     allApproved,
-    yes: args.includes("--yes"),
-    json: args.includes("--json"),
+    yes: readBoolean("--yes"),
+    json: readBoolean("--json"),
   };
 }
 
