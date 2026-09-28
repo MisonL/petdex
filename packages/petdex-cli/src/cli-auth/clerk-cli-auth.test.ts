@@ -91,7 +91,9 @@ async function runLogin(options: {
     (value) => ({ ok: true as const, value }),
     (error: Error) => ({ ok: false as const, error }),
   );
-  const page: Response | null = captured ? await (captured as Promise<Response>) : null;
+  const page: Response | null = captured
+    ? await (captured as Promise<Response>)
+    : null;
   return { outcome, page };
 }
 

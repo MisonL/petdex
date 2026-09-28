@@ -1,6 +1,7 @@
 import { createServer, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 
+import { authMessages } from "../../i18n/auth-messages.js";
 import { ClerkCliAuthError } from "../types.js";
 import {
   type CallbackFailureReason,
@@ -283,7 +284,7 @@ export function startAuthServer(
       sendOutcome(
         server,
         { kind: "error", reason: "timeout" },
-        `No response from the authorization server within ${timeoutMs}ms.`,
+        authMessages().callbackTimeout(timeoutMs),
       );
     }, timeoutMs);
 
@@ -311,7 +312,7 @@ export function startAuthServer(
         rejectCallback(
           new ClerkCliAuthError(
             "timeout",
-            `OAuth callback timed out after ${timeoutMs}ms.`,
+            authMessages().callbackTimeout(timeoutMs),
           ),
         );
         closeListening(server);
@@ -327,10 +328,7 @@ export function startAuthServer(
           if (!callbackSettled) {
             callbackSettled = true;
             rejectCallback(
-              new ClerkCliAuthError(
-                "timeout",
-                "OAuth callback server was closed.",
-              ),
+              new ClerkCliAuthError("timeout", authMessages().callbackClosed),
             );
           }
           // Safety net. A sign-in that got as far as the redirect and then

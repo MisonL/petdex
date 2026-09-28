@@ -195,8 +195,18 @@ export class ClerkCliAuth {
   }
 
   async whoami(): Promise<UserInfo | null> {
+    // The cached profile is not evidence of a usable session: `logout` clears
+    // both records through Promise.allSettled, so a half-cleared store can
+    // leave the profile behind with no tokens next to it. Reporting that as
+    // "signed in" hides the problem until some later command 401s, which is
+    // the one place the user cannot act on it. Confirming the credential
+    // first turns a confusing failure into a prompt to sign in again.
     const cachedUser = await this.getJson<UserInfo>("user");
-    if (cachedUser) return cachedUser;
+    if (cachedUser) {
+      const accessToken = await this.getAccessToken();
+      if (!accessToken) return null;
+      return cachedUser;
+    }
 
     const accessToken = await this.getAccessToken();
     if (!accessToken) return null;

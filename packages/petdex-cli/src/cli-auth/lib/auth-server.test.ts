@@ -131,9 +131,8 @@ describe("auth server deferred response", () => {
 
     expect(server.respond({ kind: "success" })).toBe(true);
     expect(server.respond({ kind: "error", reason: "timeout" })).toBe(false);
-    expect(await (await response)!.text()).toContain(
-      'class="chip chip-success"',
-    );
+    const page = await response;
+    expect(await page?.text()).toContain('class="chip chip-success"');
   });
 
   test("reports false when responding after close", async () => {
