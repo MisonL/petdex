@@ -51,8 +51,26 @@ export function defaultAppUrl(env: NodeJS.ProcessEnv = process.env): string {
   return env.PETDEX_URL ?? "https://petdex.dev";
 }
 
+/**
+ * The origin the button may point at.
+ *
+ * The value reaches an `href`, so anything that is not a trustworthy web
+ * address is discarded rather than escaped: `javascript:` and `data:` are
+ * perfectly valid URLs, and the escape below would leave both intact and
+ * clickable. Falling back to the production origin is the safe answer — this
+ * only ever comes from `PETDEX_URL`, and a wrong value is a misconfiguration,
+ * not something the reader should be handed a script from.
+ */
 function resolveAppUrl(appUrl: string): string {
-  return appUrl.replace(/\/+$/, "");
+  try {
+    const url = new URL(appUrl);
+    if (url.protocol === "http:" || url.protocol === "https:") {
+      return appUrl.replace(/\/+$/, "");
+    }
+  } catch {
+    // Not a URL at all. Same answer as a URL with the wrong scheme.
+  }
+  return defaultAppUrl({});
 }
 
 export function escapeHtml(value: string): string {

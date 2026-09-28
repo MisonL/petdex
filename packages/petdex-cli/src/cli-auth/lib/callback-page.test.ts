@@ -140,6 +140,25 @@ describe("callback page success state", () => {
     expect(html).toContain('href="https://staging.test/my-pets"');
   });
 
+  test("refuses an app URL whose scheme is not http or https", () => {
+    // The value lands in an href. `javascript:` and `data:` are valid URLs, so
+    // they survive escaping and stay clickable; only the scheme tells them
+    // apart from a real origin.
+    for (const hostile of [
+      "javascript:alert(1)",
+      "data:text/html,<script>alert(1)</script>",
+    ]) {
+      const html = renderCallbackPage({ kind: "success" }, hostile);
+      expect(html).not.toContain(hostile);
+      expect(html).toContain(`href="${APP_URL}/my-pets"`);
+    }
+  });
+
+  test("refuses an app URL that is not a URL at all", () => {
+    const html = renderCallbackPage({ kind: "success" }, "not a url");
+    expect(html).toContain(`href="${APP_URL}/my-pets"`);
+  });
+
   test("tries to close the tab after five seconds", () => {
     const html = successPage();
     expect(html).toContain("setTimeout(function () { window.close(); }, 5000)");
