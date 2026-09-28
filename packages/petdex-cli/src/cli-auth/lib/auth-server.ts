@@ -41,9 +41,6 @@ export interface AuthServerHandle {
   close(): void;
 }
 
-/** Immediate refusals the redirect itself produces. */
-const EMPTY_CODE = "token_exchange";
-
 function headers(html: string): Record<string, string> {
   return {
     "Content-Type": "text/html; charset=utf-8",
@@ -253,7 +250,7 @@ export function startAuthServer(
         "missing_code",
         400,
         oauthCallbackError(
-          EMPTY_CODE,
+          "token_exchange",
           "OAuth callback did not include an authorization code.",
         ),
       );
@@ -309,13 +306,18 @@ export function startAuthServer(
       timeout = setTimeout(() => {
         if (callbackSettled) return;
         callbackSettled = true;
+        // The listener deliberately stays up. The reader this deadline just
+        // expired for is being redirected to this port right now, and closing
+        // would hand them the browser's own network-error page instead of the
+        // timeout page meant for them. A callback that arrives afterwards is
+        // answered with that page and closes the listener on its way out; if
+        // none ever arrives, `close()` in the caller's `finally` does it.
         rejectCallback(
           new ClerkCliAuthError(
             "timeout",
             authMessages().callbackTimeout(timeoutMs),
           ),
         );
-        closeListening(server);
       }, timeoutMs);
 
       resolve({

@@ -261,6 +261,37 @@ describe("auth server timeouts", () => {
     expect(res?.status).toBe(500);
     expect(await res?.text()).toContain('class="chip chip-danger"');
   });
+
+  test("still serves the timeout page to a callback that arrives late", async () => {
+    // The reader this deadline expired for is being redirected to this port
+    // right now. Closing the listener on the deadline would hand them the
+    // browser's own network-error page instead of the one meant for them.
+    const server = await start({ timeoutMs: 120 });
+    await server.waitForCallback().catch(() => {});
+
+    const res = await fetch(
+      callbackUrl(server, { code: "late", state: STATE }),
+    );
+    expect(res.status).toBe(500);
+    expect(await res.text()).toContain('class="chip chip-danger"');
+  });
+
+  test("refuses a late callback that fails state validation", async () => {
+    const server = await start({ timeoutMs: 120 });
+    await server.waitForCallback().catch(() => {});
+
+    const res = await fetch(callbackUrl(server, { code: "x", state: "wrong" }));
+    expect(res.status).toBe(400);
+  });
+
+  test("releases the port on close after a timeout", async () => {
+    const server = await start({ timeoutMs: 120 });
+    await server.waitForCallback().catch(() => {});
+    server.close();
+
+    const res = await fetch(server.redirectUri).catch(() => null);
+    expect(res).toBeNull();
+  });
 });
 
 describe("auth server page rendering", () => {
