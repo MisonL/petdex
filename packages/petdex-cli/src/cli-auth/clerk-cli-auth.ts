@@ -145,7 +145,26 @@ export class ClerkCliAuth {
       });
       await this.setJson("user", user);
 
+      // Last, and only once every step that can still fail has succeeded.
+      // The browser is holding its connection open until this call, so
+      // answering earlier would report success for a login that then failed
+      // to save its credentials — the same mismatch this deferral exists to
+      // remove, just moved one step later.
+      server.respond({ kind: "success" });
       return { tokens, user };
+    } catch (error) {
+      // Also reached when the opener rejects after the browser has already
+      // delivered its callback, which is the case where only this call can
+      // tell the reader anything. A no-op if the response was already sent.
+      const reason = (error as { code?: unknown }).code;
+      server.respond({
+        kind: "error",
+        reason:
+          reason === "userinfo" || reason === "storage"
+            ? (`${reason}_failed` as const)
+            : "token_exchange_failed",
+      });
+      throw error;
     } finally {
       server.close();
     }

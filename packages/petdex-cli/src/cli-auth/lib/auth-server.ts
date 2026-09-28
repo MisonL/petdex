@@ -1,7 +1,12 @@
-import { createServer, type Server } from "node:http";
+import { createServer, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 
 import { ClerkCliAuthError } from "../types.js";
+import {
+  type CallbackFailureReason,
+  type CallbackOutcome,
+  renderCallbackPage,
+} from "./callback-page.js";
 
 export interface AuthServerOptions {
   expectedState: string;
@@ -9,26 +14,48 @@ export interface AuthServerOptions {
   timeoutMs?: number;
   successHtml?: string;
   errorHtml?: string;
+  /** Origin the success page's button points at. Defaults to the CLI's. */
+  appUrl?: string;
 }
 
 export interface AuthServerHandle {
   port: number;
   redirectUri: string;
+  /**
+   * The redirect arrived and carried a usable authorization code. Resolves as
+   * soon as the code is validated — the browser is still waiting for its page
+   * at this point, and stays waiting until `respond` is called.
+   */
   waitForCallback(): Promise<{ code: string; state: string }>;
+  /**
+   * Write the page the browser has been waiting for.
+   *
+   * Deferred on purpose: the code exchange, the userinfo call and the keychain
+   * write all happen between `waitForCallback` and this call, and the page has
+   * to report their outcome rather than the redirect's. Idempotent, never
+   * throws, never blocks — a second call (or a timeout that already answered)
+   * is a no-op returning false.
+   */
+  respond(outcome: CallbackOutcome): boolean;
   close(): void;
 }
 
-const DEFAULT_SUCCESS_HTML = `<!doctype html>
-<html>
-<head><meta charset="utf-8"><title>Authentication complete</title></head>
-<body><h1>Authentication complete</h1><p>You can close this tab and return to your terminal.</p></body>
-</html>`;
+/** Immediate refusals the redirect itself produces. */
+const EMPTY_CODE = "token_exchange";
 
-const DEFAULT_ERROR_HTML = `<!doctype html>
-<html>
-<head><meta charset="utf-8"><title>Authentication failed</title></head>
-<body><h1>Authentication failed</h1><p>You can close this tab and return to your terminal.</p></body>
-</html>`;
+function headers(html: string): Record<string, string> {
+  return {
+    "Content-Type": "text/html; charset=utf-8",
+    "Content-Length": String(Buffer.byteLength(html)),
+    // The full app CSP is deliberately not reused: it carries
+    // `upgrade-insecure-requests`, which would rewrite this page's own
+    // http://127.0.0.1 origin to https and break it.
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+    "Cache-Control": "no-store",
+    "X-Frame-Options": "DENY",
+  };
+}
 
 function oauthCallbackError(code: string, message: string): ClerkCliAuthError {
   return new ClerkCliAuthError(code, message);
@@ -41,13 +68,29 @@ export function startAuthServer(
     expectedState,
     port = 0,
     timeoutMs = 120_000,
-    successHtml = DEFAULT_SUCCESS_HTML,
-    errorHtml = DEFAULT_ERROR_HTML,
+    successHtml,
+    errorHtml,
+    appUrl,
   } = options;
 
+  const pageFor = (outcome: CallbackOutcome, detail?: string): string => {
+    if (outcome.kind === "success" && successHtml !== undefined)
+      return successHtml;
+    // An injected errorHtml is a single string and so cannot distinguish
+    // reasons. That is the documented behaviour: the terminal is the source
+    // of truth for why a login failed.
+    if (outcome.kind === "error" && errorHtml !== undefined) return errorHtml;
+    return renderCallbackPage(outcome, appUrl, detail);
+  };
+
   let timeout: NodeJS.Timeout | undefined;
-  let settled = false;
   let closed = false;
+  /** The callback has been consumed: accepted, refused, timed out or torn down. */
+  let callbackSettled = false;
+  /** The browser has been answered. */
+  let responseSent = false;
+  /** The held-open response, while we wait on the exchange. */
+  let pendingResponse: ServerResponse | null = null;
   let resolveCallback!: (value: { code: string; state: string }) => void;
   let rejectCallback!: (reason: ClerkCliAuthError) => void;
 
@@ -57,6 +100,11 @@ export function startAuthServer(
       rejectCallback = reject;
     },
   );
+  // `login()` may never await this promise: if the browser opener throws
+  // first, nothing consumes the rejection that `close()` then produces.
+  // Attaching a no-op handler marks it observed; awaiting it later still
+  // rejects with the same error.
+  void callbackPromise.catch(() => {});
 
   const closeListening = (server: Server) => {
     if (closed) return;
@@ -64,13 +112,67 @@ export function startAuthServer(
     server.close();
   };
 
-  const server = createServer((req, res) => {
-    if (settled) {
-      res.writeHead(410, { "Content-Type": "text/plain; charset=utf-8" });
-      res.end("Authentication callback already handled.");
-      return;
-    }
+  const isAlive = (res: ServerResponse | null): res is ServerResponse =>
+    res !== null &&
+    !res.writableEnded &&
+    !res.destroyed &&
+    res.socket !== null &&
+    !res.socket.destroyed;
 
+  /** A response we no longer need — the client is gone, or a newer one replaced it. */
+  const endQuietly = (res: ServerResponse, status: number, body: string) => {
+    if (!isAlive(res)) return;
+    try {
+      res.writeHead(status, {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-store",
+        "X-Content-Type-Options": "nosniff",
+      });
+      res.end(body);
+    } catch {
+      // The socket died between the check and the write. Nothing to do.
+    }
+  };
+
+  function sendOutcome(
+    server: Server,
+    outcome: CallbackOutcome,
+    detail?: string,
+  ): boolean {
+    if (responseSent) return false;
+    responseSent = true;
+    if (timeout) clearTimeout(timeout);
+    const target = pendingResponse;
+    pendingResponse = null;
+    if (!isAlive(target)) {
+      closeListening(server);
+      return false;
+    }
+    try {
+      const html = pageFor(outcome, detail);
+      target.writeHead(outcome.kind === "success" ? 200 : 500, headers(html));
+      // Closing the listener here rather than after `end` returns is
+      // measured behaviour, not style: a keep-alive connection that has just
+      // been written to stays in the server's handle set until
+      // `keepAliveTimeout`, which holds the event loop open and keeps
+      // `petdex login` from exiting for up to five seconds.
+      target.end(html, () => closeListening(server));
+    } catch {
+      closeListening(server);
+      return false;
+    }
+    return true;
+  }
+
+  const server = createServer((req, res) => {
+    // Requests are surfaced to the caller as events only — an unhandled
+    // 'error' on a response stream (a client that vanished mid-write) would
+    // otherwise become an uncaught exception and take the CLI down.
+    res.on("error", () => {});
+
+    // Method and path are checked before whether the callback was consumed,
+    // so that a favicon or a stray path requested while we hold the response
+    // open still gets an ordinary 404 rather than "already handled".
     if (req.method !== "GET" || !req.url) {
       res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
       res.end("Not found");
@@ -89,28 +191,42 @@ export function startAuthServer(
     const error = url.searchParams.get("error");
     const errorDescription = url.searchParams.get("error_description") ?? error;
 
-    const settle = (
+    const failure = (
+      reason: CallbackFailureReason,
       statusCode: number,
-      html: string,
-      errorToReject?: ClerkCliAuthError,
+      err: ClerkCliAuthError,
     ) => {
-      settled = true;
-      if (timeout) clearTimeout(timeout);
-      res.writeHead(statusCode, { "Content-Type": "text/html; charset=utf-8" });
-      res.end(html, () => {
-        if (errorToReject) {
-          rejectCallback(errorToReject);
-        } else if (code && state) {
-          resolveCallback({ code, state });
+      // A bogus request must not be able to disturb the legitimate response we
+      // are holding: it answers only itself and leaves every piece of state
+      // alone.
+      if (callbackSettled) {
+        const html = pageFor({ kind: "error", reason });
+        if (!isAlive(res)) return;
+        try {
+          res.writeHead(statusCode, headers(html));
+          res.end(html);
+        } catch {
+          // Client already gone.
         }
+        return;
+      }
+      callbackSettled = true;
+      responseSent = true;
+      if (timeout) clearTimeout(timeout);
+      const html = pageFor({ kind: "error", reason }, err.message);
+      try {
+        res.writeHead(statusCode, headers(html));
+        res.end(html, () => closeListening(server));
+      } catch {
         closeListening(server);
-      });
+      }
+      rejectCallback(err);
     };
 
     if (error) {
-      settle(
+      failure(
+        "authorization_denied",
         400,
-        errorHtml,
         oauthCallbackError(
           "token_exchange",
           `OAuth authorization failed: ${errorDescription ?? "unknown error"}`,
@@ -120,9 +236,9 @@ export function startAuthServer(
     }
 
     if (state !== expectedState) {
-      settle(
+      failure(
+        "state_mismatch",
         400,
-        errorHtml,
         oauthCallbackError(
           "state_mismatch",
           "OAuth callback state did not match.",
@@ -132,18 +248,46 @@ export function startAuthServer(
     }
 
     if (!code) {
-      settle(
+      failure(
+        "missing_code",
         400,
-        errorHtml,
         oauthCallbackError(
-          "token_exchange",
+          EMPTY_CODE,
           "OAuth callback did not include an authorization code.",
         ),
       );
       return;
     }
 
-    settle(200, successHtml);
+    // A valid code, and the one case that does not answer immediately.
+    if (callbackSettled && pendingResponse !== null) {
+      // The reader reloaded or reopened the callback. The superseded response
+      // has to be ended, not just dropped: `server.close()` deliberately keeps
+      // connections that are still waiting for their response, so an abandoned
+      // one would pin the event loop.
+      endQuietly(pendingResponse, 409, "Superseded by a newer callback.");
+      pendingResponse = null;
+    }
+    const firstCallback = !callbackSettled;
+    callbackSettled = true;
+    pendingResponse = res;
+    res.on("close", () => {
+      if (pendingResponse === res) pendingResponse = null;
+    });
+
+    // Restart the clock rather than sharing phase one's budget. A reader who
+    // spent 115 seconds on the consent screen would otherwise leave five
+    // seconds for the exchange.
+    if (timeout) clearTimeout(timeout);
+    timeout = setTimeout(() => {
+      sendOutcome(
+        server,
+        { kind: "error", reason: "timeout" },
+        `No response from the authorization server within ${timeoutMs}ms.`,
+      );
+    }, timeoutMs);
+
+    if (firstCallback) resolveCallback({ code, state });
   });
 
   return new Promise<AuthServerHandle>((resolve, reject) => {
@@ -162,8 +306,8 @@ export function startAuthServer(
       const redirectUri = `http://127.0.0.1:${actualPort}/callback`;
 
       timeout = setTimeout(() => {
-        if (settled) return;
-        settled = true;
+        if (callbackSettled) return;
+        callbackSettled = true;
         rejectCallback(
           new ClerkCliAuthError(
             "timeout",
@@ -177,10 +321,11 @@ export function startAuthServer(
         port: actualPort,
         redirectUri,
         waitForCallback: () => callbackPromise,
+        respond: (outcome) => sendOutcome(server, outcome),
         close: () => {
           if (timeout) clearTimeout(timeout);
-          if (!settled) {
-            settled = true;
+          if (!callbackSettled) {
+            callbackSettled = true;
             rejectCallback(
               new ClerkCliAuthError(
                 "timeout",
@@ -188,7 +333,18 @@ export function startAuthServer(
               ),
             );
           }
-          closeListening(server);
+          // Safety net. A sign-in that got as far as the redirect and then
+          // failed without anyone calling `respond` — an injected opener
+          // rejecting after the browser already finished — would otherwise
+          // leave the tab spinning forever, with its connection pinning the
+          // event loop and keeping `petdex login` alive. The reason stays
+          // generic on purpose: the specifics belong to whoever knew them,
+          // and a wrong reason is worse than a vague one.
+          if (
+            !responseSent &&
+            !sendOutcome(server, { kind: "error", reason: "closed" })
+          )
+            closeListening(server);
         },
       });
     });
