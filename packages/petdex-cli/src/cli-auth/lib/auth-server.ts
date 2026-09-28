@@ -189,7 +189,32 @@ export function startAuthServer(
     const error = url.searchParams.get("error");
     const errorDescription = url.searchParams.get("error_description") ?? error;
 
-    const failure = (
+    /**
+     * Answer this request and nothing else.
+     *
+     * Used for every request that has not proven it carries the state this
+     * server generated. Anything on the machine — and any web page the reader
+     * has open, which can reach loopback without reading the response — can
+     * send `/callback?error=x` or `/callback` and would otherwise be able to
+     * decide the outcome of a login it knows nothing about. Such a request
+     * must not set a flag, move a deadline, or settle the promise.
+     */
+    const answerOnly = (reason: CallbackFailureReason, statusCode: number) => {
+      const html = pageFor({ kind: "error", reason });
+      if (!isAlive(res)) return;
+      try {
+        res.writeHead(statusCode, headers(html));
+        res.end(html);
+      } catch {
+        // Client already gone.
+      }
+    };
+
+    /**
+     * Refuse the login itself. Only reachable once the request has proven it
+     * carries the expected state, so a stranger cannot end the attempt.
+     */
+    const refuseLogin = (
       reason: CallbackFailureReason,
       statusCode: number,
       err: ClerkCliAuthError,
@@ -198,14 +223,7 @@ export function startAuthServer(
       // are holding: it answers only itself and leaves every piece of state
       // alone.
       if (callbackSettled) {
-        const html = pageFor({ kind: "error", reason });
-        if (!isAlive(res)) return;
-        try {
-          res.writeHead(statusCode, headers(html));
-          res.end(html);
-        } catch {
-          // Client already gone.
-        }
+        answerOnly(reason, statusCode);
         return;
       }
       callbackSettled = true;
@@ -221,8 +239,16 @@ export function startAuthServer(
       rejectCallback(err);
     };
 
+    // State is checked first, so that a request which cannot prove it belongs
+    // to this login is only ever answered for itself. Checking `error` first
+    // would let any caller cancel the attempt by asking for a refusal.
+    if (state !== expectedState) {
+      answerOnly("state_mismatch", 400);
+      return;
+    }
+
     if (error) {
-      failure(
+      refuseLogin(
         "authorization_denied",
         400,
         oauthCallbackError(
@@ -233,20 +259,8 @@ export function startAuthServer(
       return;
     }
 
-    if (state !== expectedState) {
-      failure(
-        "state_mismatch",
-        400,
-        oauthCallbackError(
-          "state_mismatch",
-          "OAuth callback state did not match.",
-        ),
-      );
-      return;
-    }
-
     if (!code) {
-      failure(
+      refuseLogin(
         "missing_code",
         400,
         oauthCallbackError(

@@ -169,7 +169,10 @@ describe("auth server rejected callbacks", () => {
     expect(error.code).toBe("token_exchange");
   });
 
-  test("rejects a mismatched state", async () => {
+  test("answers a mismatched state without settling the login", async () => {
+    // The mismatch is reported to the caller that made it, and to nobody
+    // else. Letting it reject the login would hand every web page the reader
+    // has open a way to cancel a sign-in by asking for a refusal.
     const server = await start();
     const pending = server.waitForCallback().catch((error: Error) => error);
 
@@ -179,7 +182,7 @@ describe("auth server rejected callbacks", () => {
 
     expect(res.status).toBe(400);
     expect(await res.text()).toContain("state");
-    expect(((await pending) as ClerkCliAuthError).code).toBe("state_mismatch");
+    expect(((await pending) as ClerkCliAuthError).code).toBe("timeout");
   });
 
   test("rejects a callback with no code", async () => {
@@ -224,6 +227,69 @@ describe("auth server while a response is held", () => {
     );
     expect(bogus.status).toBe(400);
 
+    expect(server.respond({ kind: "success" })).toBe(true);
+    expect(await statusOf(held.response)).toBe(200);
+  });
+
+  test("lets a forged callback answer only itself, not the login", async () => {
+    // A page the reader has open, or anything else on the machine, can reach
+    // loopback without being able to read the response. If a request that
+    // cannot prove it carries the expected state were allowed to settle the
+    // callback, any of them could cancel a sign-in it knows nothing about by
+    // asking for a refusal. Each of these must get its own 400 and leave the
+    // login exactly as it was.
+    const forgeries: Record<string, string>[] = [
+      { error: "access_denied", state: "not-the-state" },
+      { code: "x", state: "not-the-state" },
+      { state: "not-the-state" },
+      { error: "access_denied" },
+      {},
+    ];
+
+    for (const query of forgeries) {
+      // A deadline well past this iteration, so the assertions below are about
+      // what the forgery did and not about how fast the machine is.
+      const server = await start({ timeoutMs: 5_000 });
+      let outcome: unknown;
+      const pending = server.waitForCallback().then(
+        (value) => (outcome = value),
+        (error: Error) => (outcome = error),
+      );
+
+      const res = await fetch(callbackUrl(server, query));
+      expect(res.status).toBe(400);
+      expect(await res.text()).toContain("state");
+
+      // Still undecided: the forgery neither settled the promise nor spent
+      // the response.
+      expect(await stillPending(pending)).toBe(true);
+      expect(outcome).toBeUndefined();
+
+      // Proof the held response was left alone: a real callback that arrives
+      // afterwards is still served.
+      const real = beginFetch(
+        callbackUrl(server, { code: "abc", state: STATE }),
+      );
+      expect(await server.waitForCallback()).toEqual({
+        code: "abc",
+        state: STATE,
+      });
+      expect(server.respond({ kind: "success" })).toBe(true);
+      expect(await statusOf(real.response)).toBe(200);
+    }
+  });
+
+  test("answers a forged callback while a real one is held", async () => {
+    const server = await start();
+    const held = beginFetch(callbackUrl(server, { code: "abc", state: STATE }));
+    await server.waitForCallback();
+
+    const forged = await fetch(
+      callbackUrl(server, { error: "access_denied", state: "not-the-state" }),
+    );
+    expect(forged.status).toBe(400);
+
+    // The refusal is the forgery's alone; the held page is untouched.
     expect(server.respond({ kind: "success" })).toBe(true);
     expect(await statusOf(held.response)).toBe(200);
   });
