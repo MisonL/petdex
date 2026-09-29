@@ -63,6 +63,22 @@ export function shouldBlockKnownAbusiveClient(
   return BLOCKED_USER_AGENTS.some((blocked) => userAgent.includes(blocked));
 }
 
+/**
+ * Rate-limit key for a request.
+ *
+ * Both headers are trustworthy where this runs, and neither is elsewhere.
+ * Vercel overwrites `x-forwarded-for` on every request and does not forward a
+ * client-supplied value — "This restriction is in place to prevent IP
+ * spoofing" — and `x-real-ip` is documented as carrying the same value. So on
+ * the deployment this app targets, a caller cannot pick their own bucket.
+ *
+ * Off Vercel they can: behind no proxy, both headers arrive as sent, and
+ * rotating them hands each request a fresh quota. That is a property of
+ * running the app directly (`bun run dev`, the docker stack), not a defect to
+ * paper over here — a limiter that ignored the headers would have no client
+ * identity to key on at all. Anything that puts this app behind a different
+ * proxy has to make that proxy set them the way Vercel does.
+ */
 export function publicTrafficGuardKey(headers: HeaderBag | undefined): string {
   const ip =
     readHeader(headers, "x-real-ip") ||
