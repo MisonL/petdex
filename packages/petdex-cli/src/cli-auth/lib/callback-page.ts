@@ -183,7 +183,7 @@ export const LOCALES_FOR_TEST = LOCALES;
  * would close the element early and spill the rest into the document. The
  * escape is valid JSON and parses back to the original character.
  */
-function safeJson(value: unknown): string {
+export function safeJson(value: unknown): string {
   return JSON.stringify(value).replaceAll("<", "\\u003c");
 }
 

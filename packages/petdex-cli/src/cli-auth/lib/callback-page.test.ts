@@ -10,6 +10,7 @@ import {
   escapeHtml,
   LOCALES_FOR_TEST,
   renderCallbackPage,
+  safeJson,
 } from "./callback-page";
 
 const REASONS: CallbackFailureReason[] = [
@@ -252,6 +253,24 @@ function runPageScript(html: string, language = "en") {
     nodes.find((n) => n.role === role)?.textContent ?? null;
   return { text, nodes };
 }
+
+describe("callback page JSON embedding", () => {
+  test("escapes an angle bracket so a string cannot close the script block", () => {
+    // The real tables contain no `<`, so asserting on a rendered page proves
+    // nothing about the escape — delete it and the page still has no `<`.
+    // This drives a hostile value through the function that guards it.
+    const hostile = "</script><script>alert(1)</script>";
+    const payload = safeJson({ strings: { en: { title: hostile } } });
+
+    // No raw `<` survives, so the element cannot be closed early.
+    expect(payload).not.toContain("<");
+    expect(payload).toContain("\\u003c");
+    // The escape is valid JSON and parses back to the original character.
+    expect(JSON.parse(payload)).toEqual({
+      strings: { en: { title: hostile } },
+    });
+  });
+});
 
 describe("callback page after its script runs", () => {
   test("keeps the detail line the server rendered", () => {
