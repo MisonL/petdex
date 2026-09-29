@@ -385,6 +385,41 @@ describe("auth server while a response is held", () => {
   });
 });
 
+describe("auth server after the login is answered", () => {
+  test("answers a callback that arrives on an already-open connection", async () => {
+    // A connection accepted before the listener closed can have its request
+    // parsed after `respond()` has run. Holding it would leave a socket that
+    // nothing can ever answer — `sendOutcome` returns early once
+    // `responseSent` is set — so the tab would spin until the process exits.
+    const server = await start();
+    const socket = connect(server.port, "127.0.0.1");
+    await new Promise<void>((resolve) => socket.on("connect", () => resolve()));
+
+    const first = beginFetch(
+      callbackUrl(server, { code: "one", state: STATE }),
+    );
+    await server.waitForCallback();
+    expect(server.respond({ kind: "success" })).toBe(true);
+    expect(await statusOf(first.response)).toBe(200);
+
+    const reply = await new Promise<string>((resolve) => {
+      let buf = "";
+      socket.on("data", (chunk) => (buf += chunk));
+      socket.on("close", () => resolve(buf.split("\r\n")[0] ?? ""));
+      socket.on("error", () => resolve("error"));
+      socket.write(
+        `GET /callback?code=two&state=${STATE} HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n`,
+      );
+      setTimeout(() => {
+        socket.destroy();
+        resolve("no response");
+      }, 1500);
+    });
+
+    expect(reply).toContain("409");
+  });
+});
+
 describe("auth server timeouts", () => {
   test("rejects when no callback arrives in time", async () => {
     const server = await start({ timeoutMs: 120 });
@@ -407,9 +442,12 @@ describe("auth server timeouts", () => {
   });
 
   test("still serves the timeout page to a callback that arrives late", async () => {
-    // The reader this deadline expired for is being redirected to this port
-    // right now. Closing the listener on the deadline would hand them the
-    // browser's own network-error page instead of the one meant for them.
+    // Pins the module's contract, not a user-visible outcome: the deadline
+    // leaves the listener up so an in-flight request is answered rather than
+    // refused. In the real flow `login()` answers and closes within a tick of
+    // the rejection, so a reader who only arrives after the timeout gets the
+    // browser's own error page — keeping the process alive for them would
+    // mean outliving the failure that just ended the login.
     const server = await start({ timeoutMs: 120 });
     await server.waitForCallback().catch(() => {});
 

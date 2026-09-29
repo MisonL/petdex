@@ -324,6 +324,16 @@ export function startAuthServer(
       return;
     }
 
+    // The login has already been answered, so this cannot belong to it — it
+    // is a reader reloading a finished page, or a stale tab. Holding it would
+    // leave a connection that nothing can ever answer: `sendOutcome` returns
+    // early once `responseSent` is set, so the page would spin until the
+    // process exits. Answer it for itself, the way a mismatched state is.
+    if (responseSent) {
+      endQuietly(res, 409, "This login is already complete.");
+      return;
+    }
+
     // A valid code, and the one case that does not answer immediately.
     if (callbackSettled && pendingResponse !== null) {
       // The reader reloaded or reopened the callback. The superseded response
@@ -373,12 +383,14 @@ export function startAuthServer(
       timeout = setTimeout(() => {
         if (callbackSettled) return;
         callbackSettled = true;
-        // The listener deliberately stays up. The reader this deadline just
-        // expired for is being redirected to this port right now, and closing
-        // would hand them the browser's own network-error page instead of the
-        // timeout page meant for them. A callback that arrives afterwards is
-        // answered with that page and closes the listener on its way out; if
-        // none ever arrives, `close()` in the caller's `finally` does it.
+        // The listener is left up rather than closed here, so that a request
+        // already in flight is answered instead of refused. It does not stay
+        // up for long: the caller's `respond()` and then its `close()` — and
+        // `login()` always runs both — release the port within a tick, and the
+        // process exits with the caller. A reader who only reaches the port
+        // after that gets the browser's own network-error page, because
+        // serving them would mean keeping the CLI alive past its own failure.
+        // Closing here would only widen that window by a few microseconds.
         rejectCallback(
           new ClerkCliAuthError(
             "timeout",
