@@ -313,6 +313,46 @@ describe("callback page after its script runs", () => {
   });
 });
 
+describe("callback page fonts", () => {
+  test("inlines both faces as decodable woff2 data URIs", () => {
+    // The listener is closed by the time the page renders, so the page can
+    // never fetch a font file — the faces have to be inside the document. The
+    // data URI is also the one thing an import assertion would silently
+    // empty: `import ... with { type: "base64" }` bundles to `""` under
+    // `bun build` with no warning, and the page then renders in the system
+    // face with nothing failing. Decoding the payload is what catches that.
+    const html = renderCallbackPage({ kind: "success" }, "https://petdex.dev");
+    const uris = html.match(/data:font\/woff2;base64,[^)]+/g) ?? [];
+
+    expect(uris).toHaveLength(2);
+    for (const uri of uris) {
+      const bytes = Buffer.from(uri.split(",")[1], "base64");
+      // `wOF2` is the woff2 magic. A truncated or emptied payload would not
+      // carry it, and a 72-byte one is what a broken wrap produces.
+      expect(bytes.subarray(0, 4).toString("latin1")).toBe("wOF2");
+      expect(bytes.byteLength).toBeGreaterThan(4_000);
+    }
+  });
+
+  test("names the site's faces before the system fallbacks", () => {
+    // The stack order is what makes the CJK copy work: Geist carries no CJK
+    // glyphs, so those characters have to fall through to the system face.
+    const html = renderCallbackPage({ kind: "success" }, "https://petdex.dev");
+    expect(html).toContain('font-family: "Geist", ui-sans-serif');
+    expect(html).toContain('font-family: "Geist Mono", ui-monospace');
+  });
+
+  test("declares the colour scheme before the stylesheet", () => {
+    // So the first frame is painted with the right background rather than
+    // flashing the light one while the style block is parsed.
+    const html = renderCallbackPage({ kind: "success" }, "https://petdex.dev");
+    const meta = html.indexOf('name="color-scheme"');
+    const style = html.indexOf("<style>");
+    expect(meta).toBeGreaterThan(-1);
+    expect(meta).toBeLessThan(style);
+  });
+});
+
 describe("callback page helpers", () => {
   test("escapes the five markup-significant characters", () => {
     expect(escapeHtml(`<a href="x">&'`)).toBe(

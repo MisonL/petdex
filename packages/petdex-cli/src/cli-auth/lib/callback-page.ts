@@ -20,6 +20,11 @@
  * been exchanged, which is exactly the window the deferred response exists
  * to cover.
  */
+import {
+  GEIST_MONO_WOFF2_BASE64,
+  GEIST_SANS_WOFF2_BASE64,
+} from "./callback-fonts.js";
+
 export type CallbackFailureReason =
   | "authorization_denied"
   | "state_mismatch"
@@ -192,6 +197,39 @@ export function safeJson(value: unknown): string {
  * `globals.css`, copied rather than imported: this package ships on its own
  * and has no build step that could inline the app's stylesheet.
  */
+/**
+ * The same faces the website uses, inlined as data URIs.
+ *
+ * The listener is already closed by the time the page renders, so a font
+ * request would fail; the only way to follow the site's type is to carry it.
+ * See `callback-fonts.ts` for the subset and `scripts/build-callback-fonts.ts`
+ * for how it is produced.
+ *
+ * `font-display: swap` rather than `block`: the data is already in the
+ * document, so there is no network wait to hide, and `swap` keeps a decode
+ * that somehow fails from holding the text invisible.
+ *
+ * The stack names Geist first and keeps the system faces behind it, which is
+ * what makes the CJK copy work — Geist has no CJK glyphs, so those characters
+ * fall through to the system face exactly as they do on the website.
+ */
+const FONT_FACES = `
+@font-face {
+  font-family: "Geist";
+  src: url(data:font/woff2;base64,${GEIST_SANS_WOFF2_BASE64}) format("woff2");
+  font-weight: 400 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Geist Mono";
+  src: url(data:font/woff2;base64,${GEIST_MONO_WOFF2_BASE64}) format("woff2");
+  font-weight: 400 600;
+  font-style: normal;
+  font-display: swap;
+}
+`;
+
 const STYLES = `
 :root {
   color-scheme: light dark;
@@ -234,8 +272,8 @@ body {
   padding: 24px;
   background: var(--bg-app);
   color: var(--text-default);
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, "PingFang SC", "Hiragino Sans GB",
+  font-family: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    Roboto, "Helvetica Neue", Arial, "PingFang SC", "Hiragino Sans GB",
     "Microsoft YaHei", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -252,7 +290,8 @@ body {
 .mark { display: block; margin: 0 auto 20px; width: 40px; height: 40px; }
 .eyebrow {
   margin: 0 0 20px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas,
+    monospace;
   font-size: 10px;
   font-weight: 500;
   letter-spacing: 0.22em;
@@ -409,8 +448,12 @@ export function renderCallbackPage(
     '<meta charset="utf-8">',
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
     '<meta name="robots" content="noindex, nofollow">',
+    // Ahead of the stylesheet so the browser paints the right background on
+    // the first frame rather than flashing the light one. The CSS also sets
+    // `color-scheme`, but only once the style block has been parsed.
+    '<meta name="color-scheme" content="light dark">',
     `<title>${escapeHtml(STRINGS.en.eyebrow)}</title>`,
-    `<style>${STYLES}</style>`,
+    `<style>${FONT_FACES}${STYLES}</style>`,
     "</head>",
     "<body>",
     '<main class="card">',

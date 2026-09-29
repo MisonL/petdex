@@ -179,8 +179,11 @@ describe("auth server deferred response", () => {
     server.respond({ kind: "success" });
 
     const res = await response;
+    // `font-src data:` is the only allowance beyond the inline style and
+    // script: the page carries the site's two faces inline, and the listener
+    // is already closed by the time it renders, so it cannot fetch them.
     expect(res?.headers.get("content-security-policy")).toBe(
-      "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'",
+      "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; font-src data:",
     );
     expect(res?.headers.get("x-content-type-options")).toBe("nosniff");
     expect(res?.headers.get("referrer-policy")).toBe("no-referrer");

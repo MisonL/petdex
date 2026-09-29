@@ -58,6 +58,11 @@ export interface AuthServerHandle {
  * which a self-contained page needs, and a wider policy here would only widen
  * what an injected element could reach.
  *
+ * `font-src data:` is the one addition, for the two inlined faces the page
+ * carries. It does not widen what an injected element could reach: a `data:`
+ * URI cannot make a request, and every remote font stays blocked by the
+ * `default-src 'none'` this is layered on.
+ *
  * `upgrade-insecure-requests` is *not* the reason, though it looks like it
  * should be. Loopback is a potentially-trustworthy origin, so browsers exempt
  * it from that directive. Measured: a subresource on `http://127.0.0.1` loads
@@ -65,7 +70,7 @@ export interface AuthServerHandle {
  * same address is upgraded to https and fails.
  */
 const PAGE_CSP =
-  "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'";
+  "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; font-src data:";
 
 function headers(html: string): Record<string, string> {
   return {
