@@ -217,7 +217,20 @@ export function startAuthServer(
       return;
     }
 
-    const url = new URL(req.url, "http://127.0.0.1");
+    // A request target is not guaranteed to parse. `GET //` is the cheapest
+    // example — it is a valid request line that `new URL()` rejects — and an
+    // uncaught throw here takes the whole CLI down mid-login, since this
+    // handler is the only thing running. Anything unparseable is simply not
+    // the callback.
+    let url: URL;
+    try {
+      url = new URL(req.url, "http://127.0.0.1");
+    } catch {
+      res.writeHead(404, textHeaders());
+      res.end("Clerk CLI auth server is waiting for /callback.");
+      return;
+    }
+
     if (url.pathname !== "/callback") {
       res.writeHead(404, textHeaders());
       res.end("Clerk CLI auth server is waiting for /callback.");

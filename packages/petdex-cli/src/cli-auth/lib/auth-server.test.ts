@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
+import { connect } from "node:net";
 
 import { ClerkCliAuthError } from "../types";
 import { type AuthServerHandle, startAuthServer } from "./auth-server";
@@ -70,6 +71,48 @@ async function stillPending(promise: Promise<unknown>): Promise<boolean> {
     (await Promise.race([promise, Bun.sleep(20).then(() => marker)])) === marker
   );
 }
+
+/** Send a raw request line, bypassing fetch's normalisation of the target. */
+function rawRequest(port: number, target: string): Promise<string> {
+  return new Promise((resolve) => {
+    const socket = connect(port, "127.0.0.1", () => {
+      socket.write(
+        `GET ${target} HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n`,
+      );
+    });
+    let buf = "";
+    socket.on("data", (chunk) => (buf += chunk));
+    socket.on("close", () => resolve(buf.split("\r\n")[0] ?? ""));
+    socket.on("error", (error) => resolve(`error: ${error.message}`));
+    setTimeout(() => {
+      socket.destroy();
+      resolve(buf.split("\r\n")[0] ?? "timeout");
+    }, 800);
+  });
+}
+
+describe("auth server malformed request targets", () => {
+  test("answers an unparseable request target instead of throwing", async () => {
+    // `new URL()` rejects some valid request lines — `GET //` is the cheapest
+    // to send. An uncaught throw here kills the CLI mid-login, because this
+    // handler is the only thing running.
+    const server = await start();
+    const targets = ["//", "///", "http://[", "http://:80/"];
+
+    for (const target of targets) {
+      const status = await rawRequest(server.port, target);
+      expect(status).toContain("404");
+    }
+
+    // The server survived all of them and still serves the callback.
+    const { response } = beginFetch(
+      callbackUrl(server, { code: "abc", state: STATE }),
+    );
+    await server.waitForCallback();
+    expect(server.respond({ kind: "success" })).toBe(true);
+    expect(await statusOf(response)).toBe(200);
+  });
+});
 
 describe("auth server deferred response", () => {
   test("holds the page until respond is called, then answers with the success page", async () => {
