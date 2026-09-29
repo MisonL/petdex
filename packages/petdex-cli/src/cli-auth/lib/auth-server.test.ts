@@ -96,7 +96,12 @@ describe("auth server malformed request targets", () => {
     // `new URL()` rejects some valid request lines — `GET //` is the cheapest
     // to send. An uncaught throw here kills the CLI mid-login, because this
     // handler is the only thing running.
-    const server = await start();
+    // A generous deadline on purpose. This case makes four raw round-trips
+    // before the real callback, and the default 150ms is a budget for the
+    // reader's browsing, not for the test's own traffic — on a loaded machine
+    // the first-phase clock would expire mid-test and the failure would look
+    // like a broken server rather than a slow one.
+    const server = await start({ timeoutMs: 5_000 });
     const targets = ["//", "///", "http://[", "http://:80/"];
 
     for (const target of targets) {
