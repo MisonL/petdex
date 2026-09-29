@@ -108,11 +108,19 @@ instancer.instantiateVariableFont(
     font, {"wght": (lo, hi)}, inplace=True, updateFontNames=False
 )
 # fontTools stamps head.modified with the current time on save, which makes
-# the output differ on every run and the committed file unreproducible. Pin it
-# to the source font's own created value, which is fixed in the tarball.
+# the output differ on every run. Pin it to the source font's own created
+# value, which is fixed in the tarball.
 font["head"].modified = font["head"].created
 font.flavor = "woff2"
 font.save(out)
+
+# One difference survives that pin and cannot be removed: woff2's brotli
+# compression is not byte-stable across fontTools or brotli versions, so
+# head.checkSumAdjustment - a checksum over the compressed file - moves with
+# it. Everything else, glyphs included, is byte-identical, and the two files
+# render the same. Expect a non-empty diff on the head table when regenerating
+# a toolchain change; compare the glyph set, not the bytes, before treating it
+# as a real difference.
 `;
 
 const work = mkdtempSync(join(tmpdir(), "petdex-fonts-"));
