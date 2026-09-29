@@ -230,6 +230,22 @@ const FONT_FACES = `
 }
 `;
 
+/**
+ * The media query, not the site's `.dark` class.
+ *
+ * The site toggles that class from `next-themes` state kept in the app's own
+ * origin, which this page cannot read: the login flow only ever visits
+ * `clerk.petdex.dev` and this loopback port, never a petdex.dev page, so the
+ * reader's choice there is invisible here. There is also no way to carry it
+ * over — no hosted auth product takes a theme from the authorize URL (Clerk
+ * rejects a `redirect_uri` with a query string outright), and `window.opener`
+ * is null for a tab opened by a system browser.
+ *
+ * Following the OS preference is what the products in this position do:
+ * GitHub's OAuth consent page ships `data-color-mode="auto"`, and WorkOS
+ * AuthKit falls back to `prefers-color-scheme` for exactly the case where the
+ * integrating app's stored preference is unreachable.
+ */
 const STYLES = `
 :root {
   color-scheme: light dark;
