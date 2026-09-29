@@ -330,14 +330,30 @@ export async function POST(req: Request): Promise<Response> {
   const id = `req_${crypto.randomUUID().replace(/-/g, "").slice(0, 18)}`;
   const vec = await embedQuery(query).catch(() => null);
 
-  await db.insert(schema.petRequests).values({
-    id,
-    query,
-    normalized,
-    requestedBy: userId,
-    imageUrl,
-    imageReviewStatus: imageUrl ? "pending" : "none",
+  // The row and its creator vote go in together. They used to be separate
+  // statements, and `pet_request_votes` carries no foreign key, so a failed
+  // vote insert left a request behind that no one had voted for — showing the
+  // column's default of 1 until the next upvote on the same text recounted it
+  // to 0. Both writes are plain SQL, so one transaction covers them; the
+  // embedding update stays outside it, because it is best-effort by design
+  // (`.catch(() => {})`) and a failure there must not roll the request back.
+  await db.transaction(async (tx) => {
+    await tx.insert(schema.petRequests).values({
+      id,
+      query,
+      normalized,
+      requestedBy: userId,
+      imageUrl,
+      imageReviewStatus: imageUrl ? "pending" : "none",
+    });
+    // First vote = creator's own.
+    await tx.execute(sql`
+      INSERT INTO pet_request_votes (request_id, user_id)
+      VALUES (${id}, ${userId})
+      ON CONFLICT DO NOTHING
+    `);
   });
+
   if (vec) {
     const literal = embeddingVectorLiteral(vec);
     await rawSql`
@@ -347,12 +363,6 @@ export async function POST(req: Request): Promise<Response> {
       WHERE id = ${id}
     `.catch(() => {});
   }
-  // First vote = creator's own.
-  await rawSql`
-    INSERT INTO pet_request_votes (request_id, user_id)
-    VALUES (${id}, ${userId})
-    ON CONFLICT DO NOTHING
-  `;
 
   return NextResponse.json({
     ok: true,
