@@ -53,9 +53,16 @@ export interface AuthServerHandle {
  * unchanged. It is the reason this is defence in depth rather than a fix: the
  * real guarantee is that every value reaching the page is escaped first.
  *
- * The app's own CSP is deliberately not reused — it carries
- * `upgrade-insecure-requests`, which would rewrite this page's
- * `http://127.0.0.1` origin to https and break it.
+ * The app's own CSP in `next.config.ts` is deliberately not reused: it
+ * allowlists Clerk, the R2 buckets and the Vercel analytics hosts, none of
+ * which a self-contained page needs, and a wider policy here would only widen
+ * what an injected element could reach.
+ *
+ * `upgrade-insecure-requests` is *not* the reason, though it looks like it
+ * should be. Loopback is a potentially-trustworthy origin, so browsers exempt
+ * it from that directive. Measured: a subresource on `http://127.0.0.1` loads
+ * under it, while the same subresource on `http://example.test` mapped to the
+ * same address is upgraded to https and fails.
  */
 const PAGE_CSP =
   "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'";
