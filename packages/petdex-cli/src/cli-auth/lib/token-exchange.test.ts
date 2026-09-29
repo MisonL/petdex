@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
 import { ClerkCliAuthError } from "../types";
 import { exchangeCodeForTokens, fetchUserInfo } from "./token-exchange";
@@ -32,13 +32,30 @@ const params = {
  * callback server's own timeout answers the browser, but nothing breaks the
  * request the CLI is sitting on.
  *
- * The assertions are on the signal rather than on a real expiry. Waiting out
- * the 15s deadline would cost the suite half a minute to re-prove that
- * `AbortSignal.timeout` aborts, which is Node's guarantee and not this
- * module's; what belongs to this module is remembering to pass it at all.
+ * These watch `AbortSignal.timeout` rather than waiting out the real 15s,
+ * which would cost the suite half a minute to re-prove that a timeout signal
+ * aborts — Node's guarantee, not this module's. What belongs to the module is
+ * asking for a bounded deadline at all, and that is what is asserted. A
+ * signal from `new AbortController()` would satisfy "is an AbortSignal" while
+ * never aborting; it cannot satisfy this.
  */
 describe("token exchange request bounds", () => {
-  test("puts a deadline on the token request", async () => {
+  const realTimeout = AbortSignal.timeout;
+  let deadlines: number[];
+
+  beforeEach(() => {
+    deadlines = [];
+    AbortSignal.timeout = ((ms: number) => {
+      deadlines.push(ms);
+      return realTimeout(ms);
+    }) as typeof AbortSignal.timeout;
+  });
+
+  afterEach(() => {
+    AbortSignal.timeout = realTimeout;
+  });
+
+  test("asks for a bounded deadline on the token request", async () => {
     let signal: AbortSignal | undefined;
     stubFetch(async (_input, init) => {
       signal = init?.signal ?? undefined;
@@ -48,10 +65,13 @@ describe("token exchange request bounds", () => {
     await exchangeCodeForTokens(params).catch(() => {});
 
     expect(signal).toBeInstanceOf(AbortSignal);
-    expect(signal?.aborted).toBe(false);
+    expect(deadlines).toHaveLength(1);
+    expect(deadlines[0]).toBeGreaterThan(0);
+    // Bounded, not merely present: an hour is not a deadline anyone waits out.
+    expect(deadlines[0]).toBeLessThanOrEqual(60_000);
   });
 
-  test("puts a deadline on the userinfo request", async () => {
+  test("asks for a bounded deadline on the userinfo request", async () => {
     let signal: AbortSignal | undefined;
     stubFetch(async (_input, init) => {
       signal = init?.signal ?? undefined;
@@ -64,7 +84,9 @@ describe("token exchange request bounds", () => {
     }).catch(() => {});
 
     expect(signal).toBeInstanceOf(AbortSignal);
-    expect(signal?.aborted).toBe(false);
+    expect(deadlines).toHaveLength(1);
+    expect(deadlines[0]).toBeGreaterThan(0);
+    expect(deadlines[0]).toBeLessThanOrEqual(60_000);
   });
 
   test("reports a request that failed as a token_exchange error", async () => {
