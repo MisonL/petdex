@@ -99,7 +99,6 @@ type Strings = {
   successCta: string;
   errorChip: string;
   errorTitle: string;
-  errorCta: string;
   reason: Record<CallbackFailureReason, string>;
 };
 
@@ -116,7 +115,6 @@ const STRINGS: Record<Locale, Strings> = {
     successCta: "Open my profile",
     errorChip: "Sign-in failed",
     errorTitle: "Sign-in didn't finish",
-    errorCta: "Try again at petdex.dev",
     reason: {
       authorization_denied: "You declined the authorization request.",
       state_mismatch:
@@ -139,7 +137,6 @@ const STRINGS: Record<Locale, Strings> = {
     successCta: "Abrir mi perfil",
     errorChip: "Falló el inicio de sesión",
     errorTitle: "El inicio de sesión no se completó",
-    errorCta: "Reintentar en petdex.dev",
     reason: {
       authorization_denied: "Rechazaste la solicitud de autorización.",
       state_mismatch:
@@ -161,7 +158,6 @@ const STRINGS: Record<Locale, Strings> = {
     successCta: "前往我的主页",
     errorChip: "登录失败",
     errorTitle: "登录没有完成",
-    errorCta: "去 petdex.dev 重试",
     reason: {
       authorization_denied: "你在授权页拒绝了这次请求。",
       state_mismatch: "返回的 state 和这个终端发起的请求对不上，请重新登录。",
@@ -338,7 +334,10 @@ const SCRIPT = `
   set("title", s.title);
   set("body", s.body);
   set("cta", s.cta);
-  set("resource", s.resource);
+  // The detail line is deliberately not in the table: it is the only string
+  // that comes from the server, not from the locale, so it is rendered into
+  // the markup and must be left alone here. Setting it from the table would
+  // overwrite it with nothing.
 })();
 `;
 
@@ -389,8 +388,7 @@ export function renderCallbackPage(
       body: isSuccess
         ? s.successBody
         : s.reason[reason as CallbackFailureReason],
-      cta: isSuccess ? s.successCta : s.errorCta,
-      resource: "",
+      cta: isSuccess ? s.successCta : "",
     };
   }
 
@@ -399,7 +397,7 @@ export function renderCallbackPage(
     : "";
 
   const detailBlock = detail
-    ? `<p class="detail" data-copy="resource">${escapeHtml(clampDetail(detail))}</p>`
+    ? `<p class="detail">${escapeHtml(clampDetail(detail))}</p>`
     : "";
 
   const closeScript = isSuccess ? `<script>${CLOSE_SCRIPT}</script>` : "";

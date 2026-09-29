@@ -209,6 +209,91 @@ describe("callback page detail line", () => {
   });
 });
 
+/**
+ * Run the page's own i18n script against a minimal document.
+ *
+ * The string assertions elsewhere in this file only look at the markup, which
+ * is how a role the script writes over — the detail line — went unnoticed:
+ * the text was in the HTML and gone by the time a reader saw it. Anything
+ * asserting what a reader ends up seeing has to run the script.
+ */
+function runPageScript(html: string, language = "en") {
+  const payload =
+    /<script type="application\/json" id="i18n">(.*?)<\/script>/s.exec(
+      html,
+    )?.[1];
+  const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(
+    (m) => m[1],
+  );
+  const i18nScript = scripts.find((s) => s.includes("i18n")) as string;
+
+  const nodes: { role: string; textContent: string }[] = [];
+  for (const m of html.matchAll(
+    /<([a-z]+)[^>]*data-copy="([a-z]+)"[^>]*>([^<]*)/g,
+  )) {
+    nodes.push({ role: m[2], textContent: m[3] });
+  }
+
+  const doc = {
+    documentElement: { lang: "en" },
+    getElementById: (id: string) =>
+      id === "i18n" ? { textContent: payload } : null,
+    querySelectorAll: (sel: string) => {
+      const role = /"([a-z]+)"/.exec(sel)?.[1];
+      return nodes.filter((n) => n.role === role);
+    },
+  };
+  new Function("document", "navigator", "window", i18nScript)(
+    doc,
+    { language },
+    {},
+  );
+  const text = (role: string) =>
+    nodes.find((n) => n.role === role)?.textContent ?? null;
+  return { text, nodes };
+}
+
+describe("callback page after its script runs", () => {
+  test("keeps the detail line the server rendered", () => {
+    // The script used to write an always-empty `resource` string over this
+    // paragraph, so every error page showed an empty bordered rule where the
+    // reason should have been.
+    const html = renderCallbackPage(
+      { kind: "error", reason: "timeout" },
+      APP_URL,
+      "OAuth callback timed out after 1200ms.",
+    );
+    const { nodes } = runPageScript(html);
+    const detail = /<p class="detail"[^>]*>([^<]*)<\/p>/.exec(html)?.[1];
+
+    expect(detail).toBe("OAuth callback timed out after 1200ms.");
+    // Nothing the script writes may touch it: it carries no role at all.
+    expect(nodes.some((n) => n.role === "resource")).toBe(false);
+  });
+
+  test("fills the success copy from the locale table", () => {
+    const { text } = runPageScript(successPage());
+    expect(text("title")).toBe("You're signed in");
+    expect(text("cta")).toBe("Open my profile");
+  });
+
+  test("picks the locale from the browser language", () => {
+    const { text } = runPageScript(successPage(), "zh-CN");
+    expect(text("title")).toBe("登录成功");
+  });
+
+  test("leaves the failure page without a call to action", () => {
+    // `errorCta` was written for all three locales but never rendered, so the
+    // copy was dead and the link it described did not exist.
+    const html = errorPage("timeout");
+    expect(html).not.toContain("<a ");
+    const strings = callbackStringsByLocale();
+    for (const locale of LOCALES_FOR_TEST) {
+      expect(strings[locale]).not.toHaveProperty("errorCta");
+    }
+  });
+});
+
 describe("callback page helpers", () => {
   test("escapes the five markup-significant characters", () => {
     expect(escapeHtml(`<a href="x">&'`)).toBe(
