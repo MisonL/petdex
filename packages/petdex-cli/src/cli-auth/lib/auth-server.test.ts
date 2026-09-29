@@ -122,6 +122,36 @@ describe("auth server deferred response", () => {
     expect(server.respond({ kind: "success" })).toBe(false);
   });
 
+  test("sends the page-security headers on the answer", async () => {
+    const server = await start();
+    const { response } = beginFetch(
+      callbackUrl(server, { code: "abc", state: STATE }),
+    );
+    await server.waitForCallback();
+    server.respond({ kind: "success" });
+
+    const res = await response;
+    expect(res?.headers.get("content-security-policy")).toBe(
+      "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'",
+    );
+    expect(res?.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(res?.headers.get("referrer-policy")).toBe("no-referrer");
+    expect(res?.headers.get("cache-control")).toBe("no-store");
+    expect(res?.headers.get("x-frame-options")).toBe("DENY");
+  });
+
+  test("sends the same headers on a plain-text reply", async () => {
+    // The protections belong to the listener, not to whichever branch
+    // answered. A 404 that skipped them would be a gap on the same origin.
+    const server = await start();
+    const res = await fetch(`http://127.0.0.1:${server.port}/favicon.ico`);
+    expect(res.status).toBe(404);
+    expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(res.headers.get("referrer-policy")).toBe("no-referrer");
+    expect(res.headers.get("x-frame-options")).toBe("DENY");
+  });
+
   test("is idempotent across two respond calls", async () => {
     const server = await start();
     const { response } = beginFetch(

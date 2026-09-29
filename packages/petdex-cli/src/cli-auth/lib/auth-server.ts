@@ -41,13 +41,50 @@ export interface AuthServerHandle {
   close(): void;
 }
 
+/**
+ * The page is self-contained by construction — inline style, inline SVG, and
+ * the locale table in a data block — so nothing has to be allowed in. `none`
+ * for everything else means an injected element cannot load a script, an
+ * image or a beacon, which is the exfiltration path a page on loopback would
+ * otherwise offer.
+ *
+ * `'unsafe-inline'` is required for the two inline scripts and the style, and
+ * it is what keeps the `successHtml` / `errorHtml` injection points working
+ * unchanged. It is the reason this is defence in depth rather than a fix: the
+ * real guarantee is that every value reaching the page is escaped first.
+ *
+ * The app's own CSP is deliberately not reused — it carries
+ * `upgrade-insecure-requests`, which would rewrite this page's
+ * `http://127.0.0.1` origin to https and break it.
+ */
+const PAGE_CSP =
+  "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'";
+
 function headers(html: string): Record<string, string> {
   return {
     "Content-Type": "text/html; charset=utf-8",
     "Content-Length": String(Buffer.byteLength(html)),
-    // The full app CSP is deliberately not reused: it carries
-    // `upgrade-insecure-requests`, which would rewrite this page's own
-    // http://127.0.0.1 origin to https and break it.
+    "Content-Security-Policy": PAGE_CSP,
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+    "Cache-Control": "no-store",
+    "X-Frame-Options": "DENY",
+  };
+}
+
+/**
+ * The same protections for the plain-text replies.
+ *
+ * These carry no HTML, but they are served from the same loopback origin and
+ * the same listener, so leaving them bare would make the security headers a
+ * property of which branch answered rather than of the server. `nosniff`
+ * matters most here: the bodies are attacker-influenced only in the sense that
+ * an arbitrary path is echoed into none of them, but a browser must not be
+ * free to reinterpret a reply as a document.
+ */
+function textHeaders(): Record<string, string> {
+  return {
+    "Content-Type": "text/plain; charset=utf-8",
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "no-referrer",
     "Cache-Control": "no-store",
@@ -121,11 +158,7 @@ export function startAuthServer(
   const endQuietly = (res: ServerResponse, status: number, body: string) => {
     if (!isAlive(res)) return;
     try {
-      res.writeHead(status, {
-        "Content-Type": "text/plain; charset=utf-8",
-        "Cache-Control": "no-store",
-        "X-Content-Type-Options": "nosniff",
-      });
+      res.writeHead(status, textHeaders());
       res.end(body);
     } catch {
       // The socket died between the check and the write. Nothing to do.
@@ -172,14 +205,14 @@ export function startAuthServer(
     // so that a favicon or a stray path requested while we hold the response
     // open still gets an ordinary 404 rather than "already handled".
     if (req.method !== "GET" || !req.url) {
-      res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+      res.writeHead(404, textHeaders());
       res.end("Not found");
       return;
     }
 
     const url = new URL(req.url, "http://127.0.0.1");
     if (url.pathname !== "/callback") {
-      res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+      res.writeHead(404, textHeaders());
       res.end("Clerk CLI auth server is waiting for /callback.");
       return;
     }
