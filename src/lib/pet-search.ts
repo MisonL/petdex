@@ -23,6 +23,7 @@ import { db, schema } from "@/lib/db/client";
 import { getAvailableBatches } from "@/lib/dex-batch.server";
 import { PETDEX_EMBEDDING_MODEL } from "@/lib/embeddings";
 import { withNextDataCache } from "@/lib/next-data-cache";
+import { clampCursor, DEFAULT_LIMIT, MAX_LIMIT } from "@/lib/pet-search-cursor";
 import { rowToPet } from "@/lib/pets";
 import { embedQuery, looksLikeVibeQuery } from "@/lib/query-embed";
 import { toCurrentR2PublicUrl } from "@/lib/r2-public-url";
@@ -120,9 +121,6 @@ export type SearchOptions = {
   includeFacets?: boolean;
 };
 
-const DEFAULT_LIMIT = 24;
-const MAX_LIMIT = 60;
-
 export async function searchPets(input: SearchInput): Promise<SearchOutput>;
 export async function searchPets(
   input: SearchInput,
@@ -134,7 +132,7 @@ export async function searchPets(
 ): Promise<SearchOutput | SearchPageOutput> {
   const sortKey = input.sort ?? "curated";
   const limit = clamp(input.limit ?? DEFAULT_LIMIT, 1, MAX_LIMIT);
-  const cursor = Math.max(0, input.cursor ?? 0);
+  const cursor = clampCursor(input.cursor);
   const q = input.q?.trim() ?? "";
   const includeTotal = options.includeTotal ?? true;
   const includeFacets = options.includeFacets ?? true;
@@ -669,7 +667,4 @@ function clamp(n: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, n));
 }
 
-export const SEARCH_LIMITS = {
-  DEFAULT_LIMIT,
-  MAX_LIMIT,
-} as const;
+export { SEARCH_LIMITS } from "./pet-search-cursor";
