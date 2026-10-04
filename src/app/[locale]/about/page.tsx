@@ -51,7 +51,10 @@ export default async function AboutPage({
   const t = await getTranslations("about");
   const faq = [
     { q: t("faq.items.whatIs.q"), a: t("faq.items.whatIs.a") },
-    { q: t("faq.items.install.q"), a: t("faq.items.install.a") },
+    // Raw, not `t`: the answer writes a literal `~/.codex/pets/<slug>/`
+    // placeholder. ICU reads `<slug>` as a rich-text tag, so `t` throws
+    // UNCLOSED_TAG in development and falls back to printing the key.
+    { q: t("faq.items.install.q"), a: t.raw("faq.items.install.a") },
     { q: t("faq.items.origin.q"), a: t("faq.items.origin.a") },
     { q: t("faq.items.submit.q"), a: t("faq.items.submit.a") },
     { q: t("faq.items.openSource.q"), a: t("faq.items.openSource.a") },

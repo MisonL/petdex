@@ -23,6 +23,7 @@ import {
 import { useLocale, useTranslations } from "next-intl";
 
 import { COLOR_FAMILIES, type ColorFamily } from "@/lib/color-families";
+import { formatBatchLabel } from "@/lib/dex-batch";
 import { formatLocalizedNumber } from "@/lib/format-number";
 import { petPreviewUrlForSource } from "@/lib/pet-preview";
 import type { SearchPet } from "@/lib/pet-search";
@@ -64,7 +65,10 @@ type Facets = {
   kinds: Record<string, number>;
   vibes: Record<string, number>;
   colors: Record<ColorFamily, number>;
-  batches: Array<{ key: string; label: string; count: number }>;
+  // `key` is "YYYY-MM"; the label is built at render time so it follows the
+  // page locale instead of the server's, which is what made every Era chip
+  // read "Class of October 2025" on /es and /zh.
+  batches: Array<{ key: string; count: number }>;
   spriteVersions?: Record<string, number>;
 };
 
@@ -92,12 +96,25 @@ type PetGalleryProps = {
 
 type SortKey = "curated" | "popular" | "installed" | "alpha" | "recent";
 
-const SORT_LABELS: Record<SortKey, string> = {
-  curated: "Curated",
-  recent: "Newest",
-  popular: "Most liked",
-  installed: "Most installed",
-  alpha: "Alphabetical",
+// The sort keys, paired with the `gallery` message each renders. A module-level
+// map of English words here meant /es and /zh showed "Curated", "Newest", and
+// the rest untranslated; the labels are resolved through `t` at the call sites
+// below instead, so the ordering stays declarative and the text is translated.
+const SORT_KEYS: SortKey[] = [
+  "curated",
+  "recent",
+  "popular",
+  "installed",
+  "alpha",
+];
+
+/** The `gallery` message key for each sort. */
+const SORT_MESSAGE: Record<SortKey, string> = {
+  curated: "sortCurated",
+  recent: "sortRecent",
+  popular: "sortPopular",
+  installed: "sortInstalled",
+  alpha: "sortAlpha",
 };
 
 const PAGE_SIZE = 24;
@@ -375,7 +392,7 @@ export function PetGallery({
             className="hidden h-10 shrink-0 items-center gap-1.5 rounded-full border border-border-base bg-surface/70 px-4 text-[13px] font-medium text-muted-2 backdrop-blur transition hover:bg-surface-muted hover:text-foreground aria-expanded:border-brand/40 aria-expanded:bg-brand/15 aria-expanded:text-brand md:inline-flex"
           >
             <SlidersHorizontal className="size-3.5" />
-            Filters
+            {t("filtersButton")}
             {activeFilterCount > 0 ? (
               <span className="grid size-4.5 place-items-center rounded-full bg-brand font-mono text-[9px] font-semibold text-white">
                 {activeFilterCount}
@@ -396,21 +413,19 @@ export function PetGallery({
               aria-label={t("sortAria")}
               className="h-10 w-full shrink-0 rounded-full border-border-base bg-surface/70 text-[13px] backdrop-blur hover:bg-surface-muted sm:w-auto sm:min-w-[180px]"
             >
-              <span className="text-muted-3">Sort:</span>
-              <span className="text-foreground">{SORT_LABELS[sort]}</span>
+              <span className="text-muted-3">{t("sortLabel")}</span>
+              <span className="text-foreground">{t(SORT_MESSAGE[sort])}</span>
             </SelectTrigger>
             <SelectContent
               alignItemWithTrigger={false}
               sideOffset={6}
               align="end"
             >
-              {(Object.entries(SORT_LABELS) as [SortKey, string][]).map(
-                ([key, label]) => (
-                  <SelectItem key={key} value={key}>
-                    {label}
-                  </SelectItem>
-                ),
-              )}
+              {SORT_KEYS.map((key) => (
+                <SelectItem key={key} value={key}>
+                  {t(SORT_MESSAGE[key])}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -440,7 +455,7 @@ export function PetGallery({
                 <SheetTitle>{t("filtersTitle")}</SheetTitle>
               </SheetHeader>
               <div className="space-y-5 px-4 pb-6">
-                <FilterGroup label="Type">
+                <FilterGroup label={t("filterType")}>
                   <FilterChips
                     options={PET_KINDS}
                     counts={facets.kinds}
@@ -450,7 +465,7 @@ export function PetGallery({
                   />
                 </FilterGroup>
                 <Separator className="bg-border-base" />
-                <FilterGroup label="Version">
+                <FilterGroup label={t("filterVersion")}>
                   <FilterChips
                     options={["1", "2"]}
                     counts={spriteVersionCounts}
@@ -461,7 +476,7 @@ export function PetGallery({
                   />
                 </FilterGroup>
                 <Separator className="bg-border-base" />
-                <FilterGroup label="Vibe">
+                <FilterGroup label={t("filterVibe")}>
                   <FilterChips
                     options={PET_VIBES}
                     counts={facets.vibes}
@@ -471,7 +486,7 @@ export function PetGallery({
                   />
                 </FilterGroup>
                 <Separator className="bg-border-base" />
-                <FilterGroup label="Color">
+                <FilterGroup label={t("filterColor")}>
                   <FilterChips
                     options={COLOR_FAMILIES}
                     counts={facets.colors}
@@ -484,7 +499,7 @@ export function PetGallery({
                 {facets.batches.length > 0 ? (
                   <>
                     <Separator className="bg-border-base" />
-                    <FilterGroup label="Era">
+                    <FilterGroup label={t("filterEra")}>
                       <FilterChips
                         options={facets.batches.map((batch) => batch.key)}
                         counts={Object.fromEntries(
@@ -496,7 +511,9 @@ export function PetGallery({
                         labels={Object.fromEntries(
                           facets.batches.map((batch) => [
                             batch.key,
-                            batch.label,
+                            t("batchLabel", {
+                              month: formatBatchLabel(batch.key, locale),
+                            }),
                           ]),
                         )}
                         active={activeBatches}
@@ -518,7 +535,7 @@ export function PetGallery({
               }}
               className="h-10 px-4 text-sm font-medium text-muted-2"
             >
-              Clear
+              {t("clear")}
             </Button>
           ) : null}
         </div>
@@ -556,7 +573,12 @@ export function PetGallery({
                 facets.batches.map((batch) => [batch.key, batch.count]),
               )}
               labels={Object.fromEntries(
-                facets.batches.map((batch) => [batch.key, batch.label]),
+                facets.batches.map((batch) => [
+                  batch.key,
+                  t("batchLabel", {
+                    month: formatBatchLabel(batch.key, locale),
+                  }),
+                ]),
               )}
               active={activeBatches}
               onToggle={toggleBatch}
@@ -576,7 +598,7 @@ export function PetGallery({
           key={filtersOpen ? "open" : "closed"}
           className={`mt-3 flex-col gap-3 border-t border-black/[0.05] pt-3 duration-200 animate-in fade-in-0 slide-in-from-top-1 dark:border-white/[0.05] ${filtersOpen ? "hidden md:flex" : "hidden"}`}
         >
-          <FilterRow label="Type">
+          <FilterRow label={t("filterType")}>
             <FilterChips
               options={PET_KINDS}
               counts={facets.kinds}
@@ -597,7 +619,7 @@ export function PetGallery({
               max={8}
             />
           </FilterRow>
-          <FilterRow label="Version">
+          <FilterRow label={t("filterVersion")}>
             <FilterChips
               options={["1", "2"]}
               counts={spriteVersionCounts}
@@ -607,7 +629,7 @@ export function PetGallery({
               tone="version"
             />
           </FilterRow>
-          <FilterRow label="Color">
+          <FilterRow label={t("filterColor")}>
             <FilterChips
               options={COLOR_FAMILIES}
               counts={facets.colors}
@@ -619,14 +641,19 @@ export function PetGallery({
             />
           </FilterRow>
           {facets.batches.length > 0 ? (
-            <FilterRow label="Era">
+            <FilterRow label={t("filterEra")}>
               <FilterChips
                 options={facets.batches.map((batch) => batch.key)}
                 counts={Object.fromEntries(
                   facets.batches.map((batch) => [batch.key, batch.count]),
                 )}
                 labels={Object.fromEntries(
-                  facets.batches.map((batch) => [batch.key, batch.label]),
+                  facets.batches.map((batch) => [
+                    batch.key,
+                    t("batchLabel", {
+                      month: formatBatchLabel(batch.key, locale),
+                    }),
+                  ]),
                 )}
                 active={activeBatches}
                 onToggle={toggleBatch}
@@ -642,11 +669,7 @@ export function PetGallery({
           <span className="grid size-6 shrink-0 place-items-center rounded-full bg-brand text-white">
             <Sparkles className="size-3" />
           </span>
-          <span>
-            Showing pets that vibe with{" "}
-            <span className="font-medium">"{trimmedQuery}"</span>. Closer to the
-            top means stronger match.
-          </span>
+          <span>{t("vibeMatch", { query: trimmedQuery })}</span>
         </div>
       ) : null}
 
@@ -687,7 +710,7 @@ export function PetGallery({
           {loadingMore ? (
             <span className="inline-flex items-center gap-2 font-mono text-[11px] tracking-[0.18em] text-muted-3 uppercase">
               <Loader2 className="size-3.5 animate-spin" />
-              Loading more
+              {t("loadingMore")}
             </span>
           ) : (
             <button
@@ -695,13 +718,13 @@ export function PetGallery({
               onClick={loadMore}
               className="rounded-full border border-border-base bg-surface px-4 py-2 font-mono text-[11px] tracking-[0.12em] text-muted-2 uppercase transition hover:border-black/30 dark:hover:border-white/30"
             >
-              Load more
+              {t("loadMore")}
             </button>
           )}
         </div>
       ) : pets.length > 0 ? (
         <p className="py-6 text-center font-mono text-[10px] tracking-[0.22em] text-muted-4 uppercase">
-          End of gallery · {total} shown
+          {t("endOfGallery", { total })}
         </p>
       ) : null}
     </section>
@@ -971,7 +994,7 @@ function PetCardImpl({
       <Link
         href={href}
         prefetch={false}
-        aria-label={`Open ${pet.displayName}`}
+        aria-label={t("openPet", { name: pet.displayName })}
         className="flex flex-1 flex-col rounded-3xl"
       >
         <div
@@ -989,7 +1012,7 @@ function PetCardImpl({
           }
         >
           <span className="pointer-events-none absolute top-2.5 left-3.5 font-mono text-[9px] tracking-[0.2em] text-muted-4 uppercase">
-            No. {dexLabel}
+            {t("dexNumber", { number: dexLabel })}
           </span>
           <PetSprite
             src={previewSrc ?? pet.spritesheetPath}
@@ -998,7 +1021,7 @@ function PetCardImpl({
             state="idle"
             cycleStates={!previewSrc}
             scale={0.7}
-            label={`${pet.displayName} animated`}
+            label={t("spriteAnimated", { name: pet.displayName })}
           />
           {usesProfilePinHover ? (
             <div
@@ -1070,10 +1093,10 @@ function PetCardImpl({
             <Badge
               variant="outline"
               className="w-fit gap-1 rounded-full border-transparent bg-chip-warning-bg font-mono text-[10px] tracking-[0.12em] text-chip-warning-fg uppercase ring-1 ring-chip-warning-fg/20"
-              title="Added on behalf of the original author. Not yet claimed."
+              title={t("discoveredTitle")}
             >
               <Sparkles className="size-3" />
-              Discovered
+              {t("discovered")}
             </Badge>
           ) : null}
 
@@ -1088,7 +1111,7 @@ function PetCardImpl({
                   className="size-4 rounded-full ring-1 ring-black/10"
                 />
               ) : null}
-              by {pet.submittedBy.name}
+              {t("byAuthor", { name: pet.submittedBy.name })}
             </div>
           ) : null}
         </div>
@@ -1218,6 +1241,8 @@ function NoResults({
     | { tag: "error"; reason: string }
   >({ tag: "idle" });
 
+  const t = useTranslations("gallery");
+
   const canRequest = mode === "vibe" && query.length >= 4;
 
   async function submitRequest() {
@@ -1233,7 +1258,7 @@ function NoResults({
         if (res.status === 401) {
           setState({
             tag: "error",
-            reason: "Sign in to request a pet.",
+            reason: t("errorSignIn"),
           });
           return;
         }
@@ -1241,10 +1266,26 @@ function NoResults({
           message?: string;
           error?: string;
         };
+        // Map the route's error *code* to a localized string rather than
+        // rendering `data.message`. The route's `message` fields are English
+        // literals ("Use 4-200 characters."), so preferring them made the
+        // server's language win over the page's: a /zh or /es user saw the
+        // English text and never reached the translated fallback. The code is
+        // the stable contract; `message` stays as a debugging aid.
+        const byCode: Record<string, string> = {
+          query_length: t("errQueryLength"),
+          query_invalid_characters: t("errQueryInvalidCharacters"),
+          query_not_searchable: t("errQueryNotSearchable"),
+          url_in_field: t("errUrlInField"),
+          blocked_content: t("errBlockedContent"),
+          invalid_query: t("errInvalidQuery"),
+          invalid_image_url: t("errInvalidImageUrl"),
+        };
         setState({
           tag: "error",
           reason:
-            data.message ?? data.error ?? `Request failed (${res.status}).`,
+            (data.error ? byCode[data.error] : undefined) ??
+            t("errorRequestFailed", { status: res.status }),
         });
         return;
       }
@@ -1258,14 +1299,14 @@ function NoResults({
         count: data.upvoteCount,
       });
     } catch {
-      setState({ tag: "error", reason: "Network error, try again." });
+      setState({ tag: "error", reason: t("errorNetwork") });
     }
   }
 
   return (
     <div className="rounded-3xl border border-dashed border-border-base bg-white/70 p-8 text-center md:p-10 dark:bg-stone-900/70">
       <p className="text-sm font-medium text-foreground">
-        No pets match {query ? `"${query}"` : "this view"}.
+        {query ? t("noMatchQuery", { query }) : t("noMatchView")}
       </p>
 
       {canRequest ? (
@@ -1274,22 +1315,20 @@ function NoResults({
             <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-800 ring-1 ring-emerald-200 dark:bg-emerald-950/40">
               <Check className="size-3.5" />
               {state.mode === "created"
-                ? "Requested. We'll prioritize popular requests."
-                : `Upvoted. ${state.count} people want this pet.`}
+                ? t("requestCreated")
+                : t("requestUpvoted", { count: state.count })}
             </span>
             <Link
               href="/requests"
               className="font-mono text-[10px] tracking-[0.18em] text-stone-500 uppercase underline-offset-4 hover:text-black hover:underline dark:text-stone-400 dark:hover:text-stone-100"
             >
-              See all requests
+              {t("seeAllRequests")}
             </Link>
           </div>
         ) : (
           <div className="mt-4 flex flex-col items-center gap-3">
             <p className="max-w-md text-sm text-muted-2">
-              Want a pet that matches{" "}
-              <span className="font-medium">"{query}"</span>? Request it and
-              other people can upvote.
+              {t("requestPrompt", { query })}
             </p>
             <button
               type="button"
@@ -1298,7 +1337,9 @@ function NoResults({
               className="inline-flex h-10 items-center gap-1.5 rounded-full bg-brand px-4 text-sm font-medium text-white transition hover:bg-brand-deep disabled:opacity-60"
             >
               <Plus className="size-4" />
-              {state.tag === "submitting" ? "Sending…" : "Request this pet"}
+              {state.tag === "submitting"
+                ? t("sendingButton")
+                : t("requestButton")}
             </button>
             {state.tag === "error" ? (
               <p className="font-mono text-[10px] tracking-[0.12em] text-rose-700 uppercase dark:text-rose-300">
@@ -1313,7 +1354,7 @@ function NoResults({
           onClick={onClearFilters}
           className="mt-3 inline-flex h-9 items-center justify-center rounded-full border border-black/10 bg-white px-4 text-xs font-medium text-stone-700 transition hover:border-black/30 dark:border-white/10 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-white/30"
         >
-          Clear filters
+          {t("clearFilters")}
         </button>
       ) : null}
     </div>

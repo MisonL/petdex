@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { clerkClient } from "@clerk/nextjs/server";
 import { desc, inArray, sql } from "drizzle-orm";
-import { getTranslations } from "next-intl/server";
+import { getTranslations, setRequestLocale } from "next-intl/server";
 
 import { db, schema } from "@/lib/db/client";
 import { buildLocaleAlternates } from "@/lib/locale-routing";
@@ -39,7 +39,19 @@ export async function generateMetadata({
   };
 }
 
-export default async function RequestsPage() {
+export default async function RequestsPage({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  // This page is prerendered, and its default export has to read `params`:
+  // with the signature above, /es and /zh each get a render in their own
+  // locale, and without it every locale prefix was served the one English
+  // render — header nav included. `setRequestLocale` pins the nested
+  // `getTranslations` below to that same locale.
+  const { locale } = await params;
+  setRequestLocale(hasLocale(locale) ? locale : "en");
+
   const t = await getTranslations("requests");
 
   // Pull everything (open + fulfilled + dismissed) so the sort tabs in

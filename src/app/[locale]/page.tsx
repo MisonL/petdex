@@ -39,7 +39,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
-import { hasLocale, locales } from "@/i18n/config";
+import { hasLocale, locales, localizePath } from "@/i18n/config";
 
 // ISR. The home page renders an install-count ordered, anon shell.
 // visitor's shuffle seed and caught-slug set are pulled client-side
@@ -197,7 +197,10 @@ export default async function Home({
                 className="btn-3d h-10 w-full sm:w-auto"
               />
               <DownloadDesktopCTA
-                href={`/${locale}/download`}
+                // `localizePath`, not `/${locale}`: the default locale is
+                // unprefixed, so the literal form sent English readers to
+                // `/en/download`, which only redirects back to `/download`.
+                href={localizePath(locale, "/download")}
                 source="hero_primary"
                 className={cn(
                   buttonVariants({

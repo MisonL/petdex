@@ -175,7 +175,7 @@
   },
   "community": {
     "metadata": {
-      "title": "Petdex Community",
+      "title": "Community",
       "description": "Join creators, collectors, and the Petdex team for featured creator spotlights, work-in-progress feedback, and weekly builds."
     },
     "eyebrow": "Petdex Community",
@@ -224,9 +224,59 @@
     "clearAll": "Clear all",
     "matches": "{count, plural, =1 {1 match} other {# matches}}",
     "sortAria": "Sort pets",
+    "openPet": "Open {name}",
+    "spriteAnimated": "{name} animation",
+    "spriteStill": "{name} sprite",
     "filtersTitle": "Filters",
     "caughtTitle": "Caught",
-    "featuredTitle": "Featured"
+    "featuredTitle": "Featured",
+    "discovered": "Discovered",
+    "discoveredTitle": "Added on behalf of the original author. Not yet claimed.",
+    "filtersButton": "Filters",
+    "clear": "Clear",
+    "sortLabel": "Sort:",
+    "loadingMore": "Loading more",
+    "loadMore": "Load more",
+    "endOfGallery": "End of gallery · {total} shown",
+    "seeAllRequests": "See all requests",
+    "clearFilters": "Clear filters",
+    "batchLabel": "Class of {month}",
+    "errQueryLength": "Use 4-200 characters.",
+    "errQueryInvalidCharacters": "Use plain text.",
+    "errQueryNotSearchable": "Use words, not symbols.",
+    "errUrlInField": "Links and email addresses are not allowed.",
+    "errBlockedContent": "That text references something we can't accept.",
+    "errInvalidQuery": "That request isn't valid.",
+    "errInvalidImageUrl": "That image link isn't valid.",
+    "filterType": "Type",
+    "filterVersion": "Version",
+    "filterVibe": "Vibe",
+    "filterColor": "Color",
+    "filterEra": "Era",
+    "vibeMatch": "Showing pets that vibe with \"{query}\". Closer to the top means stronger match.",
+    "likePet": "Like {name}",
+    "unlikePet": "Unlike {name}",
+    "copyInstallFor": "Copy install for {name}",
+    "downloadPet": "Download {name}",
+    "sharePet": "Share {name}",
+    "playSoundFor": "Play sound for {name}",
+    "noMatchQuery": "No pets match \"{query}\".",
+    "noMatchView": "No pets match this view.",
+    "requestPrompt": "Want a pet that matches \"{query}\"? Request it and other people can upvote.",
+    "requestButton": "Request this pet",
+    "sendingButton": "Sending…",
+    "requestCreated": "Requested. We'll prioritize popular requests.",
+    "requestUpvoted": "Upvoted. {count} people want this pet.",
+    "errorSignIn": "Sign in to request a pet.",
+    "errorRequestFailed": "Request failed ({status}).",
+    "errorNetwork": "Network error, try again.",
+    "sortCurated": "Curated",
+    "sortRecent": "Newest",
+    "sortPopular": "Most liked",
+    "sortInstalled": "Most installed",
+    "sortAlpha": "Alphabetical",
+    "byAuthor": "by {name}",
+    "dexNumber": "No. {number}"
   },
   "suggestCollection": {
     "cta": "Suggest for a collection",
@@ -267,7 +317,7 @@
   },
   "submit": {
     "metadata": {
-      "title": "Submit a pet | Petdex",
+      "title": "Submit a pet",
       "description": "Upload and validate a pet package for Petdex."
     },
     "eyebrow": "Submit",
@@ -466,7 +516,7 @@
   },
   "create": {
     "metadata": {
-      "title": "Create a pet | Petdex",
+      "title": "Create a pet",
       "description": "Hatch your own animated pet in 5 minutes, then share it on Petdex."
     },
     "eyebrow": "Make your own",
@@ -623,7 +673,7 @@
   },
   "brand": {
     "metadata": {
-      "title": "Petdex brand kit",
+      "title": "Brand kit",
       "description": "Download Petdex logos, icons, color tokens, and usage notes for press, projects, and community posts.",
       "ogTitle": "Petdex brand kit"
     },
@@ -706,7 +756,7 @@
   },
   "about": {
     "metadata": {
-      "title": "About Petdex: Animated pets for your coding agents",
+      "title": "About: Animated pets for your coding agents",
       "description": "Petdex is an open-source gallery of animated pets for coding agents like ChatGPT (Codex), Claude Code, Gemini, OpenCode, Qoder, Kimi Code, CodeBuddy, and OMP. Browse the catalog, install with one command, or submit your own.",
       "ogTitle": "About Petdex",
       "ogDescription": "An open-source gallery of animated pets for coding agents."
@@ -787,6 +837,7 @@
       "title": "My submissions",
       "description": "Track the status of every pet you've sent to Petdex, customize your profile, and edit live entries."
     },
+    "metadataTitle": "My pets",
     "edit": {
       "confirmWithdraw": "Withdraw this edit? Current approved values stay live.",
       "pendingReview": "Pending review",
@@ -884,7 +935,7 @@
   },
   "leaderboard": {
     "metadata": {
-      "title": "Petdex leaderboard",
+      "title": "Leaderboard",
       "description": "Top creators on Petdex: most pets approved, most loved, most installed."
     },
     "eyebrow": "Top creators",
@@ -1093,6 +1144,12 @@
     "endOfCollection": "End of collection · {count} pets"
   },
   "download": {
+    "metadata": {
+      "title": "Download Petdex Desktop",
+      "description": "Download Petdex Desktop for macOS. Your pet, floating beside every coding agent.",
+      "ogTitle": "Petdex Desktop",
+      "ogDescription": "Your pet, floating beside every coding agent. macOS native."
+    },
     "eyebrow": "Terminal-first setup",
     "title": "Run one command. Petdex does the rest.",
     "subtitle": "Install the desktop app, wire your coding agents, and wake your pet from the terminal.",
@@ -1246,6 +1303,7 @@
       "title": "Featured collections",
       "description": "Browse Petdex collections by franchise, category, or theme in a fast public catalog."
     },
+    "notFoundTitle": "Collection not found",
     "hero": {
       "eyebrow": "Featured collections",
       "title": "Find your set, install in one line",
@@ -1286,6 +1344,7 @@
   },
   "profile": {
     "creatorBadge": "Petdex creator",
+    "notFoundTitle": "Profile not found",
     "creatorOfPetdex": "Creator of Petdex",
     "yourAlbum": "YOUR ALBUM: {caught}/{total} ({pct}%)",
     "editProfile": "Edit profile",
@@ -1329,6 +1388,8 @@
   },
   "sticker": {
     "ctaWeChat": "Save for WeChat",
+    "reactionsTitle": "{name} reactions",
+    "reactionsDescription": "Pick a reaction, copy the sticker, or share a reaction deck.",
     "ctaGeneric": "Save for WhatsApp",
     "ctaShort": "Save as sticker",
     "hintWeChat": "Animated WebP · works in WeChat, WhatsApp, Discord",
@@ -1370,7 +1431,7 @@
   },
   "takedownPage": {
     "metadata": {
-      "title": "Takedown | Petdex",
+      "title": "Takedown",
       "description": "How to report a pet that infringes your rights."
     },
     "eyebrow": "Legal · Takedown",
@@ -1391,7 +1452,7 @@
   },
   "unsubscribePage": {
     "metadata": {
-      "title": "Unsubscribe | Petdex",
+      "title": "Unsubscribe",
       "description": "Manage your Petdex email preferences."
     },
     "eyebrow": "Email · Preferences",
@@ -1412,7 +1473,7 @@
   },
   "telemetryPage": {
     "metadata": {
-      "title": "Telemetry | Petdex",
+      "title": "Telemetry",
       "description": "What petdex CLI telemetry collects and how to opt out."
     },
     "eyebrow": "Legal · Telemetry",
@@ -1558,11 +1619,20 @@
         "intro": "Pensive, soft, and a little wistful. Companions for the part of the night when the build keeps failing.",
         "metaDescription": "Melancholic pets for coding agents. Pensive animated pixel companions installable with one command."
       }
-    }
+    },
+    "cardInstalls": "{count, plural, =1 {{formatted} install} other {{formatted} installs}}",
+    "cardDiscovered": "Discovered",
+    "cardDiscoveredTitle": "Added on behalf of the original author. Not yet claimed.",
+    "cardByAuthor": "by {name}",
+    "cardFeatured": "★ FEATURED",
+    "cardDexNumber": "No. {number}",
+    "cardOpenPet": "Open {name}",
+    "cardSpriteStill": "{name} sprite",
+    "cardBatchLabel": "Class of {month}"
   },
   "docsPage": {
     "metadata": {
-      "title": "Docs · Petdex",
+      "title": "Docs",
       "description": "How to install, distribute, and automate pets with the Petdex CLI.",
       "ogTitle": "Petdex CLI · Docs"
     },

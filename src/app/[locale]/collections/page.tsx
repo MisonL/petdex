@@ -19,6 +19,10 @@ import { hasLocale } from "@/i18n/config";
 // data. 24h ceiling + revalidateTag('collection:list') from admin
 // write paths keeps the page fresh on actual changes without burning
 // a function on every visit.
+//
+// `force-static` is also what gets every locale prerendered: without it Next
+// builds the default locale and leaves the others to be rendered on demand.
+export const dynamic = "force-static";
 export const revalidate = 86400;
 
 const SITE_URL = "https://petdex.dev";

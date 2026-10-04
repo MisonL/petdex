@@ -4,7 +4,7 @@
 
 import Link from "next/link";
 
-import { getLocale } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 
 import type { SearchPet } from "@/lib/pet-search";
 import { cn } from "@/lib/utils";
@@ -36,6 +36,23 @@ export async function FacetPage({
   related,
 }: FacetPageProps) {
   const locale = await getLocale();
+  // The cards are rendered here rather than in the page, and they carry the
+  // install count, the featured badge, and the discovered/author lines. Those
+  // were English literals on /es and /zh until they moved into the
+  // `facetPages` messages and were threaded down as labels.
+  const t = await getTranslations("facetPages");
+  const cardLabels = {
+    installs: (count: number, formatted: string) =>
+      t("cardInstalls", { count, formatted }),
+    discovered: t("cardDiscovered"),
+    discoveredTitle: t("cardDiscoveredTitle"),
+    byAuthor: (name: string) => t("cardByAuthor", { name }),
+    featured: t("cardFeatured"),
+    dexNumber: (number: string) => t("cardDexNumber", { number }),
+    openPet: (name: string) => t("cardOpenPet", { name }),
+    spriteStill: (name: string) => t("cardSpriteStill", { name }),
+    batchLabel: (month: string) => t("cardBatchLabel", { month }),
+  };
   const cmd = `npx petdex install ${exampleSlug ?? pets[0]?.slug ?? "boba"}`;
 
   return (
@@ -74,6 +91,7 @@ export async function FacetPage({
               pet={pet}
               index={index}
               locale={locale}
+              labels={cardLabels}
             />
           ))}
         </div>

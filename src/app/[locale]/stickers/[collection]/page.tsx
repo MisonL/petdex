@@ -29,9 +29,14 @@ type PageProps = {
 
 export async function generateMetadata({ params }: PageProps) {
   const { collection, locale } = await params;
+  const t = await getTranslations({
+    locale: hasLocale(locale) ? locale : "en",
+    namespace: "sticker",
+  });
+  const name = collection === "claude" ? "Claude" : collection;
   return {
-    title: `${collection === "claude" ? "Claude" : collection} reactions`,
-    description: "Pick a reaction, copy the sticker, or share a reaction deck.",
+    title: t("reactionsTitle", { name }),
+    description: t("reactionsDescription"),
     alternates: buildLocaleAlternates(
       `/stickers/${collection}`,
       hasLocale(locale) ? locale : undefined,

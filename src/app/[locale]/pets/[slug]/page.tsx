@@ -71,8 +71,12 @@ export async function generateMetadata({ params }: PageProps) {
   const pet = await getPet(slug);
 
   if (!pet) {
+    const tNotFound = await getTranslations({
+      locale: hasLocale(locale) ? locale : "en",
+      namespace: "notFound.metadata",
+    });
     return {
-      title: "Pet not found",
+      title: tNotFound("title"),
       robots: { index: false, follow: false },
     };
   }

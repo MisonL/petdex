@@ -29,6 +29,11 @@ export async function generateMetadata({
   return {
     title: t("title"),
     description: t("description"),
+    // robots.txt disallows /create, and a disallowed URL is never crawled —
+    // so the `index, follow` this page inherited from the root layout was
+    // never read, and contradicted the disallow for anyone auditing the two
+    // by hand. Say the same thing in both places.
+    robots: { index: false, follow: false },
     alternates: buildLocaleAlternates(
       "/create",
       hasLocale(locale) ? locale : undefined,

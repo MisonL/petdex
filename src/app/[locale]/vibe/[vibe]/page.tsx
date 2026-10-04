@@ -17,6 +17,12 @@ const FACET_PAGE_LIMIT = 60;
 
 type Props = { params: Promise<{ locale: string; vibe: string }> };
 
+// Fully public: no auth, no cookies, no per-visitor data. The declaration is
+// also what gets every locale prerendered — without it Next builds the default
+// locale and leaves the others to be rendered on demand, so /zh and /es were
+// the only locales this page did not have a static copy for.
+export const dynamic = "force-static";
+
 export const revalidate = 86400;
 
 export function generateStaticParams() {

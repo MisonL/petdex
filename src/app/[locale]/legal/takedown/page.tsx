@@ -11,6 +11,12 @@ import { hasLocale } from "@/i18n/config";
 const STEP_KEYS = ["open", "identify", "review", "remove"] as const;
 const REPO = "crafter-station/petdex";
 
+// Fully public: no auth, no cookies, no per-visitor data. The declaration is
+// also what gets every locale prerendered — without it Next builds the default
+// locale and leaves the others to be rendered on demand, so /zh and /es were
+// the only locales this page did not have a static copy for.
+export const dynamic = "force-static";
+
 export async function generateMetadata({
   params,
 }: {

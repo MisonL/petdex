@@ -175,7 +175,7 @@
   },
   "community": {
     "metadata": {
-      "title": "Comunidad de Petdex",
+      "title": "Comunidad",
       "description": "Únete a creadores, coleccionistas y al equipo de Petdex para ver creadores destacados, feedback de trabajos en progreso y builds semanales."
     },
     "eyebrow": "Comunidad Petdex",
@@ -224,9 +224,59 @@
     "clearAll": "Limpiar todo",
     "matches": "{count, plural, =1 {1 coincidencia} other {# coincidencias}}",
     "sortAria": "Ordenar mascotas",
+    "openPet": "Abrir {name}",
+    "spriteAnimated": "Animación de {name}",
+    "spriteStill": "Sprite de {name}",
     "filtersTitle": "Filtros",
     "caughtTitle": "Capturada",
-    "featuredTitle": "Destacada"
+    "featuredTitle": "Destacada",
+    "discovered": "Descubierta",
+    "discoveredTitle": "Añadida en nombre del autor original. Aún sin reclamar.",
+    "filtersButton": "Filtros",
+    "clear": "Limpiar",
+    "sortLabel": "Orden:",
+    "loadingMore": "Cargando más",
+    "loadMore": "Cargar más",
+    "endOfGallery": "Fin de la galería · {total} mostradas",
+    "seeAllRequests": "Ver todas las solicitudes",
+    "clearFilters": "Limpiar filtros",
+    "batchLabel": "Generación de {month}",
+    "errQueryLength": "Usa entre 4 y 200 caracteres.",
+    "errQueryInvalidCharacters": "Usa texto sin formato.",
+    "errQueryNotSearchable": "Usa palabras, no símbolos.",
+    "errUrlInField": "No se permiten enlaces ni direcciones de correo.",
+    "errBlockedContent": "Ese texto menciona algo que no podemos aceptar.",
+    "errInvalidQuery": "Esa solicitud no es válida.",
+    "errInvalidImageUrl": "Ese enlace de imagen no es válido.",
+    "filterType": "Tipo",
+    "filterVersion": "Versión",
+    "filterVibe": "Estilo",
+    "filterColor": "Color",
+    "filterEra": "Época",
+    "vibeMatch": "Mostrando mascotas que sintonizan con \"{query}\". Cuanto más arriba, mejor la coincidencia.",
+    "likePet": "Me gusta {name}",
+    "unlikePet": "Quitar me gusta de {name}",
+    "copyInstallFor": "Copiar instalación de {name}",
+    "downloadPet": "Descargar {name}",
+    "sharePet": "Compartir {name}",
+    "playSoundFor": "Reproducir sonido de {name}",
+    "noMatchQuery": "No hay mascotas que coincidan con \"{query}\".",
+    "noMatchView": "No hay mascotas que coincidan con esta vista.",
+    "requestPrompt": "¿Quieres una mascota que coincida con \"{query}\"? Solicítala y otras personas podrán votarla.",
+    "requestButton": "Solicitar esta mascota",
+    "sendingButton": "Enviando…",
+    "requestCreated": "Solicitada. Priorizaremos las solicitudes populares.",
+    "requestUpvoted": "Votada. {count} personas quieren esta mascota.",
+    "errorSignIn": "Inicia sesión para solicitar una mascota.",
+    "errorRequestFailed": "La solicitud falló ({status}).",
+    "errorNetwork": "Error de red, inténtalo de nuevo.",
+    "sortCurated": "Seleccionadas",
+    "sortRecent": "Más recientes",
+    "sortPopular": "Más gustadas",
+    "sortInstalled": "Más instaladas",
+    "sortAlpha": "Alfabético",
+    "byAuthor": "por {name}",
+    "dexNumber": "N.º {number}"
   },
   "suggestCollection": {
     "cta": "Sugerir para una colección",
@@ -267,7 +317,7 @@
   },
   "submit": {
     "metadata": {
-      "title": "Enviar una mascota | Petdex",
+      "title": "Enviar una mascota",
       "description": "Sube y valida un paquete de mascota para Petdex."
     },
     "eyebrow": "Enviar",
@@ -466,7 +516,7 @@
   },
   "create": {
     "metadata": {
-      "title": "Crea una mascota | Petdex",
+      "title": "Crea una mascota",
       "description": "Incuba tu propia mascota animada en 5 minutos y luego compártela en Petdex."
     },
     "eyebrow": "Haz la tuya",
@@ -623,7 +673,7 @@
   },
   "brand": {
     "metadata": {
-      "title": "Kit de marca de Petdex",
+      "title": "Kit de marca",
       "description": "Descarga logos, íconos, tokens de color y notas de uso de Petdex para prensa, proyectos y posts de la comunidad.",
       "ogTitle": "Kit de marca de Petdex"
     },
@@ -706,7 +756,7 @@
   },
   "about": {
     "metadata": {
-      "title": "Acerca de Petdex: Mascotas animadas para tus agentes de código",
+      "title": "Acerca de: Mascotas animadas para tus agentes de código",
       "description": "Petdex es una galería open source de mascotas animadas para agentes de código como ChatGPT (Codex), Claude Code, Gemini, OpenCode, Qoder, Kimi Code, CodeBuddy y OMP. Recorre el catálogo, instala con un comando o envía el tuyo.",
       "ogTitle": "Acerca de Petdex",
       "ogDescription": "Una galería open source de mascotas animadas para agentes de código."
@@ -787,6 +837,7 @@
       "title": "Mis envíos",
       "description": "Sigue el estado de cada mascota que enviaste a Petdex, personaliza tu perfil y edita entradas ya publicadas."
     },
+    "metadataTitle": "Mis mascotas",
     "edit": {
       "confirmWithdraw": "¿Retirar esta edición? Los valores aprobados actuales seguirán visibles.",
       "pendingReview": "Pendiente de revisión",
@@ -884,7 +935,7 @@
   },
   "leaderboard": {
     "metadata": {
-      "title": "Ranking de Petdex",
+      "title": "Ranking",
       "description": "Los mejores creadores en Petdex: más mascotas aprobadas, más amor y más instalaciones."
     },
     "eyebrow": "Creadores destacados",
@@ -1093,6 +1144,12 @@
     "endOfCollection": "Fin de la colección · {count} mascotas"
   },
   "download": {
+    "metadata": {
+      "title": "Descargar Petdex Desktop",
+      "description": "Descarga Petdex Desktop para macOS. Tu mascota, flotando junto a cada agente de código.",
+      "ogTitle": "Petdex Desktop",
+      "ogDescription": "Tu mascota, flotando junto a cada agente de código. Nativo para macOS."
+    },
     "eyebrow": "Setup desde la terminal",
     "title": "Corre un comando. Petdex hace el resto.",
     "subtitle": "Instala la app de escritorio, conecta tus agentes y despierta tu mascota desde la terminal.",
@@ -1246,6 +1303,7 @@
       "title": "Colecciones destacadas",
       "description": "Explora colecciones de Petdex por franquicia, categoría o temática en un catálogo público rápido."
     },
+    "notFoundTitle": "Colección no encontrada",
     "hero": {
       "eyebrow": "Colecciones destacadas",
       "title": "Encuentra tu set, instala en una línea",
@@ -1286,6 +1344,7 @@
   },
   "profile": {
     "creatorBadge": "Creador Petdex",
+    "notFoundTitle": "Perfil no encontrado",
     "creatorOfPetdex": "Creador de Petdex",
     "yourAlbum": "TU ÁLBUM: {caught}/{total} ({pct}%)",
     "editProfile": "Editar perfil",
@@ -1329,6 +1388,8 @@
   },
   "sticker": {
     "ctaWeChat": "Guardar para WeChat",
+    "reactionsTitle": "Reacciones de {name}",
+    "reactionsDescription": "Elige una reacción, copia el sticker o comparte un mazo de reacciones.",
     "ctaGeneric": "Guardar para WhatsApp",
     "ctaShort": "Guardar sticker",
     "hintWeChat": "WebP animado · WeChat, WhatsApp, Discord",
@@ -1370,200 +1431,209 @@
   },
   "takedownPage": {
     "metadata": {
-      "title": "Takedown | Petdex",
-      "description": "How to report a pet that infringes your rights."
+      "title": "Takedown",
+      "description": "Cómo reportar una mascota que infringe tus derechos."
     },
     "eyebrow": "Legal · Takedown",
-    "title": "Report a pet",
-    "intro": "Petdex hosts user-submitted fan-art pixel pets. We don't claim rights to the underlying IP of any character a community member chose to interpret. If you're a rights holder or authorized representative and want a pet removed, the fastest path is a GitHub issue.",
-    "howItWorks": "How it works",
+    "title": "Reportar una mascota",
+    "intro": "Petdex aloja mascotas pixel de fan art enviadas por usuarios. No reclamamos derechos sobre la propiedad intelectual subyacente de ningún personaje que un miembro de la comunidad haya decidido interpretar. Si eres titular de derechos o representante autorizado y quieres que se retire una mascota, la vía más rápida es un issue en GitHub.",
+    "howItWorks": "Cómo funciona",
     "steps": {
-      "open": "Open a takedown request with the link below.",
-      "identify": "Tell us which pet it is, using the slug from the URL, and your relationship to the IP.",
-      "review": "We review manually. Typical response is under 48 hours. Filings stay public on GitHub for transparency.",
-      "remove": "Approved takedowns remove the pet from the gallery and installer endpoints."
+      "open": "Abre una solicitud de retirada con el enlace de abajo.",
+      "identify": "Dinos de qué mascota se trata, usando el slug de la URL, y cuál es tu relación con la propiedad intelectual.",
+      "review": "Revisamos a mano. La respuesta habitual es en menos de 48 horas. Las solicitudes quedan públicas en GitHub por transparencia.",
+      "remove": "Las retiradas aprobadas sacan la mascota de la galería y de los endpoints del instalador."
     },
-    "nonIpBefore": "For non-IP issues, such as broken sprites or wrong descriptions, open a regular issue or contact us by",
+    "nonIpBefore": "Para problemas que no son de propiedad intelectual, como sprites rotos o descripciones incorrectas, abre un issue normal o escríbenos por",
     "emailLink": "email",
     "nonIpAfter": ".",
     "openRequest": "Open takedown request",
-    "confirmation": "By submitting to Petdex you confirm you have rights to the artwork or are creating fan content. Petdex acts on good-faith takedown requests."
+    "confirmation": "Al enviar a Petdex confirmas que tienes derechos sobre la obra o que estás creando contenido de fan. Petdex actúa ante solicitudes de retirada de buena fe."
   },
   "unsubscribePage": {
     "metadata": {
-      "title": "Unsubscribe | Petdex",
-      "description": "Manage your Petdex email preferences."
+      "title": "Unsubscribe",
+      "description": "Gestiona tus preferencias de correo de Petdex."
     },
     "eyebrow": "Email · Preferences",
     "title": "Unsubscribe",
-    "invalidTitle": "This link looks invalid.",
-    "invalidBody": "We couldn't find that unsubscribe token. It may be expired or malformed. If you keep getting emails you don't want, reply to the latest one and we'll remove you manually.",
+    "invalidTitle": "Este enlace parece no ser válido.",
+    "invalidBody": "No hemos encontrado ese token de baja. Puede que haya caducado o esté mal formado. Si sigues recibiendo correos que no quieres, responde al último y te quitaremos manualmente.",
     "form": {
       "account": "Account",
-      "unsubscribedTitle": "You're unsubscribed from Petdex updates.",
-      "unsubscribedBody": "You'll still receive required notifications when your pet is approved, your edits are reviewed, or someone replies to your feedback.",
+      "unsubscribedTitle": "Ya no recibirás novedades de Petdex.",
+      "unsubscribedBody": "Seguirás recibiendo las notificaciones necesarias cuando se apruebe tu mascota, se revisen tus ediciones o alguien responda a tu comentario.",
       "subscribedTitle": "Stop receiving Petdex updates?",
-      "subscribedBody": "We send occasional curated updates: new collections, pet drops, and community moments. Required emails such as review results and feedback replies are not affected.",
+      "subscribedBody": "Enviamos novedades puntuales y seleccionadas: colecciones nuevas, lanzamientos de mascotas y momentos de la comunidad. Los correos necesarios, como los resultados de revisión y las respuestas a comentarios, no se ven afectados.",
       "working": "Working…",
       "resubscribe": "Resubscribe",
       "unsubscribe": "Unsubscribe",
-      "error": "Could not update your preference. Try again."
+      "error": "No se pudo actualizar tu preferencia. Inténtalo de nuevo."
     }
   },
   "telemetryPage": {
     "metadata": {
-      "title": "Telemetry | Petdex",
-      "description": "What petdex CLI telemetry collects and how to opt out."
+      "title": "Telemetry",
+      "description": "Qué recoge la telemetría de la CLI de petdex y cómo desactivarla."
     },
     "eyebrow": "Legal · Telemetry",
     "title": "CLI telemetry",
-    "intro": "The petdex CLI collects anonymous usage statistics to help us understand install volume, supported platforms, and which coding agents people wire up. This page explains exactly what is collected and how to opt out.",
-    "collectTitle": "What we collect",
+    "intro": "La CLI de petdex recoge estadísticas de uso anónimas para ayudarnos a entender el volumen de instalaciones, las plataformas compatibles y qué agentes de código conecta la gente. Esta página explica exactamente qué se recoge y cómo desactivarlo.",
+    "collectTitle": "Qué recogemos",
     "table": {
       "field": "Field",
       "type": "Type",
       "description": "Description"
     },
     "fields": {
-      "installId": "Random ID generated on first run and stored at <code>~/.petdex/telemetry.json</code>. Never linked to your account, email, or any other identity.",
-      "event": "Which lifecycle step fired: <code>cli_install_desktop_success</code>, <code>cli_hooks_install_success</code>, <code>cli_desktop_start_success</code>, or <code>desktop_first_state_received</code>. The in-process desktop hook server emits the last one once per session when a hook first reaches the mascot.",
-      "cliVersion": "Version of the petdex CLI package, for example <code>0.1.4</code>.",
-      "binaryVersion": "Version of the desktop binary that was installed, for example <code>0.1.4</code>. Only sent on <code>cli_install_desktop_success</code>.",
-      "os": "Operating system: <code>darwin</code>, <code>linux</code>, or <code>win32</code>.",
-      "arch": "CPU architecture: <code>arm64</code> or <code>x64</code>.",
-      "agents": "Which coding agents were wired up by the desktop app, for example <code>[\"claude-code\", \"codex\"]</code>. Only sent on <code>cli_hooks_install_success</code>.",
-      "state": "Sprite animation state the first hook triggered, for example <code>running</code>, <code>idle</code>, or <code>waving</code>. Only sent on <code>desktop_first_state_received</code>.",
-      "agentSource": "Optional self-reported label of the agent that fired the first hook, for example <code>claude-code</code>. Capped at 64 characters and only sent if the hook command included it.",
-      "country": "Two-letter ISO country code inferred from your IP by Vercel edge infrastructure. The raw IP is never stored."
+      "installId": "ID aleatorio generado en la primera ejecución y guardado en <code>~/.petdex/telemetry.json</code>. Nunca se vincula a tu cuenta, tu correo ni ninguna otra identidad.",
+      "event": "Qué paso del ciclo de vida se disparó: <code>cli_install_desktop_success</code>, <code>cli_hooks_install_success</code>, <code>cli_desktop_start_success</code> o <code>desktop_first_state_received</code>. El servidor de hooks del escritorio, que corre en el mismo proceso, emite el último una vez por sesión, cuando un hook llega por primera vez a la mascota.",
+      "cliVersion": "Versión del paquete de la CLI de petdex, por ejemplo <code>0.1.4</code>.",
+      "binaryVersion": "Versión del binario de escritorio que se instaló, por ejemplo <code>0.1.4</code>. Solo se envía en <code>cli_install_desktop_success</code>.",
+      "os": "Sistema operativo: <code>darwin</code>, <code>linux</code> o <code>win32</code>.",
+      "arch": "Arquitectura de CPU: <code>arm64</code> o <code>x64</code>.",
+      "agents": "Qué agentes de código conectó la app de escritorio, por ejemplo <code>[\"claude-code\", \"codex\"]</code>. Solo se envía en <code>cli_hooks_install_success</code>.",
+      "state": "Estado de animación del sprite que disparó el primer hook, por ejemplo <code>running</code>, <code>idle</code> o <code>waving</code>. Solo se envía en <code>desktop_first_state_received</code>.",
+      "agentSource": "Etiqueta opcional, declarada por el propio agente, del agente que disparó el primer hook, por ejemplo <code>claude-code</code>. Limitada a 64 caracteres y solo se envía si el comando del hook la incluía.",
+      "country": "Código de país ISO de dos letras inferido de tu IP por la infraestructura de borde de Vercel. La IP sin procesar nunca se almacena."
     },
-    "notCollectTitle": "What we do not collect",
+    "notCollectTitle": "Qué no recogemos",
     "notCollect": {
-      "email": "Email address, username, or any account identifier.",
-      "files": "File names, file contents, or any data from your project directory.",
-      "ip": "Raw IP addresses. Only the country code inferred at the edge is stored.",
-      "crashes": "Crash reports, stack traces, or error messages from your local environment.",
-      "pets": "Any data from the pets you install or submit."
+      "email": "Dirección de correo, nombre de usuario o cualquier identificador de cuenta.",
+      "files": "Nombres de archivos, contenido de archivos o cualquier dato de tu directorio de proyecto.",
+      "ip": "Direcciones IP sin procesar. Solo se almacena el código de país inferido en el borde.",
+      "crashes": "Informes de fallos, trazas de pila o mensajes de error de tu entorno local.",
+      "pets": "Cualquier dato de las mascotas que instales o envíes."
     },
-    "optOutTitle": "How to opt out",
-    "optOutIntro": "Telemetry is on by default but can be turned off at any time. Settings are stored at <code>~/.petdex/telemetry.json</code> and persist across CLI updates.",
+    "optOutTitle": "Cómo desactivarla",
+    "optOutIntro": "La telemetría está activada por defecto, pero puedes desactivarla cuando quieras. La configuración se guarda en <code>~/.petdex/telemetry.json</code> y se mantiene entre actualizaciones de la CLI.",
     "codeComments": {
       "disable": "# Disable telemetry",
       "enable": "# Re-enable",
       "status": "# Check current status"
     },
-    "optOutEnv": "You can also set <code>PETDEX_TELEMETRY=0</code> to disable telemetry for one invocation or permanently in your shell profile.",
+    "optOutEnv": "También puedes definir <code>PETDEX_TELEMETRY=0</code> para desactivar la telemetría en una sola invocación o de forma permanente en tu perfil de shell.",
     "retentionTitle": "Data retention",
-    "retentionBody": "Telemetry events are stored in a Postgres database hosted by Neon. Events older than 12 months may be deleted. No data is sold or shared with third parties."
+    "retentionBody": "Los eventos de telemetría se guardan en una base de datos Postgres alojada en Neon. Los eventos de más de 12 meses pueden eliminarse. No se vende ni se comparte ningún dato con terceros."
   },
   "facetPages": {
     "notFound": {
-      "kind": "Kind not found",
-      "vibe": "Vibe not found"
+      "kind": "Kind no encontrado",
+      "vibe": "Vibe no encontrada"
     },
     "kindEyebrow": "Kind: {kind}",
     "vibeEyebrow": "Vibe: {vibe}",
     "relatedKinds": "Other kinds",
     "relatedVibes": "Related vibes",
-    "count": "{count, plural, =1 {1 pet in this collection} other {# pets in this collection}}",
+    "count": "{count, plural, =1 {1 mascota en esta colección} other {# mascotas en esta colección}}",
     "kinds": {
       "creature": {
         "label": "creature",
-        "title": "Animated creature pets for coding agents",
-        "intro": "Animals, critters, and made-up beasts. The biggest collection in the index. Most contributors start here: otters, capybaras, foxes, and things with too many legs.",
-        "metaDescription": "Animated creature pets for coding agents like ChatGPT (Codex), Claude Code, and Gemini. Otters, capybaras, foxes and more, installable with one command."
+        "title": "Mascotas animadas de tipo criatura para agentes de código",
+        "intro": "Animales, bichos y bestias inventadas. La colección más grande del índice. La mayoría de los colaboradores empieza por aquí: nutrias, capibaras, zorros y cosas con demasiadas patas.",
+        "metaDescription": "Mascotas animadas de tipo criatura para agentes de código como ChatGPT (Codex), Claude Code y Gemini. Nutrias, capibaras, zorros y más, instalables con un solo comando."
       },
       "object": {
         "label": "object",
-        "title": "Animated object pets for coding agents",
-        "intro": "Pets that aren't alive but absolutely have personality. Paperclips, mugs, ice cream scoops: everyday objects that earned a soul.",
-        "metaDescription": "Object pets for coding agents. Animated pixel companions made from everyday objects, installable with one command."
+        "title": "Mascotas animadas de tipo objeto para agentes de código",
+        "intro": "Mascotas que no están vivas pero tienen toda la personalidad. Clips, tazas, bolas de helado: objetos cotidianos que se ganaron un alma.",
+        "metaDescription": "Mascotas de tipo objeto para agentes de código. Compañeros animados en pixel art hechos de objetos cotidianos, instalables con un solo comando."
       },
       "character": {
         "label": "character",
-        "title": "Animated character pets for coding agents",
-        "intro": "Humanoids, mascots, fictional figures, original characters, and homages, all in 9-state pixel form.",
-        "metaDescription": "Animated character pets for coding agents like ChatGPT (Codex), Claude Code, and Gemini. Humanoid pixel companions installable with one command."
+        "title": "Mascotas animadas de tipo personaje para agentes de código",
+        "intro": "Humanoides, mascotas, figuras de ficción, personajes originales y homenajes, todos en formato pixel de 9 estados.",
+        "metaDescription": "Mascotas animadas de tipo personaje para agentes de código como ChatGPT (Codex), Claude Code y Gemini. Compañeros humanoides en pixel art, instalables con un solo comando."
       }
     },
     "vibes": {
       "cozy": {
         "label": "cozy",
-        "title": "Cozy pets for coding agents",
-        "intro": "Warm, soft companions with gentle poses, subtle blinks, and quiet idle states. Pick one to keep your terminal feeling easy to sit with.",
-        "metaDescription": "Cozy animated pixel pets for coding agents. Soft, calming companions you can install with one command."
+        "title": "Mascotas cozy para agentes de código",
+        "intro": "Compañeros cálidos y suaves, con poses tranquilas, parpadeos sutiles y estados idle silenciosos. Elige uno para que tu terminal sea un lugar agradable donde estar.",
+        "metaDescription": "Mascotas animadas cozy en pixel art para agentes de código. Compañeros suaves y relajantes que puedes instalar con un solo comando."
       },
       "calm": {
         "label": "calm",
-        "title": "Calm pets for coding agents",
-        "intro": "Steady, low-key companions for focused sessions. Their idle animations breathe instead of bounce.",
-        "metaDescription": "Calm pixel pets for coding agents. Low-motion animated companions for deep work."
+        "title": "Mascotas calm para agentes de código",
+        "intro": "Compañeros estables y discretos para sesiones de concentración. Sus animaciones idle respiran en vez de saltar.",
+        "metaDescription": "Mascotas calm en pixel art para agentes de código. Compañeros animados de movimiento bajo para trabajo profundo."
       },
       "playful": {
         "label": "playful",
-        "title": "Playful pets for coding agents",
-        "intro": "Bouncy companions that refuse to sit still. Expect tail wags, spins, and little interruptions beside your prompt.",
-        "metaDescription": "Playful animated companions for coding agents. Bouncy pixel art you can install with one command."
+        "title": "Mascotas playful para agentes de código",
+        "intro": "Compañeros saltarines que se niegan a quedarse quietos. Espera movimientos de cola, giros y pequeñas interrupciones junto a tu prompt.",
+        "metaDescription": "Compañeros animados playful para agentes de código. Pixel art saltarín que puedes instalar con un solo comando."
       },
       "cheerful": {
         "label": "cheerful",
-        "title": "Cheerful pets for coding agents",
-        "intro": "The optimists of the index. Bright palettes, smiling sprites, and idle states that seem glad you opened the terminal.",
-        "metaDescription": "Cheerful pets for coding agents. Bright, smiling animated companions installable with one command."
+        "title": "Mascotas cheerful para agentes de código",
+        "intro": "Los optimistas del índice. Paletas brillantes, sprites sonrientes y estados idle que parecen alegrarse de que hayas abierto la terminal.",
+        "metaDescription": "Mascotas cheerful para agentes de código. Compañeros animados, brillantes y sonrientes, instalables con un solo comando."
       },
       "focused": {
         "label": "focused",
-        "title": "Focused pets for coding agents",
-        "intro": "Companions in deep work mode. Headphones, monitors, concentrated stares, and ready-to-ship energy.",
-        "metaDescription": "Focused pets for coding agents. Concentrated, deep-work companions for long sessions."
+        "title": "Mascotas focused para agentes de código",
+        "intro": "Compañeros en modo trabajo profundo. Auriculares, monitores, miradas concentradas y energía de listo para publicar.",
+        "metaDescription": "Mascotas focused para agentes de código. Compañeros concentrados para sesiones largas de trabajo profundo."
       },
       "mischievous": {
         "label": "mischievous",
-        "title": "Mischievous pets for coding agents",
-        "intro": "Sneaky idle poses, side-eye, and the suspicion that your linter errors might be their fault.",
-        "metaDescription": "Mischievous pets for coding agents. Sneaky animated pixel companions for your terminal."
+        "title": "Mascotas mischievous para agentes de código",
+        "intro": "Poses idle traviesas, miradas de reojo y la sospecha de que los errores del linter quizá sean culpa suya.",
+        "metaDescription": "Mascotas mischievous para agentes de código. Compañeros animados en pixel art y un poco traviesos para tu terminal."
       },
       "heroic": {
         "label": "heroic",
-        "title": "Heroic pets for coding agents",
-        "intro": "Capes, stances, and saving-the-day energy. These pets believe in you and your unmerged PR.",
-        "metaDescription": "Heroic pets for coding agents. Brave, animated pixel companions installable with one command."
+        "title": "Mascotas heroic para agentes de código",
+        "intro": "Capas, posturas y energía de salvar el día. Estas mascotas creen en ti y en tu PR sin fusionar.",
+        "metaDescription": "Mascotas heroic para agentes de código. Compañeros animados en pixel art y valientes, instalables con un solo comando."
       },
       "edgy": {
         "label": "edgy",
-        "title": "Edgy pets for coding agents",
-        "intro": "Darker palettes, sharper silhouettes, and more attitude for terminals that need a little bite.",
-        "metaDescription": "Edgy pets for coding agents. Bold, animated pixel companions for long sessions."
+        "title": "Mascotas edgy para agentes de código",
+        "intro": "Paletas más oscuras, siluetas más marcadas y más actitud para terminales que necesitan algo de mordida.",
+        "metaDescription": "Mascotas edgy para agentes de código. Compañeros animados en pixel art y atrevidos para sesiones largas."
       },
       "mystical": {
         "label": "mystical",
-        "title": "Mystical pets for coding agents",
-        "intro": "Moons, sparkles, robes, and the feeling that this companion knows the answer before the model does.",
-        "metaDescription": "Mystical pets for coding agents. Magical animated pixel companions installable with one command."
+        "title": "Mascotas mystical para agentes de código",
+        "intro": "Lunas, destellos, túnicas y la sensación de que este compañero conoce la respuesta antes que el modelo.",
+        "metaDescription": "Mascotas mystical para agentes de código. Compañeros animados en pixel art y mágicos, instalables con un solo comando."
       },
       "wholesome": {
         "label": "wholesome",
-        "title": "Wholesome pets for coding agents",
-        "intro": "Pure-hearted companions with big eyes and small gestures. A little softness for your workspace.",
-        "metaDescription": "Wholesome pets for coding agents. Sweet animated pixel companions installable with one command."
+        "title": "Mascotas wholesome para agentes de código",
+        "intro": "Compañeros de buen corazón, con ojos grandes y gestos pequeños. Un poco de ternura para tu espacio de trabajo.",
+        "metaDescription": "Mascotas wholesome para agentes de código. Compañeros animados en pixel art y entrañables, instalables con un solo comando."
       },
       "chaotic": {
         "label": "chaotic",
-        "title": "Chaotic pets for coding agents",
-        "intro": "Maximum energy, minimum predictability. Their states cycle a little strangely, in a good way.",
-        "metaDescription": "Chaotic pets for coding agents. High-energy animated pixel companions for long sessions."
+        "title": "Mascotas chaotic para agentes de código",
+        "intro": "Máxima energía, mínima previsibilidad. Sus estados cambian de forma un poco rara, para bien.",
+        "metaDescription": "Mascotas chaotic para agentes de código. Compañeros animados en pixel art y de alta energía para sesiones largas."
       },
       "melancholic": {
         "label": "melancholic",
-        "title": "Melancholic pets for coding agents",
-        "intro": "Pensive, soft, and a little wistful. Companions for the part of the night when the build keeps failing.",
-        "metaDescription": "Melancholic pets for coding agents. Pensive animated pixel companions installable with one command."
+        "title": "Mascotas melancholic para agentes de código",
+        "intro": "Pensativos, suaves y un poco melancólicos. Compañeros para esa parte de la noche en la que el build no deja de fallar.",
+        "metaDescription": "Mascotas melancholic para agentes de código. Compañeros animados en pixel art y pensativos, instalables con un solo comando."
       }
-    }
+    },
+    "cardInstalls": "{count, plural, =1 {{formatted} instalación} other {{formatted} instalaciones}}",
+    "cardDiscovered": "Descubierta",
+    "cardDiscoveredTitle": "Añadida en nombre del autor original. Aún sin reclamar.",
+    "cardByAuthor": "por {name}",
+    "cardFeatured": "★ DESTACADA",
+    "cardDexNumber": "N.º {number}",
+    "cardOpenPet": "Abrir {name}",
+    "cardSpriteStill": "Sprite de {name}",
+    "cardBatchLabel": "Generación de {month}"
   },
   "docsPage": {
     "metadata": {
-      "title": "Docs · Petdex",
-      "description": "How to install, distribute, and automate pets with the Petdex CLI.",
+      "title": "Docs",
+      "description": "Cómo instalar, distribuir y automatizar mascotas con la CLI de Petdex.",
       "ogTitle": "Petdex CLI · Docs"
     },
     "nav": {
@@ -1586,7 +1656,7 @@
     "hero": {
       "eyebrow": "Petdex CLI · v0.1",
       "title": "Docs",
-      "description": "The Petdex CLI lets you install, browse, and submit pets from your terminal. Authentication uses OAuth 2.0 + PKCE through Clerk, and tokens persist in your OS keychain.",
+      "description": "La CLI de Petdex te permite instalar, explorar y enviar mascotas desde tu terminal. La autenticación usa OAuth 2.0 + PKCE a través de Clerk, y los tokens se guardan en el llavero de tu sistema operativo.",
       "npmCta": "npmjs.com/petdex",
       "repoCta": "Repo"
     },
@@ -1621,29 +1691,29 @@
       },
       "install": {
         "title": "Install",
-        "intro": "The CLI runs on Node 20+ (or Bun). Pick the workflow that fits you. Both are equivalent in capability and persistence.",
+        "intro": "La CLI funciona en Node 20+ (o Bun). Elige el flujo que mejor te venga. Ambos son equivalentes en capacidad y persistencia.",
         "casualTitle": "Casual / one-off",
-        "casualBody": "Use <code>npx</code>. No setup, package is cached after first run.",
+        "casualBody": "Usa <code>npx</code>. Sin configuración, y el paquete queda en caché tras la primera ejecución.",
         "powerTitle": "Power user",
-        "powerBody": "Install globally for instant invocation and easier muscle memory.",
-        "persistence": "<strong>Auth persistence is identical in both.</strong> Tokens live in your OS keychain (macOS Keychain, Windows Credential Manager, Linux Secret Service) under the service name <code>petdex-cli</code>. Even if npx clears its package cache, your session survives."
+        "powerBody": "Instálala de forma global para invocarla al instante y crear memoria muscular.",
+        "persistence": "<strong>La persistencia de la autenticación es idéntica en ambos.</strong> Los tokens viven en el llavero de tu sistema operativo (Llavero de macOS, Administrador de credenciales de Windows, Secret Service de Linux) bajo el nombre de servicio <code>petdex-cli</code>. Aunque npx borre su caché de paquetes, tu sesión sobrevive."
       },
       "authenticate": {
         "title": "Authenticate",
-        "intro": "Sign in once, then any command that needs auth, such as submit, works seamlessly.",
-        "flow": "The flow is OAuth 2.0 + PKCE: the CLI opens your browser, you sign in with Clerk on <code>accounts.petdex.dev</code>, and the browser redirects to a one-shot localhost listener with the authorization code. The CLI exchanges it for a token set and stores it in the keychain. No secrets touch disk.",
+        "intro": "Inicia sesión una vez y cualquier comando que necesite autenticación, como submit, funcionará sin más.",
+        "flow": "El flujo es OAuth 2.0 + PKCE: la CLI abre tu navegador, inicias sesión con Clerk en <code>accounts.petdex.dev</code>, y el navegador redirige a un listener local de un solo uso con el código de autorización. La CLI lo canjea por un conjunto de tokens y lo guarda en el llavero. Ningún secreto toca el disco.",
         "otherCommands": "Other auth commands:"
       },
       "commands": {
         "title": "Commands",
-        "intro": "The CLI covers the full lifecycle: discover, install, hatch, publish, plus the desktop app and agent hooks. All commands accept <code>--help</code>.",
-        "listBody": "Print every approved pet with credit. Useful for discovery before installing.",
-        "installBody": "Drop a pet into <code>~/.codex/pets/{petName}/</code>. Equivalent to <code>curl -sSf https://petdex.dev/install/{petName} | sh</code>.",
-        "submitIntro": "Publish your pet(s) to the gallery. The CLI accepts three shapes:",
+        "intro": "La CLI cubre todo el ciclo de vida: descubrir, instalar, crear, publicar, además de la app de escritorio y los hooks de agentes. Todos los comandos aceptan <code>--help</code>.",
+        "listBody": "Muestra todas las mascotas aprobadas con su crédito. Útil para descubrir antes de instalar.",
+        "installBody": "Coloca una mascota en <code>~/.codex/pets/{petName}/</code>. Equivale a <code>curl -sSf https://petdex.dev/install/{petName} | sh</code>.",
+        "submitIntro": "Publica tu mascota o mascotas en la galería. La CLI acepta tres formas:",
         "submitSingle": "<strong>Single folder</strong>: <code>petdex submit ~/.codex/pets/boba</code>",
         "submitZip": "<strong>Single zip</strong>: <code>petdex submit ~/Downloads/boba.zip</code>",
-        "submitBulk": "<strong>Bulk</strong>: <code>petdex submit ~/.codex/pets</code>: every direct subfolder is treated as its own pet",
-        "bulkNote": "Bulk mode shows a progress spinner per pet and a final summary of failures. Slugs auto-deduplicate so you will not hit a slug-taken bounce.",
+        "submitBulk": "<strong>Por lotes</strong>: <code>petdex submit ~/.codex/pets</code>: cada subcarpeta directa se trata como una mascota propia",
+        "bulkNote": "El modo por lotes muestra un spinner de progreso por mascota y un resumen final de los fallos. Los slugs se deduplican automáticamente, así que no te toparás con el rebote de slug ocupado.",
         "collectionSyntax": "petdex collection list|create|edit|delete [opciones]",
         "collectionBody": "Gestiona colecciones personales de mascotas aprobadas desde la CLI. Inicia sesión primero y añade <code>--json</code> a cualquier comando de colecciones para obtener una salida legible por máquinas.",
         "collectionList": "<strong>Listar</strong>: <code>petdex collection list</code>",
@@ -1651,13 +1721,13 @@
         "collectionEdit": "<strong>Editar</strong>: <code>petdex collection edit {collectionRef} --desc \"...\"</code>. Las opciones de actualización son opcionales y los campos omitidos no cambian.",
         "collectionDelete": "<strong>Eliminar</strong>: <code>petdex collection delete {collectionRef} --yes</code>.",
         "collectionLimits": "Cada cuenta puede tener hasta 10 colecciones personales. El límite de 24 mascotas acota el crecimiento: una colección que ya lo supera aún puede reducirse o renombrarse, pero no ampliarse, y se rechaza una lista de miembros vacía cuando la colección aún tiene miembros, porque los quitaría todos. <code>--pets</code> acepta slugs separados por comas, <code>--cover</code> debe nombrar una mascota seleccionada y <code>--cover \"\"</code> lo borra, y <code>--external-url</code> debe ser un enlace HTTPS seguro.",
-        "authBody": "See the Authenticate section above.",
+        "authBody": "Consulta la sección Autenticación más arriba.",
         "installSyntax": "petdex install {petName}",
         "submitSyntax": "petdex submit {path}"
       },
       "desktop": {
         "title": "Desktop app",
-        "intro": "Petdex Desktop is a floating mascot that lives on top of your workspace and reacts to your coding agent tool calls. macOS, Linux and Windows. See <download>/download</download> for the visual tour.",
+        "intro": "Petdex Desktop es una mascota flotante que vive sobre tu espacio de trabajo y reacciona a las llamadas de herramientas de tu agente de código. macOS, Linux y Windows. Mira <download>/download</download> para el recorrido visual.",
         "sidecarCallout": "La aplicación de escritorio expone un servidor HTTP local de hooks integrado en el proceso en el puerto <code>7777</code>. Cualquier programa que pueda usar <code>curl</code> y leer el token de cada sesión en <code>~/.petdex/runtime/update-token</code> puede controlar la mascota. El token cambia en cada inicio de la aplicación y el archivo tiene permisos <code>0600</code>, por lo que solo tu usuario puede leerlo. Los navegadores y sitios remotos no pueden:",
         "windowTitle": "Convivir con la mascota",
         "windowBody": "La mascota flota sobre todas las ventanas y nunca roba el foco. Los clics atraviesan la burbuja de actividad hacia lo que haya detrás, así que un mensaje sobre tu editor no puede tragarse una tecla. El sprite sí se arrastra: agarralo y soltalo donde quieras.",
@@ -1673,23 +1743,23 @@
         "chatgptExport": "<strong>Llevarte una.</strong> Cada página de mascota tiene un botón Open in Codex que la instala en la app de escritorio de ChatGPT. Importar directo desde un link para compartir de ChatGPT no se puede: esas URLs están atadas a la sesión del navegador que las creó."
       },
       "distribute": {
-        "title": "Distribute your pets",
-        "intro": "Once you have hatched a pet, sharing it takes one command. Here's the full lifecycle:",
-        "create": "<strong>Create.</strong> In the ChatGPT desktop app, install the <strong>Hatch Pet</strong> skill and run <code>/pet</code>. It generates the spritesheet and pet.json into <code>~/.codex/pets/{petName}/</code>. Full tutorial at <create>/create</create>.",
-        "signIn": "<strong>Sign in.</strong> <code>npx petdex login</code> if you have not.",
-        "submit": "<strong>Submit.</strong> <code>npx petdex submit ~/.codex/pets/{petName}</code>. Or bulk all at once with the parent dir.",
-        "review": "<strong>Wait for review.</strong> Submissions land as “pending” in the admin queue. You will receive a Resend email when approved or rejected (if rejected, the reason is included).",
-        "install": "<strong>Anyone can install your pet.</strong> Once approved, share <code>npx petdex install {yourPetName}</code> with anyone. They get your pet in their <code>~/.codex/pets/</code> instantly.",
-        "callout": "Pets are user-submitted fan art. Petdex does not claim rights to underlying IP. If you are a rights holder requesting a takedown, see <takedown>/legal/takedown</takedown>."
+        "title": "Distribuye tus mascotas",
+        "intro": "Una vez que hayas creado una mascota, compartirla cuesta un comando. Este es el ciclo de vida completo:",
+        "create": "<strong>Crea.</strong> En la app de escritorio de ChatGPT, instala la skill <strong>Hatch Pet</strong> y ejecuta <code>/pet</code>. Genera el spritesheet y pet.json en <code>~/.codex/pets/{petName}/</code>. Tutorial completo en <create>/create</create>.",
+        "signIn": "<strong>Inicia sesión.</strong> <code>npx petdex login</code> si aún no lo has hecho.",
+        "submit": "<strong>Envía.</strong> <code>npx petdex submit ~/.codex/pets/{petName}</code>. O envía todo de golpe con la carpeta padre.",
+        "review": "<strong>Espera la revisión.</strong> Los envíos llegan como “pendientes” a la cola de administración. Recibirás un correo de Resend cuando se apruebe o rechace (si se rechaza, se incluye el motivo).",
+        "install": "<strong>Cualquiera puede instalar tu mascota.</strong> Una vez aprobada, comparte <code>npx petdex install {yourPetName}</code> con quien quieras. Tendrá tu mascota en su <code>~/.codex/pets/</code> al instante.",
+        "callout": "Las mascotas son fan art enviado por usuarios. Petdex no reclama derechos sobre la propiedad intelectual subyacente. Si eres titular de derechos y quieres solicitar una retirada, mira <takedown>/legal/takedown</takedown>."
       },
       "validation": {
         "title": "Validation rules",
-        "intro": "The server enforces these rules; the CLI checks locally too.",
-        "files": "<code>pet.json</code> and <code>spritesheet.webp</code> (or <code>.png</code>) must be at the root of the folder/zip.",
+        "intro": "El servidor aplica estas reglas; la CLI también las comprueba en local.",
+        "files": "<code>pet.json</code> y <code>spritesheet.webp</code> (o <code>.png</code>) deben estar en la raíz de la carpeta o del zip.",
         "spritesheet": "Spritesheet ≥ 256×256. Recommended <strong>1536×1872</strong> (8×9 frame grid).",
         "rateLimit": "Rate limit: <strong>10 submissions / 24h per user</strong>. Admins bypass.",
-        "slugs": "Slugs auto-deduplicate (<code>boba</code> → <code>boba-2</code> → <code>boba-3</code> → …). You always get a successful submission.",
-        "identity": "Identity (userId, email, credit) comes from the verified OAuth token. Never trusted from request body."
+        "slugs": "Los slugs se deduplican automáticamente (<code>boba</code> → <code>boba-2</code> → <code>boba-3</code> → …). Siempre obtendrás un envío correcto.",
+        "identity": "La identidad (userId, email, crédito) viene del token OAuth verificado. Nunca se confía en el cuerpo de la petición."
       },
       "failure": {
         "title": "Failure modes",
@@ -1701,15 +1771,15 @@
         "then": "then",
         "rows": {
           "notSignedIn": {
-            "symptom": "Not signed in",
-            "cause": "No tokens or session expired"
+            "symptom": "Sesión no iniciada",
+            "cause": "No hay tokens o la sesión caducó"
           },
           "presign401": {
-            "cause": "Bearer rejected by Clerk userinfo"
+            "cause": "Bearer rechazado por userinfo de Clerk"
           },
           "presign429": {
             "cause": "10/24h rate limit hit",
-            "fixBefore": "Wait 24h or open a",
+            "fixBefore": "Espera 24 h o abre una",
             "fixLink": "submit-fallback issue"
           },
           "invalidSpritesheet": {
@@ -1717,7 +1787,7 @@
             "fix": "Regenerate at 1536×1872"
           },
           "missingField": {
-            "cause": "Folder missing pet.json or spritesheet",
+            "cause": "A la carpeta le falta pet.json o el spritesheet",
             "fix": "Inspect folder contents"
           },
           "r2Put403": {
@@ -1728,31 +1798,31 @@
       },
       "agents": {
         "title": "Agent-first usage (Skill)",
-        "intro": "Petdex ships a Claude Code / Codex / Cursor compatible <strong>skill</strong> at <code>.claude/skills/petdex/SKILL.md</code>. Compatible agents load it automatically and learn <em>when</em> and <em>how</em> to call the CLI on your behalf.",
-        "enablesTitle": "What this enables",
-        "enableCozy": "Say <em>“install something cozy for my agent”</em> in any agent tool. It runs <code>petdex list</code>, suggests Boba/Boxcat, installs your pick, and reminds you to activate via <strong>Settings → Appearance → Pets</strong>.",
-        "enableShare": "Say <em>“share all my pets”</em>. Agent runs <code>petdex login</code> if needed, then <code>petdex submit ~/.codex/pets</code>, surfaces the bulk summary.",
-        "enableMake": "Say <em>“how do I make my own?”</em>. Agent walks you through the ChatGPT desktop app → Hatch Pet skill → <code>/pet</code> → <code>petdex submit</code>.",
-        "enableTitle": "How to enable it",
-        "enableIntro": "If you use Claude Code, save the skill globally so every project has it:",
-        "enableOther": "Other agent tools can load the same SKILL.md from the repo. The file is plain markdown. No agent-specific syntax beyond <code>allowed-tools</code>.",
-        "buildTitle": "Build your own skill on top",
-        "buildBody": "The CLI is the executable surface; the skill is the cognitive one. If you build a derivative skill (for example, one that auto-tags new pets or curates a daily digest), you can use the Petdex skill as a reference. Read it directly:"
+        "intro": "Petdex incluye una <strong>skill</strong> compatible con Claude Code / Codex / Cursor en <code>.claude/skills/petdex/SKILL.md</code>. Los agentes compatibles la cargan solos y aprenden <em>cuándo</em> y <em>cómo</em> llamar a la CLI en tu nombre.",
+        "enablesTitle": "Qué permite esto",
+        "enableCozy": "Di <em>“instala algo cozy para mi agente”</em> en cualquier herramienta de agente. Ejecuta <code>petdex list</code>, te sugiere Boba/Boxcat, instala el que elijas y te recuerda activarlo en <strong>Ajustes → Apariencia → Mascotas</strong>.",
+        "enableShare": "Di <em>“comparte todas mis mascotas”</em>. El agente ejecuta <code>petdex login</code> si hace falta, luego <code>petdex submit ~/.codex/pets</code> y te muestra el resumen por lotes.",
+        "enableMake": "Di <em>“¿cómo hago la mía?”</em>. El agente te guía por la app de escritorio de ChatGPT → skill Hatch Pet → <code>/pet</code> → <code>petdex submit</code>.",
+        "enableTitle": "Cómo activarla",
+        "enableIntro": "Si usas Claude Code, guarda la skill de forma global para que la tenga todo proyecto:",
+        "enableOther": "Otras herramientas de agentes pueden cargar el mismo SKILL.md desde el repositorio. El archivo es markdown plano. Sin sintaxis específica de ningún agente más allá de <code>allowed-tools</code>.",
+        "buildTitle": "Construye tu propia skill encima",
+        "buildBody": "La CLI es la superficie ejecutable; la skill es la cognitiva. Si construyes una skill derivada (por ejemplo, una que etiquete mascotas nuevas automáticamente o prepare un resumen diario), puedes usar la skill de Petdex como referencia. Léela directamente:"
       },
       "config": {
         "title": "Configuration",
-        "intro": "The CLI ships with sensible defaults pointing at production. You only need to override env vars if you are testing against a non-production deployment.",
+        "intro": "La CLI viene con valores por defecto razonables apuntando a producción. Solo necesitas sobrescribir variables de entorno si estás probando contra un despliegue que no es producción.",
         "petdexUrl": "<code>PETDEX_URL</code>: base URL, default <code>https://petdex.dev</code>",
         "clerkIssuer": "<code>CLERK_ISSUER</code>: OAuth issuer, default <code>https://clerk.petdex.dev</code>",
-        "clerkClientId": "<code>CLERK_OAUTH_CLIENT_ID</code>: public client id (baked into the CLI binary)"
+        "clerkClientId": "<code>CLERK_OAUTH_CLIENT_ID</code>: id de cliente público (incluido en el binario de la CLI)"
       },
       "contribute": {
         "title": "Contribute",
         "prBefore": "PRs welcome at",
-        "issuesBefore": "Bug reports and feature requests:",
-        "issueLink": "open an issue",
-        "sponsorBefore": "Sponsor on",
-        "sponsorAfter": "if Petdex saves you time."
+        "issuesBefore": "Informes de errores y peticiones de funciones:",
+        "issueLink": "abre un issue",
+        "sponsorBefore": "Patrocina en",
+        "sponsorAfter": "si Petdex te ahorra tiempo."
       }
     },
     "placeholders": {

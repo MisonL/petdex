@@ -30,6 +30,12 @@ const DOC_SECTIONS = [
   ["contribute", "contribute"],
 ] as const;
 
+// Fully public: no auth, no cookies, no per-visitor data. The declaration is
+// also what gets every locale prerendered — without it Next builds the default
+// locale and leaves the others to be rendered on demand, so /zh and /es were
+// the only locales this page did not have a static copy for.
+export const dynamic = "force-static";
+
 export async function generateMetadata({
   params,
 }: {
@@ -69,9 +75,13 @@ export default async function DocsPage({
   const placeholder = {
     desktopAction: "<start | stop | status>",
     collectionRef: "id-or-slug",
-    path: t("placeholders.path"),
-    petName: t("placeholders.petName"),
-    yourPetName: t("placeholders.yourPetName"),
+    // Raw: these are literal `<slug>`-style placeholders, and ICU reads an
+    // angle-bracketed name as a rich-text tag. Interpolating them into another
+    // message passes them through untouched, but reading one on its own would
+    // otherwise throw UNCLOSED_TAG in development.
+    path: t.raw("placeholders.path"),
+    petName: t.raw("placeholders.petName"),
+    yourPetName: t.raw("placeholders.yourPetName"),
   };
   const rich = {
     code: (chunks: React.ReactNode) => <code>{chunks}</code>,
@@ -175,7 +185,10 @@ export default async function DocsPage({
                 )}
               >
                 <Link
-                  href={`/${locale}/download`}
+                  // `withLocale`, like the other links on this page: the
+                  // default locale is unprefixed, so `/${locale}` sent
+                  // English readers through a 307 from `/en/download`.
+                  href={withLocale("/download", localeValue)}
                   className="text-brand underline underline-offset-4"
                 >
                   {t("sections.quickStart.steps.desktop.link")}
@@ -377,7 +390,7 @@ export default async function DocsPage({
                   ...rich,
                   submit: (chunks) => (
                     <Link
-                      href={`/${locale}/submit`}
+                      href={withLocale("/submit", localeValue)}
                       className="text-brand underline underline-offset-4"
                     >
                       {chunks}

@@ -1,4 +1,4 @@
-import { getTranslations } from "next-intl/server";
+import { getTranslations, setRequestLocale } from "next-intl/server";
 
 import {
   getLeaderboard,
@@ -38,7 +38,19 @@ export async function generateMetadata({
   };
 }
 
-export default async function LeaderboardPage() {
+export default async function LeaderboardPage({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  // This page is prerendered, and its default export has to read `params`:
+  // with the signature above, /es and /zh each get a render in their own
+  // locale, and without it every locale prefix was served the one English
+  // render — header nav included. `setRequestLocale` pins the nested
+  // `getTranslations` below to that same locale.
+  const { locale } = await params;
+  setRequestLocale(hasLocale(locale) ? locale : "en");
+
   const t = await getTranslations("leaderboard");
 
   // Fetch every variant in parallel so the tabs feel instant when the

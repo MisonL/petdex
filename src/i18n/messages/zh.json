@@ -197,7 +197,7 @@
   },
   "community": {
     "metadata": {
-      "title": "Petdex 中文社区",
+      "title": "中文社区",
       "description": "加入 Petdex 中文社区，和创作者、收藏者、维护者一起交流宠物创作、提交反馈和每周更新。"
     },
     "eyebrow": "Petdex 中文社区",
@@ -246,9 +246,59 @@
     "clearAll": "全部清除",
     "matches": "{count, plural, =1 {1 个匹配} other {# 个匹配}}",
     "sortAria": "排序宠物",
+    "openPet": "打开 {name}",
+    "spriteAnimated": "{name} 动画",
+    "spriteStill": "{name} 精灵图",
     "filtersTitle": "筛选",
     "caughtTitle": "已捕获",
-    "featuredTitle": "精选"
+    "featuredTitle": "精选",
+    "discovered": "已发现",
+    "discoveredTitle": "代表原作者添加，尚未认领。",
+    "filtersButton": "筛选",
+    "clear": "清除",
+    "sortLabel": "排序：",
+    "loadingMore": "加载中",
+    "loadMore": "加载更多",
+    "endOfGallery": "已到图库末尾 · 共 {total} 只",
+    "seeAllRequests": "查看所有心愿",
+    "clearFilters": "清除筛选",
+    "batchLabel": "{month} 批次",
+    "errQueryLength": "请使用 4-200 个字符。",
+    "errQueryInvalidCharacters": "请使用纯文本。",
+    "errQueryNotSearchable": "请使用文字，不要用符号。",
+    "errUrlInField": "不允许包含链接或邮箱地址。",
+    "errBlockedContent": "该内容涉及我们无法接受的内容。",
+    "errInvalidQuery": "该请求无效。",
+    "errInvalidImageUrl": "该图片链接无效。",
+    "filterType": "类型",
+    "filterVersion": "版本",
+    "filterVibe": "风格",
+    "filterColor": "颜色",
+    "filterEra": "世代",
+    "vibeMatch": "正在显示与「{query}」风格相符的宠物。越靠前匹配度越高。",
+    "likePet": "赞 {name}",
+    "unlikePet": "取消赞 {name}",
+    "copyInstallFor": "复制 {name} 的安装命令",
+    "downloadPet": "下载 {name}",
+    "sharePet": "分享 {name}",
+    "playSoundFor": "播放 {name} 的声音",
+    "noMatchQuery": "没有匹配「{query}」的宠物。",
+    "noMatchView": "此视图没有匹配的宠物。",
+    "requestPrompt": "想要一只匹配「{query}」的宠物吗？提交心愿，其他人可以为你点赞。",
+    "requestButton": "提交这个心愿",
+    "sendingButton": "提交中…",
+    "requestCreated": "已提交。我们会优先处理热门的请求。",
+    "requestUpvoted": "已点赞。{count} 位用户想要这只宠物。",
+    "errorSignIn": "请登录后提交心愿。",
+    "errorRequestFailed": "提交失败（{status}）。",
+    "errorNetwork": "网络出错，请重试。",
+    "sortCurated": "精选",
+    "sortRecent": "最新",
+    "sortPopular": "点赞最多",
+    "sortInstalled": "安装最多",
+    "sortAlpha": "按字母",
+    "byAuthor": "作者 {name}",
+    "dexNumber": "编号 {number}"
   },
   "suggestCollection": {
     "cta": "推荐到合集",
@@ -289,7 +339,7 @@
   },
   "submit": {
     "metadata": {
-      "title": "提交宠物 | Petdex",
+      "title": "提交宠物",
       "description": "为 Petdex 上传并校验宠物包。",
       "description__fixme": true
     },
@@ -526,7 +576,7 @@
   },
   "create": {
     "metadata": {
-      "title": "创建一只宠物 | Petdex",
+      "title": "创建一只宠物",
       "title__fixme": true,
       "description": "5 分钟孵化属于你的动画宠物，然后分享到 Petdex。",
       "description__fixme": true
@@ -717,7 +767,7 @@
   },
   "brand": {
     "metadata": {
-      "title": "Petdex 品牌工具包",
+      "title": "品牌工具包",
       "title__fixme": true,
       "description": "下载 Petdex 的 logo、图标、颜色 token 和使用说明，可用于媒体、项目和社区帖子。",
       "description__fixme": true,
@@ -847,7 +897,7 @@
   },
   "about": {
     "metadata": {
-      "title": "关于 Petdex：为你的编程智能体准备的动画宠物",
+      "title": "关于：为你的编程智能体准备的动画宠物",
       "title__fixme": true,
       "description": "Petdex 是面向 ChatGPT（Codex）、Claude Code、Gemini、OpenCode、Qoder、Kimi Code、CodeBuddy 和 OMP 等编程智能体的开源动画宠物图库。浏览目录、用一条命令安装，或提交你自己的作品。",
       "description__fixme": true,
@@ -960,6 +1010,7 @@
       "description": "跟踪你发往 Petdex 的每只宠物状态，自定义个人资料，并编辑已上线条目。",
       "description__fixme": true
     },
+    "metadataTitle": "我的宠物",
     "edit": {
       "confirmWithdraw": "要撤回这次编辑吗？当前已批准的内容会继续保持上线。",
       "confirmWithdraw__fixme": true,
@@ -1070,7 +1121,7 @@
   },
   "leaderboard": {
     "metadata": {
-      "title": "Petdex 排行榜",
+      "title": "排行榜",
       "description": "Petdex 上的顶级创作者：获批宠物最多、最受喜爱、安装量最高。",
       "description__fixme": true
     },
@@ -1298,6 +1349,12 @@
     "endOfCollection": "已到合集末尾 · 共 {count} 个宠物"
   },
   "download": {
+    "metadata": {
+      "title": "下载 Petdex Desktop",
+      "description": "下载适用于 macOS 的 Petdex Desktop。你的宠物漂浮在每个编程智能体旁边。",
+      "ogTitle": "Petdex Desktop",
+      "ogDescription": "你的宠物漂浮在每个编程智能体旁边。macOS 原生。"
+    },
     "eyebrow": "终端优先安装",
     "eyebrow__fixme": true,
     "title": "运行一个命令，Petdex 完成剩下的事。",
@@ -1510,6 +1567,7 @@
       "title": "精选合集",
       "description": "按系列、类别或主题浏览 Petdex 合集，使用快速的公开目录。"
     },
+    "notFoundTitle": "未找到该合集",
     "hero": {
       "eyebrow": "精选合集 Featured collections",
       "title": "找到你的一套，一行命令安装",
@@ -1550,6 +1608,7 @@
   },
   "profile": {
     "creatorBadge": "Petdex 创作者",
+    "notFoundTitle": "未找到该用户",
     "creatorOfPetdex": "Petdex 创作者",
     "yourAlbum": "你的图鉴：{caught}/{total}（{pct}%）",
     "editProfile": "编辑资料",
@@ -1593,6 +1652,8 @@
   },
   "sticker": {
     "ctaWeChat": "保存为微信表情",
+    "reactionsTitle": "{name} 表情",
+    "reactionsDescription": "挑选一个表情，复制贴纸，或分享一套表情包。",
     "ctaGeneric": "保存为表情",
     "ctaShort": "保存表情",
     "hintWeChat": "动态 WebP · 微信 / WhatsApp / Discord 通用",
@@ -1634,7 +1695,7 @@
   },
   "takedownPage": {
     "metadata": {
-      "title": "下架请求 | Petdex",
+      "title": "下架请求",
       "description": "如果某只宠物侵犯了你的权利，可以这样申请下架。"
     },
     "eyebrow": "法务合规 · 下架请求",
@@ -1655,7 +1716,7 @@
   },
   "unsubscribePage": {
     "metadata": {
-      "title": "取消订阅 | Petdex",
+      "title": "取消订阅",
       "description": "管理你的 Petdex 邮件偏好。"
     },
     "eyebrow": "邮件 · 偏好设置",
@@ -1676,7 +1737,7 @@
   },
   "telemetryPage": {
     "metadata": {
-      "title": "数据收集说明 | Petdex",
+      "title": "数据收集说明",
       "description": "了解 petdex CLI 会收集哪些匿名数据，以及如何关闭。"
     },
     "eyebrow": "法务合规 · 数据收集",
@@ -1852,11 +1913,20 @@
         "metaDescription": "面向编程智能体的忧郁系宠物。若有所思的像素动画伙伴，一条命令即可安装。",
         "metaDescription__fixme": true
       }
-    }
+    },
+    "cardInstalls": "{formatted} 次安装",
+    "cardDiscovered": "已发现",
+    "cardDiscoveredTitle": "代表原作者添加，尚未认领。",
+    "cardByAuthor": "作者 {name}",
+    "cardFeatured": "★ 精选",
+    "cardDexNumber": "编号 {number}",
+    "cardOpenPet": "打开 {name}",
+    "cardSpriteStill": "{name} 精灵图",
+    "cardBatchLabel": "{month} 批次"
   },
   "docsPage": {
     "metadata": {
-      "title": "文档 · Petdex",
+      "title": "文档",
       "description": "如何用 Petdex CLI 安装、分发并自动化你的宠物。",
       "description__fixme": true,
       "ogTitle": "Petdex CLI · 文档"
@@ -1961,19 +2031,18 @@
         "title": "桌面应用",
         "intro": "Petdex Desktop 是一个漂浮在工作区上的桌面宠物，会根据 Agent 的工具调用做出反应。支持 macOS、Linux 和 Windows。视觉介绍见 <download>/download</download>。",
         "sidecarCallout": "桌面应用内置了运行在本机 <code>7777</code> 端口的 HTTP hook server。任何能 <code>curl</code> 并读取每次会话 token（<code>~/.petdex/runtime/update-token</code>）的程序都能驱动宠物。这个 token 每次应用启动都会轮换，文件权限是 <code>0600</code>，只有当前用户能读；浏览器和远程网站不能直接访问：",
-        "windowTitle": "Living with the pet",
-        "windowBody": "The pet floats above every window and never steals focus. Clicks pass straight through the activity bubble to whatever is behind it, so a message appearing over your editor cannot swallow a keystroke. The sprite itself stays draggable: pick it up and drop it wherever it belongs on your screen.",
-        "shortcutsTitle": "Shortcuts",
-        "shortcutsBody": "Hover the pet and press <kbd>Cmd</kbd> + <kbd>,</kbd> to open Settings, or <kbd>Cmd</kbd> + <kbd>W</kbd> to send it away. Both also live in the Pet menu while the app is focused.",
-        "settingsTitle": "What is in Settings",
-        "settingsPets": "<strong>Pets.</strong> Search your installed pets, preview each one, and switch the active pet without restarting. Every custom pet you drop in the pets folder shows up here.",
-        "settingsAgents": "<strong>Agents.</strong> Shows which coding agents are on this machine and whether their hooks are wired. Install or disconnect any of them in one click; the app writes the hook files itself, no terminal involved.",
-        "settingsAppearance": "<strong>Appearance.</strong> Scale the sprite, and turn the activity bubble on or off if you would rather have the pet stay quiet.",
-        "chatgptTitle": "ChatGPT pets",
-        "chatgptBody": "ChatGPT exports pets as a 1536x2288 spritesheet, which is exactly the atlas Petdex already reads: same nine state rows, same frame counts. A pet made there works here with no conversion.",
-        "chatgptImport": "<strong>Bringing one in.</strong> Download the spritesheet from ChatGPT, then drop the PNG on <submit>/submit</submit>. Petdex measures the grid, generates the pet.json the export does not include, and shows an animated preview before you name it.",
-        "chatgptExport": "<strong>Taking one out.</strong> Every pet page has an Open in Codex button that installs it into the ChatGPT desktop app. Importing straight from a ChatGPT share link is not possible: those URLs are locked to the browser session that created them.",
-        "__fixme": true
+        "windowTitle": "和宠物一起工作",
+        "windowBody": "宠物会浮在所有窗口之上，但从不抢走焦点。点击会直接穿过活动气泡，落到后面的窗口上，所以即使消息弹在编辑器上方，也不会吞掉你的按键。精灵图本身可以拖动：把它拖到你屏幕上想放的位置即可。",
+        "shortcutsTitle": "快捷键",
+        "shortcutsBody": "把鼠标悬停在宠物上，按 <kbd>Cmd</kbd> + <kbd>,</kbd> 打开设置，或按 <kbd>Cmd</kbd> + <kbd>W</kbd> 让它暂时离开。应用处于焦点状态时，这两项也都在 Pet 菜单里。",
+        "settingsTitle": "设置里有什么",
+        "settingsPets": "<strong>宠物。</strong>搜索已安装的宠物、逐个预览，并在不重启的情况下切换当前宠物。放进 pets 文件夹的每一只自定义宠物都会出现在这里。",
+        "settingsAgents": "<strong>Agent。</strong>显示这台机器上装了哪些编程 Agent，以及它们的 hook 是否接好。一键安装或断开任意一个；hook 文件由应用自己写入，不需要碰终端。",
+        "settingsAppearance": "<strong>外观。</strong>调整精灵图缩放，也可以关闭活动气泡，让宠物安静待着。",
+        "chatgptTitle": "ChatGPT 宠物",
+        "chatgptBody": "ChatGPT 导出的宠物是一张 1536x2288 的精灵图，正好就是 Petdex 已经在读的图集：同样的九行状态、同样的帧数。在那边做好的宠物，拿到这里不用转换就能用。",
+        "chatgptImport": "<strong>导入。</strong>从 ChatGPT 下载精灵图，把 PNG 拖到 <submit>/submit</submit>。Petdex 会测量网格、生成导出文件里没有的 pet.json，并在你命名之前先给出动画预览。",
+        "chatgptExport": "<strong>导出。</strong>每个宠物页面都有一个 Open in Codex 按钮，可以把它装进 ChatGPT 桌面应用。无法直接从 ChatGPT 分享链接导入：那些链接锁定在创建它们的浏览器会话上。"
       },
       "distribute": {
         "title": "分享上架你的宠物",

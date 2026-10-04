@@ -51,7 +51,13 @@ export async function generateMetadata({ params }: PageProps) {
   const userId =
     viewerIdForFallbackHandle(requestedHandle, viewerId) ??
     (await userIdForHandle(handle));
-  if (!userId) return { title: "Profile not found", robots: { index: false } };
+  if (!userId) {
+    const tProfile = await getTranslations({
+      locale: hasLocale(locale) ? locale : "en",
+      namespace: "profile",
+    });
+    return { title: tProfile("notFoundTitle"), robots: { index: false } };
+  }
   let displayName = `@${handle}`;
   const profile = await db.query.userProfiles.findFirst({
     where: eq(schema.userProfiles.userId, userId),

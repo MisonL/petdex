@@ -30,7 +30,14 @@ export async function generateMetadata({ params }: PageProps) {
   const { slug, locale } = await params;
   const collection = await getCollection(slug);
   if (!collection) {
-    return { title: "Collection not found", robots: { index: false } };
+    const tCollections = await getTranslations({
+      locale: hasLocale(locale) ? locale : "en",
+      namespace: "collectionsPage",
+    });
+    return {
+      title: tCollections("notFoundTitle"),
+      robots: { index: false },
+    };
   }
 
   // Pin the OG image URL to the locale-stripped path. The auto-detected
