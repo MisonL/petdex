@@ -66,18 +66,28 @@ export function shouldBlockKnownAbusiveClient(
 /**
  * Rate-limit key for a request.
  *
- * Both headers are trustworthy where this runs, and neither is elsewhere.
- * Vercel overwrites `x-forwarded-for` on every request and does not forward a
+ * Measured locally, rotating `x-forwarded-for` hands every request a fresh
+ * quota, so the question is whether the key is spoofable. On Vercel it is not:
+ * the platform overwrites `x-forwarded-for` and does not forward a
  * client-supplied value — "This restriction is in place to prevent IP
- * spoofing" — and `x-real-ip` is documented as carrying the same value. So on
- * the deployment this app targets, a caller cannot pick their own bucket.
+ * spoofing" — and documents `x-real-ip` as carrying the same value.
  *
- * Off Vercel they can: behind no proxy, both headers arrive as sent, and
- * rotating them hands each request a fresh quota. That is a property of
- * running the app directly (`bun run dev`, the docker stack), not a defect to
- * paper over here — a limiter that ignored the headers would have no client
- * identity to key on at all. Anything that puts this app behind a different
- * proxy has to make that proxy set them the way Vercel does.
+ * That guarantee is scoped, and the scope matters here. The sentence above is
+ * Vercel's own, written for the case of Vercel *behind a proxy*, and that is
+ * how this app is deployed: Cloudflare sits in front of it with a
+ * cache-everything rule (`src/app/api/revalidate/route.ts`). In that topology
+ * Vercel does not forward the external IP either, so the key can resolve to
+ * the proxy's address rather than the visitor's — one bucket for everyone,
+ * which the 60-per-hour ceiling would then apply to the whole site. Unverified
+ * against the live deployment; what was measured is the local stack, where the
+ * headers arrive exactly as sent and neither guarantee is in play.
+ *
+ * So this is not a defence against a caller who picks their own bucket, and it
+ * is not a per-visitor identity until someone confirms what the edge actually
+ * forwards. Rotating the headers off Vercel remains a property of running the
+ * app directly (`bun run dev`, the docker stack) rather than something to
+ * paper over here: a limiter that ignored them would have no client identity
+ * to key on at all.
  */
 export function publicTrafficGuardKey(headers: HeaderBag | undefined): string {
   const ip =
