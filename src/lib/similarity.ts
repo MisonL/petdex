@@ -21,6 +21,7 @@ import {
   embedTextValue,
   PETDEX_EMBEDDING_MODEL,
 } from "@/lib/embeddings";
+import { toCurrentR2PublicUrl } from "@/lib/r2-public-url";
 import { isAllowedAssetUrl } from "@/lib/url-allowlist";
 
 const FRAME_W = 192;
@@ -94,7 +95,11 @@ export async function refreshSimilarityFor(petId: string): Promise<void> {
   if (!row) return;
 
   const [hash, vec] = await Promise.all([
-    dhashFromSpriteUrl(row.spritesheetUrl),
+    // The row's stored URL may still point at a legacy public host, which the
+    // allowlist deliberately excludes — so the hash came back null for every
+    // such pet and it never got a dhash. Rewrite first: the value that is
+    // validated and fetched is then the value the bucket actually serves.
+    dhashFromSpriteUrl(toCurrentR2PublicUrl(row.spritesheetUrl)),
     embedPetText({
       displayName: row.displayName,
       description: row.description,

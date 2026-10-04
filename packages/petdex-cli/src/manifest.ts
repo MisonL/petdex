@@ -37,6 +37,25 @@ function isSpriteVersion(value: unknown): value is 1 | 2 {
   return value === 1 || value === 2;
 }
 
+/**
+ * The slug shape the install paths are built from.
+ *
+ * `petdex install` joins the slug into `~/.petdex/pets/<slug>` and
+ * `~/.codex/pets/<slug>`, so a slug like `../../../../tmp/pwned` escapes the
+ * pets directory — `path.join` resolves it to `/tmp/pwned`. The server
+ * enforces this shape on `/install/<slug>`; the CLI did not, so a manifest
+ * carrying such a slug (a tampered snapshot, or a row that slipped past
+ * `deriveSlug`) wrote outside the pets directory. Mirrors
+ * `INSTALL_SLUG_RE` in the install routes.
+ *
+ * Exported for the install path to check, rather than thrown from the
+ * manifest parse: a single bad slug would otherwise fail the whole manifest
+ * and take every pet down with it, when only that one pet is unusable.
+ */
+export function isInstallSlug(value: string): boolean {
+  return /^[a-z0-9][a-z0-9-]{0,62}$/.test(value);
+}
+
 function requireTrustedAssetUrl(raw: string, assetBase?: string): string {
   let url: URL;
   try {

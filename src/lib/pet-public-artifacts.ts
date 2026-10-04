@@ -28,7 +28,7 @@ import {
   petThumbnailKey,
 } from "@/lib/pet-thumbnail";
 import { R2_BUCKET, r2 } from "@/lib/r2";
-import { keyFromR2PublicUrl } from "@/lib/r2-public-url";
+import { keyFromR2PublicUrl, toCurrentR2PublicUrl } from "@/lib/r2-public-url";
 import { renderSticker } from "@/lib/sticker-renderer";
 import { isAllowedAssetUrl } from "@/lib/url-allowlist";
 
@@ -43,8 +43,15 @@ export async function publishPetPublicArtifacts(input: {
   slug: string;
   spritesheetUrl: string;
 }): Promise<PetPublicArtifactResult> {
-  const sourceKey = keyFromR2PublicUrl(input.spritesheetUrl);
-  if (!sourceKey || !isAllowedAssetUrl(input.spritesheetUrl)) {
+  // Rewrite before validating, the way `install-script.ts` does. A pet whose
+  // spritesheet is stored under a legacy public host is readable — the key
+  // resolves and the object still exists — but the stored URL is deliberately
+  // absent from the asset allowlist, so checking it as stored answered
+  // `unsupported_source` and the pet got no thumbnail, preview, or sticker.
+  // The value that is validated has to be the value that gets fetched.
+  const spritesheetUrl = toCurrentR2PublicUrl(input.spritesheetUrl);
+  const sourceKey = keyFromR2PublicUrl(spritesheetUrl);
+  if (!sourceKey || !isAllowedAssetUrl(spritesheetUrl)) {
     return {
       ok: false,
       published: [],

@@ -16,6 +16,7 @@ import sharp from "sharp";
 import { db, schema } from "@/lib/db/client";
 import { userIdForHandle } from "@/lib/handles";
 import { fetchR2Asset } from "@/lib/r2-fetch";
+import { toCurrentR2PublicUrl } from "@/lib/r2-public-url";
 import { isAllowedAssetUrl, isAllowedAvatarUrl } from "@/lib/url-allowlist";
 
 export const runtime = "nodejs";
@@ -107,9 +108,14 @@ export default async function Image({
   // Decode sprites in parallel. Failures fall through to no-sprite
   // (the slot just renders empty).
   const spriteUrls = await Promise.all(
-    collageRows
-      .slice(0, 4)
-      .map((r) => loadFirstFrameAsDataUrl(r.spritesheetUrl)),
+    collageRows.slice(0, 4).map((r) =>
+      // Rewrite the stored URL to the canonical host before the guard, the
+      // way every other OG route does. `loadFirstFrameAsDataUrl` checks
+      // `isAllowedAssetUrl` first and only `fetchR2Asset` rewrites, so a row
+      // still stored on a retired host was rejected before it could be
+      // rewritten and the sprite silently dropped from the collage.
+      loadFirstFrameAsDataUrl(toCurrentR2PublicUrl(r.spritesheetUrl)),
+    ),
   );
 
   const avatarDataUrl = clerkUser?.imageUrl

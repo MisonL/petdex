@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 
 import {
   fetchManifest,
+  isInstallSlug,
   parseCompactManifest,
   parseLegacyManifest,
   parseManifestPayload,
@@ -132,5 +133,37 @@ describe("manifest endpoint compatibility", () => {
         async () => new Response("", { status: 503 }),
       ),
     ).rejects.toThrow("manifest unavailable");
+  });
+});
+
+// `petdex install` joins the manifest's slug into `~/.petdex/pets/<slug>` and
+// `~/.codex/pets/<slug>`. The server validates that shape on `/install/<slug>`
+// but the CLI did not, so a manifest carrying `../../../../tmp/pwned` made
+// `path.join` resolve outside the pets directory. The guard mirrors
+// `INSTALL_SLUG_RE` in the install routes.
+describe("isInstallSlug", () => {
+  it("accepts the shapes real slugs take", () => {
+    for (const slug of ["boba", "byte-bunny", "a", "x".repeat(63)]) {
+      expect(isInstallSlug(slug), slug).toBe(true);
+    }
+  });
+
+  it("refuses a path-traversal slug", () => {
+    // The regression: `path.join(homedir(), ".petdex", "pets", slug)` with
+    // this slug is `/tmp/pwned`, not a path under `~/.petdex/pets`.
+    expect(isInstallSlug("../../../../tmp/pwned")).toBe(false);
+    expect(isInstallSlug("..")).toBe(false);
+    expect(isInstallSlug("a/../../b")).toBe(false);
+    expect(isInstallSlug("a/b")).toBe(false);
+  });
+
+  it("refuses a slug with characters the install routes reject", () => {
+    for (const slug of ["Boba", "boba_", "boba.webp", "-boba", "", "a b"]) {
+      expect(isInstallSlug(slug), slug).toBe(false);
+    }
+  });
+
+  it("refuses a slug longer than the install routes accept", () => {
+    expect(isInstallSlug("x".repeat(64))).toBe(false);
   });
 });

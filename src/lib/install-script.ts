@@ -52,6 +52,22 @@ export async function resolveInstallablePet(
     displayName: submitted.displayName,
     petJsonUrl,
     spritesheetUrl,
-    spriteExt: spritesheetUrl.endsWith(".png") ? "png" : "webp",
+    // Read the extension off the parsed pathname, not the raw string: a
+    // stored URL carrying a query (`…/sprite.png?v=2`) does not end with
+    // ".png", so the old check called a PNG a webp and the file landed under
+    // the wrong name. `toCurrentR2PublicUrl` keeps the query, so this is
+    // reachable with a legitimately stored URL.
+    spriteExt: spriteExtension(spritesheetUrl),
   };
+}
+
+/** `"png"` or `"webp"` for an asset URL, from its pathname. */
+function spriteExtension(url: string): "png" | "webp" {
+  try {
+    return new URL(url).pathname.toLowerCase().endsWith(".png")
+      ? "png"
+      : "webp";
+  } catch {
+    return "webp";
+  }
 }

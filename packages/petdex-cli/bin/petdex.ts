@@ -28,6 +28,7 @@ import {
 } from "../src/edit-assets.js";
 import {
   fetchManifest as fetchCatalogManifest,
+  isInstallSlug,
   type ManifestPet,
 } from "../src/manifest.js";
 import {
@@ -475,6 +476,13 @@ async function installOne(pet: ManifestPet): Promise<void> {
 
   // Multi-target: ~/.petdex/pets and ~/.codex/pets so both Petdex
   // Desktop and Codex Desktop see the pet immediately.
+  //
+  // The slug is joined into both paths, so it has to be the shape the
+  // install routes accept before it reaches `path.join` — otherwise
+  // `../../…` writes outside the pets directory.
+  if (!isInstallSlug(slug)) {
+    throw new Error(`invalid pet slug: ${slug}`);
+  }
   const petdexDir = path.join(homedir(), ".petdex", "pets", slug);
   const codexDir = path.join(homedir(), ".codex", "pets", slug);
   await Promise.all([
@@ -482,7 +490,17 @@ async function installOne(pet: ManifestPet): Promise<void> {
     mkdir(codexDir, { recursive: true }),
   ]);
 
-  const ext = pet.spritesheetUrl.endsWith(".png") ? "png" : "webp";
+  // Read the extension off the parsed pathname, not the whole URL: a URL
+  // carrying a query (`…/sprite.png?v=2`) does not end with ".png", so the
+  // old check wrote real PNG bytes to `spritesheet.webp`.
+  let ext: "png" | "webp" = "webp";
+  try {
+    ext = new URL(pet.spritesheetUrl).pathname.toLowerCase().endsWith(".png")
+      ? "png"
+      : "webp";
+  } catch {
+    /* leave the webp default */
+  }
   // Validate response status before reading the body so a 404/500
   // doesn't silently land HTML inside pet.json or spritesheet.*.
   const fetchOrThrow = async (url: string): Promise<ArrayBuffer> => {

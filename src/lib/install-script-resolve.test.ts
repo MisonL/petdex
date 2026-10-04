@@ -11,7 +11,7 @@
 import { describe, expect, it, mock } from "bun:test";
 
 import {
-  DEFAULT_R2_PUBLIC_BASE,
+  R2_PUBLIC_BASE,
   R2_PUBLIC_HOSTS,
   R2_TRUSTED_HOSTS,
 } from "@/lib/r2-public-url";
@@ -25,6 +25,10 @@ mock.module("server-only", () => ({}));
 mock.module("@/lib/db/client", () => ({
   schema: { submittedPets: { slug: "slug" } },
   db: { query: { submittedPets: { findFirst: async () => row } } },
+  // Named here because mock.module is process-wide: a suite that links these
+  // fails with a SyntaxError otherwise.
+  executeAtomicReturning: async () => [],
+  rowsOf: () => [],
 }));
 
 const { resolveInstallablePet } = await import("@/lib/install-script");
@@ -51,12 +55,11 @@ describe("resolveInstallablePet", () => {
 
     expect(pet).not.toBeNull();
     // Rewritten, not echoed back — the whole point of accepting the row.
-    expect(pet?.petJsonUrl).toBe(
-      `${DEFAULT_R2_PUBLIC_BASE}/pets/x/petjson.json`,
-    );
-    expect(pet?.spritesheetUrl).toBe(
-      `${DEFAULT_R2_PUBLIC_BASE}/pets/x/sprite.webp`,
-    );
+    // `R2_PUBLIC_BASE`, not the default constant: the rewrite targets the base
+    // the process is configured with, so asserting the default only holds when
+    // no `R2_PUBLIC_BASE` is exported.
+    expect(pet?.petJsonUrl).toBe(`${R2_PUBLIC_BASE}/pets/x/petjson.json`);
+    expect(pet?.spritesheetUrl).toBe(`${R2_PUBLIC_BASE}/pets/x/sprite.webp`);
     expect(pet?.spriteExt).toBe("webp");
   });
 
@@ -92,5 +95,31 @@ describe("resolveInstallablePet", () => {
     expect(
       await resolveInstallablePet("nukey", "https://petdex.dev"),
     ).toBeNull();
+  });
+});
+
+describe("resolveInstallablePet sprite extension", () => {
+  it("reads the extension from the path, not the whole URL", async () => {
+    // `spritesheetUrl.endsWith(".png")` called a PNG a webp whenever the URL
+    // carried a query, and the file then landed as `spritesheet.webp` under
+    // its real PNG bytes. `toCurrentR2PublicUrl` preserves the query, so a
+    // legitimately stored URL can reach this.
+    row = approvedRow(
+      "https://assets.petdex.dev/pets/x/petjson.json",
+      "https://assets.petdex.dev/pets/x/sprite.png?v=2",
+    );
+
+    const pet = await resolveInstallablePet("nukey", "https://petdex.dev");
+
+    expect(pet?.spriteExt).toBe("png");
+  });
+
+  it("still calls a webp a webp", async () => {
+    row = approvedRow(
+      "https://assets.petdex.dev/pets/x/petjson.json",
+      "https://assets.petdex.dev/pets/x/sprite.webp",
+    );
+    const pet = await resolveInstallablePet("nukey", "https://petdex.dev");
+    expect(pet?.spriteExt).toBe("webp");
   });
 });
