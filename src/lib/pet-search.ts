@@ -71,7 +71,10 @@ export type SearchFacets = {
   kinds: Record<string, number>;
   vibes: Record<string, number>;
   colors: Record<ColorFamily, number>;
-  batches: Array<{ key: string; label: string; count: number }>;
+  // `key` is "YYYY-MM"; the display label is derived from it at render time
+  // with the active locale, so this aggregate is the same for every visitor
+  // and can stay cached. See `formatBatchLabel`.
+  batches: Array<{ key: string; count: number }>;
   spriteVersions: Record<string, number>;
 };
 
@@ -662,6 +665,22 @@ const loadFacets = (): Promise<SearchFacets> =>
     { key: AGGREGATE_KEYS.facets, ttlSeconds: 300 },
     computeFacets,
   );
+
+/**
+ * Facet counts over the approved universe, for the sitemap.
+ *
+ * A vibe or kind with no pets calls `notFound()`, so listing it would
+ * advertise a 404 to crawlers, and the sitemap filters on these counts.
+ *
+ * This is `computeFacets` directly, without the Upstash layer `loadFacets`
+ * adds. The sitemap route is prerendered, and reaching Redis from it makes
+ * Next treat the route as dynamic: the build reported `/sitemap.xml` as `ƒ`
+ * instead of the static `○` it had been, and the response's `lastmod` became
+ * `new Date()` at request time rather than at build time. The read it needs is
+ * already behind `unstable_cache`, so the Upstash tier buys the build nothing.
+ */
+export const loadFacetsForSitemap = (): Promise<SearchFacets> =>
+  computeFacets();
 
 function clamp(n: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, n));

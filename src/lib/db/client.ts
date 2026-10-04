@@ -12,6 +12,7 @@ import postgres from "postgres";
 
 import { IS_MOCK } from "../mock";
 import { getMockDb, mockDbReady } from "../mock/db";
+import { runAtomicReturning } from "./atomic";
 import * as schema from "./schema";
 
 type DrizzleDb = ReturnType<typeof drizzleNeon<typeof schema>>;
@@ -74,20 +75,16 @@ if (IS_MOCK) {
 }
 
 export const db = buildClient();
+
+export { rowsOf } from "./atomic";
 export { schema };
 
-export async function executeAtomic(
+/**
+ * One transaction, statements kept separate, every statement's rows returned
+ * in order. The separate statements matter: see `runAtomicReturning`.
+ */
+export async function executeAtomicReturning(
   queries: [SQLWrapper, ...SQLWrapper[]],
-): Promise<void> {
-  if (typeof db.batch === "function") {
-    const [first, ...rest] = queries;
-    await db.batch([
-      db.execute(first.getSQL()),
-      ...rest.map((query) => db.execute(query.getSQL())),
-    ]);
-    return;
-  }
-  await db.transaction(async (tx) => {
-    for (const query of queries) await tx.execute(query.getSQL());
-  });
+): Promise<readonly unknown[]> {
+  return runAtomicReturning(db, queries);
 }

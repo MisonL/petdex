@@ -146,19 +146,21 @@ describe("GET /api/pets/search", () => {
     });
   });
 
-  it("caps a cursor the database could not use as an offset", async () => {
+  it("forwards a cursor past the safe range instead of dropping it", async () => {
     // `cursor` is handed to the query as a SQL OFFSET. Unclamped, a value like
     // this one arrives at Postgres as 1e20 and comes back `22003 bigint out of
     // range`, turning a request that only paged too far into a 500 — with the
     // whole statement in the logs. The cap is applied in `searchPets`, which
     // this suite stubs, so what is asserted here is the other half of the
     // contract: the route forwards the raw value rather than dropping or
-    // rejecting it, and it is `searchPets` that bounds it. See
-    // `pet-search-cursor.test.ts` for the bound itself.
+    // rejecting it, and it is `searchPets` that bounds it. The bound itself is
+    // covered by `pet-search-cursor.test.ts`, and that `searchPets` still
+    // applies it by `pet-search-cursor-wiring.test.ts`.
     await search(
       "https://petdex.local/api/pets/search?sort=alpha&cursor=99999999999999999999&includeMeta=0",
     );
 
+    // `parseInt` rounds it to the same double Postgres would have rejected.
     expect(calls[0]?.input.cursor).toBe(100000000000000000000);
   });
 

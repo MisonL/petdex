@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, mock } from "bun:test";
 
 import { PgDialect } from "drizzle-orm/pg-core";
 
+import { rowsOf, runAtomicReturning } from "@/lib/db/atomic";
 import * as schema from "@/lib/db/schema";
 
 // takedownPet has two write paths, and only one of them runs in any given
@@ -104,7 +105,16 @@ mock.module("@/lib/db/client", () => {
   };
   // mock.module is process-wide for the whole run, and a suite that links a name
   // this factory omits fails with a SyntaxError. Export the real schema.
-  return { db, schema };
+  // A suite that links `executeAtomicReturning` — the helper every write goes
+  // through — fails with a SyntaxError if this factory omits it, so it is
+  // bound to this stand-in the way the real module binds it to the client.
+  return {
+    db,
+    schema,
+    executeAtomicReturning: (queries: never) =>
+      runAtomicReturning(db as never, queries),
+    rowsOf,
+  };
 });
 
 const { takedownPet } = await import("@/lib/takedown");

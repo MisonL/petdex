@@ -80,6 +80,7 @@ mock.module("@/lib/r2", () => ({
 }));
 mock.module("next-intl/server", () => ({
   getTranslations: async () => (key: string) => key,
+  setRequestLocale: () => {},
 }));
 mock.module("next-intl", () => ({
   useTranslations: () => (key: string) => key,
@@ -144,7 +145,9 @@ async function assertRequests(name: string, handle: string) {
   expect(payload.requests[0].requester.displayName).toBe(name);
   expect(payload.requests[0].requester.handle).toBe(handle);
   expect(payload.requests[0].voters[0].displayName).toBe("Saved voter");
-  renderToStaticMarkup(await RequestsPage());
+  renderToStaticMarkup(
+    await RequestsPage({ params: Promise.resolve({ locale: "en" }) }),
+  );
   expect(pageRequests[0].requester.displayName).toBe(name);
   expect(pageRequests[0].requester.handle).toBe(handle);
   expect(pageRequests[0].voters[0].displayName).toBe("Saved voter");
