@@ -227,13 +227,28 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/:path*",
-        has: [{ type: "host", value: "petdex.crafter.run" }],
+        has: [{ type: "host", value: "petdex\\.crafter\\.run\\.?" }],
         destination: "https://petdex.dev/:path*",
         permanent: true,
       },
       {
         source: "/:path*",
-        has: [{ type: "host", value: "www.petdex.crafter.run" }],
+        has: [{ type: "host", value: "www\\.petdex\\.crafter\\.run\\.?" }],
+        destination: "https://petdex.dev/:path*",
+        permanent: true,
+      },
+      // The `www` alias of the canonical host, not a legacy one. It answered
+      // 200 with the full site while every canonical, hreflang, and sitemap
+      // URL is absolute on `petdex.dev`. Keep in sync with `REDIRECT_HOSTS`
+      // in `src/proxy.ts`, which covers the same set for requests that never
+      // reach this config.
+      //
+      // The value is compiled as `^…$`, so `\.?` admits the fully-qualified
+      // spelling with a trailing root dot (`www.petdex.dev.`) — the same host
+      // to DNS, and one Next's exact match would otherwise let through.
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "www\\.petdex\\.dev\\.?" }],
         destination: "https://petdex.dev/:path*",
         permanent: true,
       },
