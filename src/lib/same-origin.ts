@@ -9,8 +9,8 @@
 // like server-to-server fetch don't send it), we fall back to checking
 // Sec-Fetch-Site, which is set by all modern browsers.
 //
-// Allow same-origin, the canonical site URL, the Vercel preview URL of
-// the running deployment, and localhost for local dev.
+// Allow same-origin, the canonical site URL, the Vercel URL of the running
+// deployment (preview or production), and localhost for local dev.
 
 const SITE_HOSTS = new Set<string>([
   "petdex.dev",
@@ -18,9 +18,25 @@ const SITE_HOSTS = new Set<string>([
   "localhost",
 ]);
 
-function vercelHost(): string | null {
-  const u = process.env.VERCEL_URL;
-  return u ? u.split("/")[0] : null;
+/**
+ * The `*.vercel.app` hosts this deployment answers on, as exact hosts.
+ *
+ * A bare `host.endsWith(".vercel.app")` check was here, and it defeated the
+ * point of the module: `vercel.app` is a public suffix anyone can deploy
+ * under, so `https://evil.vercel.app` passed the origin check and could POST
+ * to every `requireSameOrigin` endpoint with the visitor's Clerk cookie —
+ * the exact cross-site write this file exists to stop. Vercel sets these
+ * three env vars on the deployment itself, so the real hosts are known and
+ * a suffix match is not needed.
+ */
+function vercelHosts(): string[] {
+  return [
+    process.env.VERCEL_URL,
+    process.env.VERCEL_BRANCH_URL,
+    process.env.VERCEL_PROJECT_PRODUCTION_URL,
+  ]
+    .filter((value): value is string => Boolean(value))
+    .map((value) => value.split("/")[0]);
 }
 
 export function isSameOrigin(req: Request): boolean {
@@ -33,11 +49,7 @@ export function isSameOrigin(req: Request): boolean {
       return false;
     }
     if (SITE_HOSTS.has(host)) return true;
-    const vercel = vercelHost();
-    if (vercel && host === vercel) return true;
-    // Allow Vercel preview URLs (every PR gets a *.vercel.app subdomain).
-    if (host.endsWith(".vercel.app")) return true;
-    return false;
+    return vercelHosts().includes(host);
   }
   // No Origin header. Use Sec-Fetch-Site as a fallback.
   const sfs = req.headers.get("sec-fetch-site");

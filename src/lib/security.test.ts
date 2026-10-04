@@ -387,10 +387,35 @@ describe("isSameOrigin (CSRF guard)", () => {
     expect(isSameOrigin(reqWith({ "user-agent": "curl/8.0" }))).toBe(true);
   });
 
-  it("allows Vercel preview subdomain", () => {
-    expect(
-      isSameOrigin(reqWith({ origin: "https://petdex-abc123.vercel.app" })),
-    ).toBe(true);
+  it("allows the deployment's own Vercel host", () => {
+    // Previews are still allowed, but by exact host from the env Vercel sets
+    // on the deployment rather than by a `*.vercel.app` suffix. That suffix
+    // is a public one — anyone can deploy under it — so a bare suffix match
+    // let `https://evil.vercel.app` POST as the visitor. The attacker case is
+    // asserted below.
+    const previous = process.env.VERCEL_URL;
+    process.env.VERCEL_URL = "petdex-abc123.vercel.app";
+    try {
+      expect(
+        isSameOrigin(reqWith({ origin: "https://petdex-abc123.vercel.app" })),
+      ).toBe(true);
+    } finally {
+      if (previous === undefined) delete process.env.VERCEL_URL;
+      else process.env.VERCEL_URL = previous;
+    }
+  });
+
+  it("blocks an unrelated Vercel deployment", () => {
+    const previous = process.env.VERCEL_URL;
+    process.env.VERCEL_URL = "petdex-abc123.vercel.app";
+    try {
+      expect(isSameOrigin(reqWith({ origin: "https://evil.vercel.app" }))).toBe(
+        false,
+      );
+    } finally {
+      if (previous === undefined) delete process.env.VERCEL_URL;
+      else process.env.VERCEL_URL = previous;
+    }
   });
 });
 
