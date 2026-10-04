@@ -170,7 +170,20 @@ const publicHtmlCacheSources = [
 
 const mockRoot = path.resolve(__dirname, "src/lib/mock");
 
+// `output: "standalone"` makes `next build` also emit `.next/standalone` — a
+// server bundle plus the exact `node_modules` subset the runtime touches,
+// traced from the imports. The Docker image needs it: without it the container
+// has to carry the whole install (928M here) to run `next start`.
+//
+// Gated on an opt-in env var rather than set unconditionally, because the same
+// config also builds the Vercel deployment, and the setting's effect there is
+// not documented either way. Vercel's own build does its own output handling,
+// so the safe move is to leave its build byte-identical to what it was and
+// turn tracing on only for the Dockerfile, which sets this.
+const IS_STANDALONE = process.env.PETDEX_STANDALONE === "1";
+
 const nextConfig: NextConfig = {
+  ...(IS_STANDALONE ? { output: "standalone" as const } : {}),
   experimental: {
     // TypeScript 7 dropped the compiler API Next reads for its dev-time
     // type checking, so `bun dev` crashed on boot after the 6-to-7 bump

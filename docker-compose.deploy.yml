@@ -1,0 +1,134 @@
+# Self-contained deployment of the Petdex web app.
+#
+# Everything the app needs is in this file: Postgres, Redis behind the Upstash
+# REST shim, and the app image built from the repo. No external credentials —
+# auth runs against the in-process Clerk mocks (`PETDEX_MOCK_AUTH=1`), which is
+# what lets this boot without a Clerk secret key.
+#
+#   docker compose -f docker-compose.deploy.yml up --build
+#   open http://127.0.0.1:3100
+#
+# The infra services mirror `docker-compose.dev.yml`; the difference is that
+# nothing binds to `127.0.0.1` on the host except the app port, because here
+# they are reached over the compose network rather than from `bun dev` on the
+# host.
+#
+# For a real deployment, replace the `app` environment with your own
+# DATABASE_URL / UPSTASH_* / Clerk keys and drop `PETDEX_MOCK_AUTH`.
+
+name: petdex-deploy
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: petdex
+      POSTGRES_PASSWORD: petdex
+      POSTGRES_DB: petdex
+    volumes:
+      - petdex-deploy-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U petdex -d petdex"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # Upstash's client speaks REST; local Redis speaks the plain protocol. srh
+  # bridges them so `@upstash/redis` works unchanged.
+  redis-rest:
+    image: hiett/serverless-redis-http:latest
+    environment:
+      SRH_MODE: env
+      SRH_TOKEN: petdex-dev-token
+      SRH_CONNECTION_STRING: redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # One-shot: push the schema, then seed. Kept out of the app's entrypoint so
+  # a restart does not re-run it and two replicas cannot race the push. The
+  # seed is idempotent (upserts by slug), so re-running is safe.
+  #
+  # Built from the `source` stage, not `builder`: this needs the source tree
+  # and its dependencies, not a compiled Next app. Targeting `builder` would
+  # make BuildKit build that stage a second time under different build args.
+  migrate:
+    build:
+      context: .
+      target: source
+    working_dir: /app
+    command:
+      - sh
+      - -c
+      - |
+        bun x drizzle-kit push --force &&
+        bun --conditions react-server scripts/seed-dev.ts
+    environment:
+      DATABASE_URL: postgresql://petdex:petdex@postgres:5432/petdex
+      UPSTASH_REDIS_REST_URL: http://redis-rest:80
+      UPSTASH_REDIS_REST_TOKEN: petdex-dev-token
+      R2_ACCOUNT_ID: devnull
+      R2_ACCESS_KEY_ID: devnull
+      R2_SECRET_ACCESS_KEY: devnull
+      R2_BUCKET: petdex-dev-bucket
+      R2_PUBLIC_BASE: http://127.0.0.1:9
+      PETDEX_MOCK_AUTH: "1"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis-rest:
+        condition: service_started
+
+  app:
+    build:
+      context: .
+      target: runner
+      args:
+        # The shared Clerk dev publishable key from `.env.dev`. It is a public
+        # client identifier, and the mock auth alias means no secret key is
+        # needed — but `NEXT_PUBLIC_*` is inlined at build time, so the build
+        # needs a value here rather than at runtime.
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:-pk_test_bWF4aW11bS1oZW4tNzIuY2xlcmsuYWNjb3VudHMuZGV2JA}
+        PETDEX_MOCK_AUTH: "1"
+        PETDEX_URL: http://127.0.0.1:3100
+    ports:
+      - "127.0.0.1:3100:3000"
+    environment:
+      DATABASE_URL: postgresql://petdex:petdex@postgres:5432/petdex
+      UPSTASH_REDIS_REST_URL: http://redis-rest:80
+      UPSTASH_REDIS_REST_TOKEN: petdex-dev-token
+      # The telemetry route hashes IPs with this before writing a rate-limit
+      # key, and refuses to start in production without a stable secret. It
+      # would accept the Upstash token above as the source, but only because
+      # that string happens to be exactly the 16-char minimum — say it here
+      # instead of depending on the length of a dev token.
+      TELEMETRY_RATELIMIT_SECRET: petdex-dev-telemetry-secret
+      # Uploads are not part of this stack; point R2 at a non-routable host so
+      # an accidental write errors fast instead of reaching a real bucket.
+      R2_ACCOUNT_ID: devnull
+      R2_ACCESS_KEY_ID: devnull
+      R2_SECRET_ACCESS_KEY: devnull
+      R2_BUCKET: petdex-dev-bucket
+      R2_PUBLIC_BASE: http://127.0.0.1:9
+      PETDEX_MOCK_AUTH: "1"
+      # Pins the canonical origin the app builds absolute URLs and its own
+      # host redirects from. Left unset, a request to 127.0.0.1 would be
+      # redirected to petdex.dev.
+      PETDEX_URL: http://127.0.0.1:3100
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  petdex-deploy-postgres:
