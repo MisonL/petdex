@@ -58,8 +58,17 @@ services:
         condition: service_healthy
 
   # One-shot: push the schema, then seed. Kept out of the app's entrypoint so
-  # a restart does not re-run it and two replicas cannot race the push. The
-  # seed is idempotent (upserts by slug), so re-running is safe.
+  # a restart does not re-run it and two replicas cannot race the push.
+  #
+  # The seed skips slugs that already exist (`findFirst` then `continue`, not
+  # an upsert), so re-running is safe and edits to a seeded row survive — but
+  # it also means the seed can never correct a row it previously wrote.
+  #
+  # `drizzle-kit push` is what the repo uses everywhere (`dev:docker` does the
+  # same); there are no migration files to apply. It reconciles the schema by
+  # diffing and, on a destructive change, emits the DROP and proceeds — the
+  # `--force` skips the confirmation prompt, not the statement. Point this at a
+  # database whose contents you are willing to lose.
   #
   # Built from the `source` stage, not `builder`: this needs the source tree
   # and its dependencies, not a compiled Next app. Targeting `builder` would
@@ -130,6 +139,21 @@ services:
       # `/api/pets/random` answers with, so a forged `Host` cannot turn a
       # shuffle into an open redirect. Set to this stack's own origin.
       PETDEX_URL: http://127.0.0.1:3100
+    # The runner image carries bun and node but no curl or wget, so the probe
+    # uses bun's fetch. `/version.json` is a static file written at build time,
+    # so it answers from disk without touching Postgres or Redis — a probe that
+    # reached the database would report the app unhealthy whenever the database
+    # was merely slow, and would keep a dependency the app is meant to survive.
+    healthcheck:
+      test:
+        - CMD
+        - bun
+        - -e
+        - "fetch('http://127.0.0.1:3000/version.json').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
     depends_on:
       postgres:
         condition: service_healthy
