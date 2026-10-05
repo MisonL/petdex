@@ -96,6 +96,46 @@ describe("isSameOrigin", () => {
     expect(isSameOrigin(post("http://127.0.0.1:3100"))).toBe(false);
   });
 
+  test("the loopback names are interchangeable at the configured port", () => {
+    // The compose stack sets `PETDEX_URL: http://127.0.0.1:3100` and prints
+    // that URL, but a browser reaching it as `localhost` or `[::1]` — which is
+    // what it autocompletes to — sent that name, and every write 403'd. The
+    // host-only comparison missed them, and `public-origin.ts` already treats
+    // the three as one server.
+    process.env.PETDEX_URL = "http://127.0.0.1:3100";
+    expect(isSameOrigin(post("http://localhost:3100"))).toBe(true);
+    expect(isSameOrigin(post("http://[::1]:3100"))).toBe(true);
+  });
+
+  test("the loopback alias does not admit another port", () => {
+    // The aliases exist for one server, not for whatever else is listening on
+    // the machine. Admitting every port would make this an allowlist for the
+    // whole loopback interface. (`localhost` with no port is already allowed
+    // outright by SITE_HOSTS for local dev, so the probe uses a port.)
+    process.env.PETDEX_URL = "http://127.0.0.1:3100";
+    expect(isSameOrigin(post("http://localhost:4000"))).toBe(false);
+    expect(isSameOrigin(post("http://127.0.0.1:4000"))).toBe(false);
+  });
+
+  test("the scheme has to match the configured one", () => {
+    // Host-only comparison admitted `https://petdex.dev` on an http-only
+    // deployment: an origin the deployment does not serve. Comparing the
+    // parsed origin closes that, and it is why this compares `origin` rather
+    // than `host`.
+    process.env.PETDEX_URL = "http://127.0.0.1:3100";
+    expect(isSameOrigin(post("https://127.0.0.1:3100"))).toBe(false);
+    expect(isSameOrigin(post("https://petdex.dev"))).toBe(true); // SITE_HOSTS
+  });
+
+  test("a non-loopback PETDEX_URL gets no aliases", () => {
+    // Aliases are only for the loopback names; a real host does not get them.
+    // Probed with a port so SITE_HOSTS' bare `localhost` entry does not answer
+    // for the alias path being tested.
+    process.env.PETDEX_URL = "https://petdex.example.com";
+    expect(isSameOrigin(post("http://localhost:3100"))).toBe(false);
+    expect(isSameOrigin(post("https://petdex.example.com"))).toBe(true);
+  });
+
   test("falls back to Sec-Fetch-Site when Origin is absent", () => {
     const sameSite = new Request("https://petdex.dev/api/pets/boba/like", {
       method: "POST",

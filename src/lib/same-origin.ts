@@ -40,7 +40,7 @@ function vercelHosts(): string[] {
 }
 
 /**
- * The host this deployment is configured to serve, from `PETDEX_URL`.
+ * The origins this deployment is configured to serve, from `PETDEX_URL`.
  *
  * `SITE_HOSTS` names petdex.dev and localhost, so a self-hosted deployment
  * (a container on its own origin) rejected its own browser origin: a
@@ -49,34 +49,53 @@ function vercelHosts(): string[] {
  * `http://127.0.0.1:3100`. `PETDEX_URL` is already read as the configured
  * public origin by `src/proxy.ts` and `/api/pets/random`.
  *
+ * The loopback names are included at the configured port because they are the
+ * same server: a developer reaches the container by whichever the browser
+ * autocompletes, and `public-origin.ts` already treats `127.0.0.1`,
+ * `localhost`, and `[::1]` as equivalent. Restricting the aliases to the
+ * configured port keeps this from admitting an unrelated local service.
+ *
  * A malformed value contributes nothing rather than being coerced — the
- * allowlist must only ever contain hosts someone configured on purpose.
+ * allowlist must only ever contain origins someone configured on purpose.
  */
-function configuredHost(): string | null {
+function configuredOrigins(): Set<string> {
   const raw = process.env.PETDEX_URL?.trim();
-  if (!raw) return null;
+  if (!raw) return new Set();
+  let url: URL;
   try {
-    const { host, origin } = new URL(raw);
-    // `new URL("file:///x")` has host "" and origin "null" — neither is a
-    // host a request could carry, so neither belongs in the allowlist.
-    return host && origin !== "null" ? host : null;
+    url = new URL(raw);
   } catch {
-    return null;
+    return new Set();
   }
+  // `new URL("file:///x")` has host "" and origin "null" — neither is an
+  // origin a request could carry, so neither belongs in the allowlist.
+  if (!url.host || url.origin === "null") return new Set();
+  const origins = new Set([url.origin]);
+  if (LOOPBACK_HOSTS.has(url.hostname)) {
+    const port = url.port ? `:${url.port}` : "";
+    for (const name of LOOPBACK_HOSTS)
+      origins.add(`${url.protocol}//${name}${port}`);
+  }
+  return origins;
 }
+
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
 export function isSameOrigin(req: Request): boolean {
   const origin = req.headers.get("origin");
   if (origin) {
-    let host: string;
+    let parsed: URL;
     try {
-      host = new URL(origin).host;
+      parsed = new URL(origin);
     } catch {
       return false;
     }
-    if (SITE_HOSTS.has(host)) return true;
-    if (host === configuredHost()) return true;
-    return vercelHosts().includes(host);
+    if (SITE_HOSTS.has(parsed.host)) return true;
+    // Compared as a full origin, not a host, so the scheme has to match the
+    // configured one: an `http://` deployment must not accept an `https://`
+    // origin of the same host, and vice versa.
+    if (configuredOrigins().has(parsed.origin)) return true;
+    return vercelHosts().includes(parsed.host);
   }
   // No Origin header. Use Sec-Fetch-Site as a fallback.
   const sfs = req.headers.get("sec-fetch-site");
