@@ -58,7 +58,10 @@ services:
         condition: service_healthy
 
   # One-shot: push the schema, then seed. Kept out of the app's entrypoint so
-  # a restart does not re-run it and two replicas cannot race the push.
+  # `docker compose restart` does not re-run it and two replicas cannot race
+  # the push. A plain `up` does re-run it (only `restart` skips a completed
+  # one-shot), which is harmless because push is idempotent and the seed skips
+  # existing slugs.
   #
   # The seed skips slugs that already exist (`findFirst` then `continue`, not
   # an upsert), so re-running is safe and edits to a seeded row survive — but
@@ -144,6 +147,10 @@ services:
     # so it answers from disk without touching Postgres or Redis — a probe that
     # reached the database would report the app unhealthy whenever the database
     # was merely slow, and would keep a dependency the app is meant to survive.
+    # The trade-off: this is a liveness check, not a readiness one. A wedged
+    # Postgres leaves the app reporting healthy while every DB-backed route
+    # 500s, and nothing restarts it — `depends_on` is evaluated at creation
+    # only, and `restart: unless-stopped` ignores healthcheck failures.
     healthcheck:
       test:
         - CMD

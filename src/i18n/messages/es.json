@@ -1131,6 +1131,11 @@
     "variants": {
       "title": "Variantes de este personaje",
       "description": "Otras mascotas aprobadas con sprites muy parecidos."
+    },
+    "metadata": {
+      "title": "{name}: mascota animada de Codex",
+      "description": "Instala {name} para Codex: {description} Un solo comando, pixel art animado, {tags}.",
+      "tagsFallback": "código abierto"
     }
   },
   "collectionDetail": {
@@ -1141,7 +1146,11 @@
     "noResults": "Ninguna mascota coincide con \"{query}\" en esta colección.",
     "empty": "Esta colección aún no tiene mascotas aprobadas.",
     "loadingMore": "Cargando más mascotas…",
-    "endOfCollection": "Fin de la colección · {count} mascotas"
+    "endOfCollection": "Fin de la colección · {count} mascotas",
+    "metadata": {
+      "title": "Colección {title}",
+      "ogTitle": "{title} en Petdex"
+    }
   },
   "download": {
     "metadata": {
@@ -1356,7 +1365,12 @@
     "editOrder": "Editar orden",
     "joined": "se unió {date}",
     "installs": "{count} instalaciones",
-    "petsCount": "{count, plural, =1 {1 mascota} other {# mascotas}}"
+    "petsCount": "{count, plural, =1 {1 mascota} other {# mascotas}}",
+    "metadata": {
+      "title": "{name}",
+      "description": "Mascotas creadas por {name} para Codex.",
+      "ogDescription": "Mascotas animadas de Codex creadas por {name}."
+    }
   },
   "galleryReorder": {
     "dragInstruction": "Arrastra cualquier mascota para reordenar. Los cambios se guardan al hacer clic en Listo."

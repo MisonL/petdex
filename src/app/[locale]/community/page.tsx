@@ -41,8 +41,15 @@ export async function generateMetadata({
   const t = await getTranslations({ locale, namespace: "community.metadata" });
   const hasWechat = locale === "zh" && WECHAT_COMMUNITY_ENABLED;
   if (!process.env.NEXT_PUBLIC_DISCORD_INVITE_URL && !hasWechat) {
+    // The page body calls `notFound()` on the same condition, so the
+    // boundary's own title is what a visitor actually sees — read the same
+    // messages rather than an English literal that shows on /es and /zh.
+    const tNotFound = await getTranslations({
+      locale: hasLocale(locale) ? locale : "en",
+      namespace: "notFound.metadata",
+    });
     return {
-      title: "Not found",
+      title: tNotFound("title"),
       robots: { index: false, follow: false },
     };
   }

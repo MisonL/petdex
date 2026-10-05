@@ -14,6 +14,11 @@ import { getPreferredLocaleForUser } from "@/lib/user-locale";
 
 export const runtime = "nodejs";
 
+// A private feedback thread on a URL that carries no user identity — the id is
+// the thread's, not the caller's — so an intermediary must not reuse it. Same
+// reason `/api/notifications` and `/api/pet-requests` say `private, no-store`.
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store" };
+
 type Params = { id: string };
 
 type PostBody = {
@@ -64,16 +69,19 @@ export async function GET(
       .where(eq(schema.feedback.id, id));
   }
 
-  return NextResponse.json({
-    feedback: {
-      id: row.id,
-      kind: row.kind,
-      status: row.status,
-      message: row.message,
-      createdAt: row.createdAt,
+  return NextResponse.json(
+    {
+      feedback: {
+        id: row.id,
+        kind: row.kind,
+        status: row.status,
+        message: row.message,
+        createdAt: row.createdAt,
+      },
+      replies,
     },
-    replies,
-  });
+    { headers: PRIVATE_HEADERS },
+  );
 }
 
 export async function POST(

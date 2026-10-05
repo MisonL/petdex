@@ -15,6 +15,7 @@ import { drizzle } from "drizzle-orm/pglite";
 
 import { rowsOf, runAtomicReturning } from "@/lib/db/atomic";
 import * as schema from "@/lib/db/schema";
+import * as realRatelimit from "@/lib/ratelimit";
 
 const client = new PGlite();
 const testDb = drizzle(client, { schema });
@@ -40,7 +41,12 @@ mock.module("@/lib/db/client", () => ({
   executeAtomicReturning: (queries: never) =>
     runAtomicReturning(testDb as never, queries),
 }));
+// Spread the real module, for the same reason as the `@neondatabase/serverless`
+// mock below: `mock.module` is process-wide and first-registration-wins, so a
+// bare replacement starves whichever limiter another suite in the same process
+// already stubbed.
 mock.module("@/lib/ratelimit", () => ({
+  ...realRatelimit,
   petRequestRatelimit: { limit: async () => ({ success: true }) },
 }));
 mock.module("@/lib/same-origin", () => ({ requireSameOrigin: () => null }));

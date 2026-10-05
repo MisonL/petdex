@@ -48,22 +48,30 @@ export async function generateMetadata({ params }: PageProps) {
   // and silently fall back to the parent layout's image — so unfurls
   // showed the generic Petdex hero instead of the per-collection art.
   const ogImage = `${SITE_URL}/collections/${collection.slug}/opengraph-image`;
+  // `collection.title` and `collection.description` are content data (the
+  // collection's own name and blurb), so only the surrounding template is
+  // localized here.
+  const tMeta = await getTranslations({
+    locale: hasLocale(locale) ? locale : "en",
+    namespace: "collectionDetail.metadata",
+  });
+  const ogTitle = tMeta("ogTitle", { title: collection.title });
   return {
-    title: `${collection.title} collection`,
+    title: tMeta("title", { title: collection.title }),
     description: collection.description,
     alternates: buildLocaleAlternates(
       `/collections/${collection.slug}`,
       hasLocale(locale) ? locale : undefined,
     ),
     openGraph: {
-      title: `${collection.title} on Petdex`,
+      title: ogTitle,
       description: collection.description,
       url: `${SITE_URL}/collections/${collection.slug}`,
       images: [{ url: ogImage, width: 1200, height: 630 }],
     },
     twitter: {
       card: "summary_large_image",
-      title: `${collection.title} on Petdex`,
+      title: ogTitle,
       description: collection.description,
       images: [ogImage],
     },

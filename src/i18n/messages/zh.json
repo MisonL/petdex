@@ -1336,6 +1336,11 @@
     "variants": {
       "title": "该角色的变体",
       "description": "其他已审核且精灵图Sprite 形状非常接近的宠物。"
+    },
+    "metadata": {
+      "title": "{name}：Codex 动画宠物",
+      "description": "为 Codex 安装 {name}：{description} 一条命令、动画像素画、{tags}。",
+      "tagsFallback": "开源"
     }
   },
   "collectionDetail": {
@@ -1346,7 +1351,11 @@
     "noResults": "此合集中没有匹配 \"{query}\" 的宠物。",
     "empty": "此合集还没有已通过审核的宠物。",
     "loadingMore": "正在加载更多宠物…",
-    "endOfCollection": "已到合集末尾 · 共 {count} 个宠物"
+    "endOfCollection": "已到合集末尾 · 共 {count} 个宠物",
+    "metadata": {
+      "title": "{title} 合集",
+      "ogTitle": "{title} 在 Petdex"
+    }
   },
   "download": {
     "metadata": {
@@ -1620,7 +1629,12 @@
     "editOrder": "编辑顺序",
     "joined": "加入于 {date}",
     "installs": "{count} 安装数",
-    "petsCount": "{count} 个宠物"
+    "petsCount": "{count} 个宠物",
+    "metadata": {
+      "title": "{name}",
+      "description": "{name} 为 Codex 创作的宠物。",
+      "ogDescription": "{name} 创作的 Codex 动画宠物。"
+    }
   },
   "galleryReorder": {
     "dragInstruction": "拖动宠物以重新排序。点击「完成」后保存更改。"

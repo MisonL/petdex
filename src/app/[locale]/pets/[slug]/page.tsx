@@ -81,8 +81,16 @@ export async function generateMetadata({ params }: PageProps) {
     };
   }
 
-  const title = `${pet.displayName}: Animated Codex pet`;
-  const description = `Install ${pet.displayName} for Codex: ${pet.description} One command, animated pixel art, ${pet.tags.slice(0, 3).join(" + ") || "open source"}.`;
+  const tMeta = await getTranslations({
+    locale: hasLocale(locale) ? locale : "en",
+    namespace: "pet.metadata",
+  });
+  const title = tMeta("title", { name: pet.displayName });
+  const description = tMeta("description", {
+    name: pet.displayName,
+    description: pet.description,
+    tags: pet.tags.slice(0, 3).join(" + ") || tMeta("tagsFallback"),
+  });
   const url = `${SITE_URL}/pets/${pet.slug}`;
 
   return {

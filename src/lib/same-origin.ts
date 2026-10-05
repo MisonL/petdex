@@ -39,6 +39,32 @@ function vercelHosts(): string[] {
     .map((value) => value.split("/")[0]);
 }
 
+/**
+ * The host this deployment is configured to serve, from `PETDEX_URL`.
+ *
+ * `SITE_HOSTS` names petdex.dev and localhost, so a self-hosted deployment
+ * (a container on its own origin) rejected its own browser origin: a
+ * same-origin `fetch()` POST sends `Origin: <that origin>`, and every
+ * guarded endpoint 403s. The compose deployment hit this on
+ * `http://127.0.0.1:3100`. `PETDEX_URL` is already read as the configured
+ * public origin by `src/proxy.ts` and `/api/pets/random`.
+ *
+ * A malformed value contributes nothing rather than being coerced — the
+ * allowlist must only ever contain hosts someone configured on purpose.
+ */
+function configuredHost(): string | null {
+  const raw = process.env.PETDEX_URL?.trim();
+  if (!raw) return null;
+  try {
+    const { host, origin } = new URL(raw);
+    // `new URL("file:///x")` has host "" and origin "null" — neither is a
+    // host a request could carry, so neither belongs in the allowlist.
+    return host && origin !== "null" ? host : null;
+  } catch {
+    return null;
+  }
+}
+
 export function isSameOrigin(req: Request): boolean {
   const origin = req.headers.get("origin");
   if (origin) {
@@ -49,6 +75,7 @@ export function isSameOrigin(req: Request): boolean {
       return false;
     }
     if (SITE_HOSTS.has(host)) return true;
+    if (host === configuredHost()) return true;
     return vercelHosts().includes(host);
   }
   // No Origin header. Use Sec-Fetch-Site as a fallback.

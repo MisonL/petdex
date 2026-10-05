@@ -36,8 +36,9 @@ WORKDIR /app
 
 # `NEXT_PUBLIC_*` values are inlined into the client bundle at build time, so
 # they have to be present here — setting them only at runtime leaves the
-# browser bundle with empty strings. The defaults are the shared Clerk dev
-# instance from `.env.dev`; override with `--build-arg` for anything else.
+# browser bundle with empty strings. The defaults are empty; the compose file
+# supplies the shared Clerk dev instance through `build.args`. Override with
+# `--build-arg` for anything else.
 ARG NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=""
 ARG NEXT_PUBLIC_PETDEX_ADMIN_USER_IDS=""
 ARG NEXT_PUBLIC_PETDEX_ADMIN_URL=""
@@ -75,9 +76,11 @@ ARG TELEMETRY_RATELIMIT_SECRET="build-time-placeholder-not-a-secret"
 # `initdb` depend only on the base image and cache on their own, while the
 # start/push/build/stop cycle has to sit in one RUN with `bun run build`.
 #
-# `initdb -U petdex --auth=trust` makes that role the superuser and skips
-# password files, which is why the URL above carries no credentials and can
-# listen on plain loopback — nothing outside the build container can reach it.
+# `initdb -U petdex --auth=trust` makes that role the superuser and writes an
+# all-`trust` `pg_hba.conf`, so the `petdex:petdex` password in the URL above is
+# never checked — it is there only because the connection string needs the
+# shape. The server listens on plain loopback, which nothing outside the build
+# container can reach.
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends postgresql; \

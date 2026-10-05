@@ -5,6 +5,7 @@ import { auth } from "@clerk/nextjs/server";
 import { getAllPetsPackPath } from "@/lib/downloads";
 import { logManifestFetch } from "@/lib/manifest-telemetry";
 import { getAllApprovedPets } from "@/lib/pets";
+import { publicOrigin } from "@/lib/public-origin";
 import { manifestFullRatelimit } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
@@ -37,7 +38,7 @@ export async function GET(req: Request): Promise<Response> {
   }
   void logManifestFetch(req, "full");
 
-  const origin = new URL(req.url).origin;
+  const origin = publicOrigin(req);
   const pets = await getAllApprovedPets();
 
   const items = pets.map((pet) => ({

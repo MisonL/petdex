@@ -76,23 +76,29 @@ export async function generateMetadata({ params }: PageProps) {
   // Pin OG image to locale-stripped path; next-intl redirects
   // /en/u/<handle>/opengraph-image with 307 which scrapers drop.
   const ogImage = `${SITE_URL}/u/${publicHandle}/opengraph-image`;
+  const tMeta = await getTranslations({
+    locale: hasLocale(locale) ? locale : "en",
+    namespace: "profile.metadata",
+  });
+  const title = tMeta("title", { name: displayName });
+  const ogDescription = tMeta("ogDescription", { name: displayName });
   return {
-    title: `${displayName} on Petdex`,
-    description: `Pets created by ${displayName} for Codex.`,
+    title,
+    description: tMeta("description", { name: displayName }),
     alternates: buildLocaleAlternates(
       `/u/${publicHandle}`,
       hasLocale(locale) ? locale : undefined,
     ),
     openGraph: {
-      title: `${displayName} on Petdex`,
-      description: `Animated Codex pets created by ${displayName}.`,
+      title,
+      description: ogDescription,
       url: `${SITE_URL}/u/${publicHandle}`,
       images: [{ url: ogImage, width: 1200, height: 630 }],
     },
     twitter: {
       card: "summary_large_image",
-      title: `${displayName} on Petdex`,
-      description: `Animated Codex pets created by ${displayName}.`,
+      title,
+      description: ogDescription,
       images: [ogImage],
     },
   };

@@ -20,6 +20,7 @@ const VERCEL_VARS = [
 
 afterEach(() => {
   for (const name of VERCEL_VARS) delete process.env[name];
+  delete process.env.PETDEX_URL;
 });
 
 function post(origin: string): Request {
@@ -70,6 +71,29 @@ describe("isSameOrigin", () => {
   test("accepts localhost for local development", () => {
     expect(isSameOrigin(post("http://localhost:3000"))).toBe(true);
     expect(isSameOrigin(post("http://localhost"))).toBe(true);
+  });
+
+  test("accepts the origin this deployment is configured to serve", () => {
+    // Self-hosted deployments do not answer on petdex.dev or a *.vercel.app
+    // host, so without this the app rejects its own browser origin: a
+    // same-origin `fetch()` POST carries `Origin: <the deploy origin>` and
+    // `requireSameOrigin` 403s it. `PETDEX_URL` is already the configured
+    // public origin the proxy and `/api/pets/random` read.
+    process.env.PETDEX_URL = "http://127.0.0.1:3100";
+    expect(isSameOrigin(post("http://127.0.0.1:3100"))).toBe(true);
+  });
+
+  test("a malformed PETDEX_URL does not widen the allowlist", () => {
+    process.env.PETDEX_URL = "not a url";
+    expect(isSameOrigin(post("https://attacker.example.com"))).toBe(false);
+    // The hardcoded hosts still work.
+    expect(isSameOrigin(post("https://petdex.dev"))).toBe(true);
+  });
+
+  test("PETDEX_URL does not admit a different origin", () => {
+    process.env.PETDEX_URL = "https://petdex.dev";
+    expect(isSameOrigin(post("https://evil.vercel.app"))).toBe(false);
+    expect(isSameOrigin(post("http://127.0.0.1:3100"))).toBe(false);
   });
 
   test("falls back to Sec-Fetch-Site when Origin is absent", () => {

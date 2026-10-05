@@ -11,18 +11,15 @@ node_modules
 packages
 
 # Local env files. The image gets its configuration from the compose file's
-# `environment:` block, and `.env.*.local` is gitignored for a reason.
-.env.local
-.env.development.local
-.env.production.local
-.env.deploy.local
-.env.dev.local
-# `.env.dev` and `.env.mock` are committed and hold only dev placeholders, but
-# Next loads neither (it auto-loads `.env*` for NODE_ENV, and neither name
-# matches) — so excluding them keeps `COPY . .` from carrying dev config into
-# the builder for no gain.
-.env.dev
-.env.mock
+# `environment:` block. `.env*` is a catch-all rather than a list of names:
+# `next build` runs in production mode and `@next/env` auto-loads `.env`,
+# `.env.production`, and `.env.development` (plus their `.local` variants), so a
+# maintainer's real `.env.production` — gitignored, and therefore invisible to
+# `git status` — would otherwise ride `COPY . .` into the `source` stage and be
+# loaded, inlining any `NEXT_PUBLIC_*` it carries. `.env.example` is committed
+# documentation and stays.
+.env*
+!.env.example
 
 # Build and editor noise.
 npm-debug.log*

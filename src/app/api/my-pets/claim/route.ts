@@ -10,6 +10,12 @@ import { requireSameOrigin } from "@/lib/same-origin";
 
 export const runtime = "nodejs";
 
+// Per-user data on a URL that carries no user identity — the body holds the
+// caller's own `email` and `githubUrl` — so an intermediary must not reuse it.
+// The URL is the same for every signed-in user, which is exactly the case the
+// Cloudflare cache-everything rule in front of the deployment would fill in.
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store" };
+
 type ClaimIdentity = {
   email: string | null;
   githubUrl: string | null;
@@ -31,7 +37,7 @@ export async function GET(): Promise<Response> {
 
   const ident = await getClaimIdentity(userId);
   if (!ident.email && !ident.githubUrl) {
-    return NextResponse.json({ pets: [] });
+    return NextResponse.json({ pets: [] }, { headers: PRIVATE_HEADERS });
   }
 
   const filters = [];
@@ -66,11 +72,14 @@ export async function GET(): Promise<Response> {
       ),
     );
 
-  return NextResponse.json({
-    pets: rows,
-    email: ident.email,
-    githubUrl: ident.githubUrl,
-  });
+  return NextResponse.json(
+    {
+      pets: rows,
+      email: ident.email,
+      githubUrl: ident.githubUrl,
+    },
+    { headers: PRIVATE_HEADERS },
+  );
 }
 
 // POST — claim a single pet by id. Same checks as the listing query, plus

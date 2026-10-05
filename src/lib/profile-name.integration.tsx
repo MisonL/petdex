@@ -6,6 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 import * as schema from "./db/schema";
 import { type HeaderState, normalizeHeaderState } from "./header-state";
+import * as realRatelimit from "./ratelimit";
 
 const client = new PGlite();
 const fixture = drizzle(client, { schema });
@@ -60,7 +61,11 @@ mock.module("@clerk/nextjs", () => ({
   }),
   SignInButton: () => null,
 }));
+// Spread the real module: `mock.module` is process-wide and
+// first-registration-wins, so replacing `@/lib/ratelimit` wholesale starves
+// whichever limiter another suite in the same process already stubbed.
 mock.module("@/lib/ratelimit", () => ({
+  ...realRatelimit,
   profileEditRatelimit: { limit: async () => ({ success: true }) },
   profilePinRatelimit: { limit: async () => ({ success: true }) },
   petRequestRatelimit: {},

@@ -17,6 +17,7 @@ import { drizzle } from "drizzle-orm/pglite";
 
 import { rowsOf } from "@/lib/db/atomic";
 import * as schema from "@/lib/db/schema";
+import * as realRatelimit from "@/lib/ratelimit";
 
 const client = new PGlite();
 const testDb = drizzle(client, { schema });
@@ -37,7 +38,13 @@ mock.module("@/lib/db/client", () => ({
 mock.module("@/lib/db/metrics", () => ({
   setLikeCount: async () => {},
 }));
+// `mock.module` is process-wide and first-registration-wins, so replacing the
+// module wholesale would starve whichever factory another suite in the same
+// process already stubbed — `bun run test a b` then fails with "Export named
+// 'xRatelimit' not found". Spreading the real module keeps every other
+// limiter intact and only overrides the one this route reads.
 mock.module("@/lib/ratelimit", () => ({
+  ...realRatelimit,
   likeRatelimit: { limit: async () => ({ success: true }) },
 }));
 mock.module("@/lib/same-origin", () => ({ requireSameOrigin: () => null }));

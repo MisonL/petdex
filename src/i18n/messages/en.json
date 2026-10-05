@@ -1131,6 +1131,11 @@
     "variants": {
       "title": "Variants of this character",
       "description": "Other approved pets with closely matching sprite shapes."
+    },
+    "metadata": {
+      "title": "{name}: Animated Codex pet",
+      "description": "Install {name} for Codex: {description} One command, animated pixel art, {tags}.",
+      "tagsFallback": "open source"
     }
   },
   "collectionDetail": {
@@ -1141,7 +1146,11 @@
     "noResults": "No pets match \"{query}\" in this collection.",
     "empty": "This collection has no approved pets yet.",
     "loadingMore": "Loading more pets…",
-    "endOfCollection": "End of collection · {count} pets"
+    "endOfCollection": "End of collection · {count} pets",
+    "metadata": {
+      "title": "{title} collection",
+      "ogTitle": "{title} on Petdex"
+    }
   },
   "download": {
     "metadata": {
@@ -1356,7 +1365,12 @@
     "editOrder": "Edit order",
     "joined": "joined {date}",
     "installs": "{count} installs",
-    "petsCount": "{count, plural, =1 {1 pet} other {# pets}}"
+    "petsCount": "{count, plural, =1 {1 pet} other {# pets}}",
+    "metadata": {
+      "title": "{name}",
+      "description": "Pets created by {name} for Codex.",
+      "ogDescription": "Animated Codex pets created by {name}."
+    }
   },
   "galleryReorder": {
     "dragInstruction": "Drag any pet to reorder. Changes save when you click Done."
