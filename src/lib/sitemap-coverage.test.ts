@@ -141,10 +141,13 @@ const DYNAMIC_FAMILIES = [
   { family: "vibe/[vibe]", reason: "listed" },
   // Account-scoped: `robots: { index: false, follow: false }`.
   { family: "my-feedback/[id]", reason: "noindex" },
-  // Indexable, and not listed. A profile page is a legitimate sitemap entry,
-  // but which profiles qualify is a product decision — every handle, or only
-  // those with approved pets — and it needs its own accessor. Recorded here so
-  // the omission is a decision rather than something the scan cannot see.
+  // User-generated. The page is indexable (robots allows `/u/`, the layout
+  // adds `index, follow`) and every handle that resolves gets a 200, but which
+  // profiles belong in a search index is the product's call, not the sitemap's:
+  // a handle with no approved pets renders an empty gallery. The guard's own
+  // EXCUSED set already records `u` as "reachable, but nothing to index", so
+  // this follows that decision. Listing them later is a one-line change — add a
+  // `getProfileSitemapEntries()` and flip this to "listed".
   { family: "u/[handle]", reason: "deliberately unlisted" },
 ] as const;
 
