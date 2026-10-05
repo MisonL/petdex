@@ -7,6 +7,7 @@ import {
 } from "@/lib/locale-routing";
 import { loadFacetsForSitemap } from "@/lib/pet-search";
 import { getPetSitemapEntries } from "@/lib/pets";
+import { getStickerSitemapEntries } from "@/lib/sticker-export";
 import { PET_KINDS, PET_VIBES } from "@/lib/types";
 
 export const revalidate = 86400;
@@ -47,9 +48,10 @@ function expandLocalizedEntry(entry: EntryInput): MetadataRoute.Sitemap {
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [pets, collections] = await Promise.all([
+  const [pets, collections, stickerCollections] = await Promise.all([
     getPetSitemapEntries(),
     getCollectionSitemapEntries(),
+    getStickerSitemapEntries(),
   ]);
   const now = new Date();
 
@@ -191,11 +193,27 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: collection.featured ? 0.8 : 0.5,
   }));
 
+  // `/stickers/<slug>` answers 200 with `index, follow` whenever the explorer is
+  // on and the collection has a pet the current sticker policy publishes, and
+  // 404s otherwise. The accessor applies both conditions — with the explorer
+  // off it returns nothing at all — so this lists exactly the pages that exist
+  // and never advertises the 404s a bare slug list would.
+  //
+  // The header links `/stickers/claude` in every explorer deployment, so before
+  // this the only way a crawler reached these was by starting from the homepage.
+  const stickerEntries: EntryInput[] = stickerCollections.map((collection) => ({
+    pathname: `/stickers/${collection.slug}`,
+    lastModified: collection.updatedAt ?? now,
+    changeFrequency: "weekly",
+    priority: 0.5,
+  }));
+
   return [
     ...staticEntries,
     ...vibeEntries,
     ...kindEntries,
     ...petEntries,
     ...collectionEntries,
+    ...stickerEntries,
   ].flatMap(expandLocalizedEntry);
 }

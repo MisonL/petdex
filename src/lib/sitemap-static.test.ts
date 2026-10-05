@@ -20,6 +20,7 @@ import { join } from "node:path";
 
 const SITEMAP = join(import.meta.dir, "..", "app", "sitemap.ts");
 const PET_SEARCH = join(import.meta.dir, "pet-search.ts");
+const STICKER_EXPORT = join(import.meta.dir, "sticker-export.ts");
 
 describe("the sitemap stays statically renderable", () => {
   const sitemap = readFileSync(SITEMAP, "utf8");
@@ -74,5 +75,75 @@ describe("the sitemap stays statically renderable", () => {
     // The predicate has to test > 0, not merely presence — a zero count is a
     // key that exists and is still not indexable.
     expect(sitemap).toMatch(/counts\[slug\] \?\? 0\) > 0/);
+  });
+
+  test("sticker collections are listed, on the same gate the page uses", () => {
+    // `/stickers/[collection]` is reachable from the header nav whenever the
+    // explorer is on, and it declares `index, follow` by inheriting the layout
+    // — but nothing listed it, so a crawler that did not start from the
+    // homepage had no way in. The header link is the only thing carrying it.
+    //
+    // Two conditions have to hold together, or the entry is worse than the
+    // omission: the sitemap must list the collections the page can serve, and
+    // only those. An explorer-off deployment 404s every slug, and a collection
+    // with no published pets calls `notFound()` — so the same two-way pairing
+    // the facet entries above rely on.
+    expect(
+      sitemap,
+      "Sticker collections are linked from the header when the explorer is " +
+        "enabled but appear in no sitemap entry, so the header link is the " +
+        "only path a crawler has to them.",
+    ).toContain("getStickerSitemapEntries");
+
+    // Enumerating from the accessor, not from a hardcoded slug: `demoCollection`
+    // accepts only "claude", so a bare list would advertise that one slug in
+    // every deployment, including the ones where it 404s.
+    expect(
+      sitemap,
+      "Sticker entries must come from getStickerSitemapEntries(), which " +
+        "applies the same per-pet eligibility the page applies. A hardcoded " +
+        "slug list would list a collection whose pets are not published.",
+    ).toMatch(/\.\.\.stickerEntries\b/);
+
+    // The gate lives in the accessor rather than the sitemap, so it is checked
+    // where it is written: with the explorer off the page calls `notFound()`
+    // for every slug, and the accessor has to return nothing to match.
+    const accessor = readFileSync(STICKER_EXPORT, "utf8");
+    const body = accessor.slice(
+      accessor.indexOf("export async function getStickerSitemapEntries"),
+    );
+    const fn = body.slice(0, body.indexOf("\n}"));
+    expect(
+      fn,
+      "The sticker accessor must return nothing when the explorer is off, " +
+        "or the deployment serving 404s is the one advertising them.",
+    ).toContain("isStickerExplorerEnabled");
+    // And it has to apply the *per-pet* eligibility the page applies, not just
+    // enumerate slugs: a collection whose every pet fails the export or
+    // publication check calls `notFound()` on the page, so listing it would
+    // advertise a 404. Both predicates are required — one guards the export
+    // approval, the other the published artifact set.
+    expect(
+      fn,
+      "Sticker entries must be filtered through the same per-pet predicates " +
+        "the page uses (isCurrentStickerExportAllowed and " +
+        "isCurrentStickerPublication), or a collection whose pets are not " +
+        "published is listed while its page 404s.",
+    ).toContain("isCurrentStickerExportAllowed");
+    expect(fn).toContain("isCurrentStickerPublication");
+  });
+
+  test("the sticker accessor is Redis-free", () => {
+    // The same constraint as the facet entries, asserted at the accessor: a
+    // Redis hop anywhere in this chain makes `/sitemap.xml` dynamic again.
+    const accessor = readFileSync(STICKER_EXPORT, "utf8");
+    const body = accessor.slice(
+      accessor.indexOf("export async function getStickerSitemapEntries"),
+    );
+    expect(
+      body.slice(0, body.indexOf("\n}")),
+      "The sitemap accessor must not read Upstash — see the loadFacets note " +
+        "above for what that costs.",
+    ).not.toMatch(/\bcachedAggregate\b|loadFacets|Upstash/i);
   });
 });

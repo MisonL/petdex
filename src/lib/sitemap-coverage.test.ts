@@ -121,3 +121,85 @@ describe("every indexable static page is in the sitemap", () => {
     });
   }
 });
+
+// The scan above skips every dynamic segment (`!name.startsWith("[")`), so a
+// dynamic route family is invisible to it: `/stickers/[collection]` answered 200
+// with `index, follow` from the header nav and appeared in no sitemap, and the
+// gap was structural rather than an oversight.
+//
+// A family is listed when the sitemap builds a pathname under it, excused when
+// its page is not indexable at all, or deliberately absent with a reason. The
+// reachability half of the pairing is covered per-family (`sitemap-static.test.ts`
+// pins the stickers eligibility and the Redis-free accessor, `locale-prefixed-path`
+// the rendering), so this only answers "does the sitemap mention this family,
+// and if not, why not".
+const DYNAMIC_FAMILIES = [
+  { family: "collections/[slug]", reason: "listed" },
+  { family: "kind/[kind]", reason: "listed" },
+  { family: "pets/[slug]", reason: "listed" },
+  { family: "stickers/[collection]", reason: "listed" },
+  { family: "vibe/[vibe]", reason: "listed" },
+  // Account-scoped: `robots: { index: false, follow: false }`.
+  { family: "my-feedback/[id]", reason: "noindex" },
+  // Indexable, and not listed. A profile page is a legitimate sitemap entry,
+  // but which profiles qualify is a product decision — every handle, or only
+  // those with approved pets — and it needs its own accessor. Recorded here so
+  // the omission is a decision rather than something the scan cannot see.
+  { family: "u/[handle]", reason: "deliberately unlisted" },
+] as const;
+
+describe("every indexable dynamic route family is accounted for", () => {
+  const sitemap = readFileSync(SITEMAP, "utf8");
+
+  test("the family list still matches the route tree", () => {
+    // A guard over a hardcoded list fails silently when a family is added, so
+    // the list is checked against the directories on disk. Only families with
+    // a `page.tsx` are considered: `/install/[slug]` is a route handler that
+    // serves a shell script, has no page, and is correctly not a sitemap entry.
+    // `[...rest]` is the 404 catch-all.
+    const withPage = (dir: string, prefix = "") =>
+      readdirSync(dir, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory() && entry.name.startsWith("["))
+        .filter((entry) =>
+          readdirSync(join(dir, entry.name)).includes("page.tsx"),
+        )
+        .map((entry) => `${prefix}${entry.name}/`);
+    const onDisk = [
+      ...withPage(LOCALE_DIR),
+      ...readdirSync(LOCALE_DIR, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory() && !entry.name.startsWith("["))
+        .flatMap((entry) =>
+          withPage(join(LOCALE_DIR, entry.name), `${entry.name}/`),
+        ),
+    ].filter((name) => !name.includes("[...rest]"));
+    for (const name of onDisk) {
+      expect(
+        DYNAMIC_FAMILIES.some((entry) => `${entry.family}/` === name),
+        `${name} is a dynamic route family that no sitemap assertion covers. ` +
+          "Add it to DYNAMIC_FAMILIES with its reason, so a new family is not " +
+          "silently unchecked.",
+      ).toBe(true);
+    }
+  });
+
+  for (const { family, reason } of DYNAMIC_FAMILIES) {
+    if (reason !== "listed") continue;
+    test(`/${family} is listed`, () => {
+      const segment = `/${family.split("/")[0]}/`;
+      expect(
+        sitemap.includes(segment),
+        `/${family} answers 200 with index, follow but builds no sitemap ` +
+          "entry, so the only way a crawler finds it is by following a link.",
+      ).toBe(true);
+    });
+  }
+
+  test("a noindex family really is noindex", () => {
+    // The excuse has to be true at the page, or "excused" is just "forgotten".
+    const page = readFileSync(
+      join(LOCALE_DIR, "my-feedback", "[id]", "page.tsx"),
+      "utf8",
+    );
+    expect(page).toMatch(/index:\s*false/);
+  });
+});
