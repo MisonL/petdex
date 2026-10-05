@@ -676,8 +676,18 @@ const loadFacets = (): Promise<SearchFacets> =>
  * adds. The sitemap route is prerendered, and reaching Redis from it makes
  * Next treat the route as dynamic: the build reported `/sitemap.xml` as `ƒ`
  * instead of the static `○` it had been, and the response's `lastmod` became
- * `new Date()` at request time rather than at build time. The read it needs is
- * already behind `unstable_cache`, so the Upstash tier buys the build nothing.
+ * `new Date()` at request time rather than at regeneration time. The read it
+ * needs is already behind `unstable_cache`, so the Upstash tier buys the build
+ * nothing.
+ *
+ * Note the effective revalidation is 300s, not the route's declared 86400:
+ * Next takes the lowest `revalidate` across a route's fetches, and
+ * `computeFacets` is cached at 300 for the search routes. So `lastmod` still
+ * moves every regeneration rather than being frozen at build time — that is
+ * the pre-existing behaviour on `main`, and this route went from dynamic (every
+ * request) to static (every 300s). Raising it means giving the sitemap its own
+ * longer-lived cache entry, which would mean re-running the facet queries on a
+ * separate clock from the ones the search page reads.
  */
 export const loadFacetsForSitemap = (): Promise<SearchFacets> =>
   computeFacets();

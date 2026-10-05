@@ -2,9 +2,9 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-// `/sitemap.xml` is a prerendered route (`○` with `revalidate = 86400`). The
-// build only keeps it static while everything it reaches is static too, and
-// the sitemap filters its facet entries on the approved-pet counts.
+// `/sitemap.xml` is a prerendered route — the build reports `○`. The build
+// only keeps it static while everything it reaches is static too, and the
+// sitemap filters its facet entries on the approved-pet counts.
 //
 // Reaching those counts through `loadFacets` — which reads Upstash before
 // falling back to the `unstable_cache`d computation — made Next render the
@@ -17,6 +17,13 @@ import { join } from "node:path";
 // `loadFacetsForSitemap` is the same computation without the Redis hop. This
 // asserts the sitemap uses it, because the regression is invisible in every
 // unit test — it only shows up in the build's route table.
+//
+// One thing this file does NOT claim: that the route revalidates on the
+// `86400` it declares. Next takes the *lowest* revalidate across a route's
+// fetches, and `computeFacets` is cached at 300 for the search routes, so the
+// effective period is 300s and `lastmod` moves each regeneration. That is
+// better than `main`, where the same route recomputed it per request, but it
+// is not frozen at build time. The build's route table prints it as `5m`.
 
 const SITEMAP = join(import.meta.dir, "..", "app", "sitemap.ts");
 const PET_SEARCH = join(import.meta.dir, "pet-search.ts");

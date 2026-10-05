@@ -156,7 +156,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // `loadFacetsForSitemap`, not `loadFacets`: the latter also reads Upstash,
   // and any Redis call from this route makes Next render it dynamically —
   // `/sitemap.xml` went from a static `○` to a dynamic `ƒ`, and its `lastmod`
-  // from build time to request time.
+  // from regeneration time to request time. (The effective period is 300s, not
+  // the 86400 below: Next takes the lowest revalidate in the route's fetches,
+  // and this aggregate is cached at 300 for the search pages.)
   const facets = await loadFacetsForSitemap();
   const populated = (counts: Record<string, number>, slug: string) =>
     (counts[slug] ?? 0) > 0;
