@@ -45,10 +45,11 @@ ARG NEXT_PUBLIC_PETDEX_PET_PREVIEWS_ENABLED=""
 ARG NEXT_PUBLIC_DISCORD_INVITE_URL=""
 ARG NEXT_PUBLIC_WECHAT_COMMUNITY_ENABLED=""
 # Swaps the Clerk packages for the in-process mocks (see `next.config.ts`).
-# This is a build-time alias, not a runtime flag: the alias has to be active
-# while the bundle is compiled, so it is an ARG and not just an env var.
+# This is a build-time alias, not a runtime flag: `next.config.ts` reads it
+# while the config loads, so it has to be set while the bundle is compiled. The
+# compiled output then contains the mocks themselves — the value never reaches
+# the artifact.
 ARG PETDEX_MOCK_AUTH=""
-ARG PETDEX_URL=""
 # Opts the build into `output: "standalone"` (see `next.config.ts`). The
 # setting is off by default so the Vercel build is unchanged; the image needs
 # the traced `.next/standalone` tree that the runner stage copies.
@@ -94,7 +95,6 @@ ENV NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY \
     NEXT_PUBLIC_DISCORD_INVITE_URL=$NEXT_PUBLIC_DISCORD_INVITE_URL \
     NEXT_PUBLIC_WECHAT_COMMUNITY_ENABLED=$NEXT_PUBLIC_WECHAT_COMMUNITY_ENABLED \
     PETDEX_MOCK_AUTH=$PETDEX_MOCK_AUTH \
-    PETDEX_URL=$PETDEX_URL \
     PETDEX_STANDALONE=$PETDEX_STANDALONE \
     DATABASE_URL=$DATABASE_URL \
     TELEMETRY_RATELIMIT_SECRET=$TELEMETRY_RATELIMIT_SECRET \
@@ -110,12 +110,18 @@ ENV NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY \
 # earlier one is not there. `-w` blocks until it accepts connections, so
 # `createdb` and `drizzle-kit push` cannot race it.
 #
-# The seed matters as much as the schema. The gallery and home pages are
-# `force-static` with `generateStaticParams`, so this build prerenders them —
-# against an empty database they bake in "0+ open-source pets" and an empty
-# gallery, and the container serves that until the 24h `revalidate` expires.
-# Seeding here with the same script the compose `migrate` service runs means
-# the prerendered HTML describes the same rows the running app will read.
+# The seed matters as much as the schema. The home page and the locale roots
+# are `force-static`, so this build prerenders them — against an empty database
+# they bake in "0+ open-source pets" and an empty gallery, and the container
+# serves that until the 24h `revalidate` expires. Seeding here with the same
+# script the compose `migrate` service runs means the prerendered HTML
+# describes the same rows the running app will read.
+#
+# The seeded rows are not `featured`, so `getStaticPetSlugs` returns nothing
+# and no `/[locale]/pets/[slug]` page is prerendered — those render on demand
+# (`dynamicParams` is true). The seed is what makes the gallery non-empty, not
+# what makes pet pages static.
+#
 # (`--conditions react-server` is what `bun run seed:dev` uses; the script
 # resolves the React server entry points.)
 RUN set -eux; \

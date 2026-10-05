@@ -17,6 +17,12 @@ packages
 .env.production.local
 .env.deploy.local
 .env.dev.local
+# `.env.dev` and `.env.mock` are committed and hold only dev placeholders, but
+# Next loads neither (it auto-loads `.env*` for NODE_ENV, and neither name
+# matches) — so excluding them keeps `COPY . .` from carrying dev config into
+# the builder for no gain.
+.env.dev
+.env.mock
 
 # Build and editor noise.
 npm-debug.log*

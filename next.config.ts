@@ -205,15 +205,18 @@ const nextConfig: NextConfig = {
     ],
   },
   // Server-only modules that don't survive Turbopack/webpack bundling:
-  // - @electric-sql/pglite (mock mode) — native wasm + workers
+  // - @electric-sql/pglite — native wasm + workers. Listed unconditionally:
+  //   `src/lib/db/client.ts` imports `../mock/db` at module scope regardless
+  //   of IS_MOCK, and that module imports PGlite the same way, so the bundler
+  //   pulls it into every build. Marking it external only in mock mode left
+  //   the production build to inline it, and Turbopack then emitted the
+  //   17 MB wasm/data pair into `.next/static/media`, where it is served
+  //   publicly despite no client chunk referencing it.
   // - ali-oss — uses urllib's dynamic require('proxy-agent') for an
   //   optional dependency that the bundler can't resolve and treats
   //   as fatal. Marking ali-oss external lets the server runtime do
   //   the require() lazily, where the missing optional is harmless.
-  serverExternalPackages: [
-    "ali-oss",
-    ...(IS_MOCK ? ["@electric-sql/pglite"] : []),
-  ],
+  serverExternalPackages: ["ali-oss", "@electric-sql/pglite"],
   async headers() {
     return [
       {
