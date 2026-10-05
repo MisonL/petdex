@@ -43,16 +43,26 @@ const CONDITIONALLY_INDEXABLE: Record<string, string> = {
   community: "NEXT_PUBLIC_DISCORD_INVITE_URL",
 };
 
-/** Top-level locale routes with a `page.tsx`, excluding dynamic segments. */
+/**
+ * Every route with a `page.tsx` and no dynamic segment, at any depth.
+ *
+ * Recursive rather than "top level plus one nested level", which is what this
+ * was: a static page three levels deep (`legal/privacy/cookies`) was invisible
+ * to the scan — the same blind spot the dynamic-family walk below had.
+ */
 function staticPageRoutes(): string[] {
-  return readdirSync(LOCALE_DIR, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && !entry.name.startsWith("["))
-    .map((entry) => entry.name)
-    .filter((name) =>
-      readdirSync(join(LOCALE_DIR, name), { withFileTypes: true }).some(
-        (child) => child.isFile() && child.name === "page.tsx",
-      ),
-    );
+  const walk = (dir: string, prefix: string): string[] =>
+    readdirSync(dir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .flatMap((entry) => {
+        if (entry.name.startsWith("[")) return [];
+        const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+        const here = readdirSync(join(dir, entry.name)).includes("page.tsx")
+          ? [rel]
+          : [];
+        return [...here, ...walk(join(dir, entry.name), rel)];
+      });
+  return walk(LOCALE_DIR, "");
 }
 
 /** True when the page does not opt out of indexing. */
@@ -62,28 +72,10 @@ function isIndexable(route: string): boolean {
   return !/robots:\s*\{[^}]*index:\s*false/.test(source);
 }
 
-/** Routes nested one level deeper (legal/*, kind/*, …). */
-function nestedStaticRoutes(): string[] {
-  return readdirSync(LOCALE_DIR, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && !entry.name.startsWith("["))
-    .flatMap((entry) =>
-      readdirSync(join(LOCALE_DIR, entry.name), { withFileTypes: true })
-        .filter((child) => child.isDirectory() && !child.name.startsWith("["))
-        .filter((child) =>
-          readdirSync(join(LOCALE_DIR, entry.name, child.name)).includes(
-            "page.tsx",
-          ),
-        )
-        .map((child) => `${entry.name}/${child.name}`),
-    );
-}
-
 describe("every indexable static page is in the sitemap", () => {
   const sitemap = readFileSync(SITEMAP, "utf8");
 
-  const routes = [...staticPageRoutes(), ...nestedStaticRoutes()].filter(
-    (route) => !EXCUSED.has(route),
-  );
+  const routes = staticPageRoutes().filter((route) => !EXCUSED.has(route));
 
   test("the route scan found pages", () => {
     expect(routes.length).toBeGreaterThan(8);
@@ -156,25 +148,29 @@ describe("every indexable dynamic route family is accounted for", () => {
 
   test("the family list still matches the route tree", () => {
     // A guard over a hardcoded list fails silently when a family is added, so
-    // the list is checked against the directories on disk. Only families with
-    // a `page.tsx` are considered: `/install/[slug]` is a route handler that
-    // serves a shell script, has no page, and is correctly not a sitemap entry.
-    // `[...rest]` is the 404 catch-all.
-    const withPage = (dir: string, prefix = "") =>
+    // the list is checked against the directories on disk. The walk is
+    // recursive on purpose: an earlier version stepped exactly two levels, so a
+    // `[a]/[b]/page.tsx` three deep was invisible to the very check meant to
+    // catch it — the guard claimed to reconcile with the tree and did not.
+    //
+    // Only a directory that is itself dynamic AND holds a `page.tsx` is a
+    // family. That excludes `/install/[slug]`, a route handler with no page,
+    // and `[...rest]`, the 404 catch-all.
+    const walk = (dir: string, prefix: string): string[] =>
       readdirSync(dir, { withFileTypes: true })
-        .filter((entry) => entry.isDirectory() && entry.name.startsWith("["))
-        .filter((entry) =>
-          readdirSync(join(dir, entry.name)).includes("page.tsx"),
-        )
-        .map((entry) => `${prefix}${entry.name}/`);
-    const onDisk = [
-      ...withPage(LOCALE_DIR),
-      ...readdirSync(LOCALE_DIR, { withFileTypes: true })
-        .filter((entry) => entry.isDirectory() && !entry.name.startsWith("["))
-        .flatMap((entry) =>
-          withPage(join(LOCALE_DIR, entry.name), `${entry.name}/`),
-        ),
-    ].filter((name) => !name.includes("[...rest]"));
+        .filter((entry) => entry.isDirectory())
+        .flatMap((entry) => {
+          const rel = `${prefix}${entry.name}`;
+          const here =
+            entry.name.startsWith("[") &&
+            readdirSync(join(dir, entry.name)).includes("page.tsx")
+              ? [`${rel}/`]
+              : [];
+          return [...here, ...walk(join(dir, entry.name), `${rel}/`)];
+        });
+    const onDisk = walk(LOCALE_DIR, "").filter(
+      (name) => !name.includes("[...rest]"),
+    );
     for (const name of onDisk) {
       expect(
         DYNAMIC_FAMILIES.some((entry) => `${entry.family}/` === name),
