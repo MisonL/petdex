@@ -5,7 +5,8 @@
     "submitPet": "Submit a pet",
     "browseGallery": "Browse gallery",
     "github": "GitHub",
-    "petdexHome": "Petdex home"
+    "petdexHome": "Petdex home",
+    "close": "Close"
   },
   "metadata": {
     "root": {
@@ -281,7 +282,24 @@
   "suggestCollection": {
     "cta": "Suggest for a collection",
     "closeAria": "Close",
-    "notePlaceholder": "Optional: tell admins why this pet fits the collection"
+    "notePlaceholder": "Optional: tell admins why this pet fits the collection",
+    "heading": "Suggest {name} for…",
+    "pendingSuffix": " · pending",
+    "sending": "Sending…",
+    "sendForReview": "Send for review",
+    "footer": "Admins review every request. You'll see your pet in the collection once it's approved.",
+    "errors": {
+      "unauthorized": "Sign in before suggesting a pet.",
+      "rateLimited": "Too many suggestions. Try again in a few minutes.",
+      "invalidPetSlug": "That pet could not be found.",
+      "urlInField": "Links are not allowed here.",
+      "blockedContent": "That note contains language we cannot accept.",
+      "collectionNotFound": "That collection no longer exists.",
+      "petNotOwned": "That pet is not yours.",
+      "petNotApproved": "That pet must be approved first.",
+      "alreadyInCollection": "That pet is already in the collection.",
+      "failed": "The suggestion could not be sent: {code}"
+    }
   },
   "feedback": {
     "trigger": "Feedback",
@@ -870,7 +888,21 @@
       "invalidJson": "Invalid JSON file",
       "autoApproved": "Edit applied",
       "queuedForReview": "Edit submitted for review",
-      "uploading": "Uploading..."
+      "uploading": "Uploading...",
+      "errors": {
+        "unauthorized": "Sign in before editing this pet.",
+        "notFound": "That pet is no longer available.",
+        "invalidJsonFile": "That pet.json could not be read as JSON.",
+        "invalidSpriteVersion": "spriteVersionNumber must be omitted, 1, or 2.",
+        "presignFailed": "The upload could not be prepared: {code}",
+        "missingSpriteSlot": "The upload could not be prepared: the sprite slot is missing.",
+        "spriteUploadFailed": "The spritesheet could not be uploaded.",
+        "missingPetJsonSlot": "The upload could not be prepared: the pet.json slot is missing.",
+        "metadataUploadFailed": "The pet.json could not be uploaded.",
+        "failed": "The edit could not be saved: {code}",
+        "unknown": "The edit could not be saved."
+      },
+      "spritePreviewAlt": "Sprite preview"
     },
     "eyebrow": "Dashboard",
     "submissionCount": "{count, plural, =0 {no submissions} =1 {1 submission} other {# submissions}}",
@@ -1090,7 +1122,21 @@
     "withdrawSubmission": "Withdraw submission",
     "withdrawing": "Withdrawing…",
     "submitNewVersion": "Submit a new version",
-    "editDetails": "Edit name & description"
+    "editDetails": "Edit name & description",
+    "deleteConfirm": "Type \"{slug}\" to confirm. This permanently removes {pet} from Petdex and frees the slug. The pet's files and like history are deleted.",
+    "deleteMismatch": "Slug did not match. Pet was NOT removed.",
+    "withdrawConfirm": "Withdraw \"{pet}\"? Pending submissions can't be brought back. You'd have to resubmit.",
+    "errors": {
+      "unauthorized": "Sign in first.",
+      "rateLimited": "Too many actions. Try again in a few minutes.",
+      "notFound": "That pet is no longer available.",
+      "forbidden": "That pet is not yours to remove.",
+      "claimRequired": "This pet was added on your behalf. Claim it from your profile first, then delete it.",
+      "invalidSlug": "That pet id is not valid.",
+      "onlyPending": "Only pending submissions can be withdrawn.",
+      "network": "The request could not reach Petdex. Check your connection and try again.",
+      "failed": "The action did not go through: {code}"
+    }
   },
   "petStateViewer": {
     "eyebrow": "State viewer",
@@ -1444,14 +1490,42 @@
       "title": "{name}",
       "description": "Pets created by {name} for Codex.",
       "ogDescription": "Animated Codex pets created by {name}."
+    },
+    "pin": {
+      "capAlert": "You can pin up to {max} pets. Unpin one first.",
+      "failed": "The pin could not be saved: {code}",
+      "networkError": "The pin could not be saved. Check your connection and try again.",
+      "unavailable": "Pin controls are temporarily unavailable",
+      "unpin": "Unpin from profile",
+      "capReached": "Pin cap reached ({max})",
+      "pin": "Pin to profile"
     }
   },
   "galleryReorder": {
-    "dragInstruction": "Drag any pet to reorder. Changes save when you click Done."
+    "dragInstruction": "Drag any pet to reorder. Changes save when you click Done.",
+    "cancel": "Cancel",
+    "saving": "Saving…",
+    "done": "Done",
+    "saveFailed": "Could not save the order: {code}",
+    "errors": {
+      "unauthorized": "Sign in before reordering.",
+      "rateLimited": "Too many changes. Try again in a few minutes.",
+      "invalidOrder": "That order could not be read.",
+      "tooManyItems": "There are too many pets to order.",
+      "emptyOrder": "The order cannot be empty.",
+      "noOwnedPets": "None of those pets are yours."
+    }
   },
   "pinnedReorder": {
     "reorderLabel": "Could not save order",
-    "saveError": "Could not save order: {error}"
+    "saveError": "Could not save order: {error}",
+    "heading": "★ Pinned",
+    "saving": "Saving...",
+    "saved": "Order updated",
+    "count": "{count} of {max}",
+    "retry": "Retry",
+    "restore": "Restore saved order",
+    "dragHint": "Drag a pet by its handle to reorder. Changes save when you drop."
   },
   "ownerCollections": {
     "title": "My collections",
@@ -1463,7 +1537,24 @@
     "petsSelected": "Pets ({selected} of {total} selected)",
     "petLimit": "Collections can include up to {max} pets. Remove members until you are below {max} to add another.",
     "petLimitHint": "You have more approved pets than fit in one collection. Pick up to {max}.",
-    "emptyPetSlugs": "That would remove every pet from this collection. Add a pet, or delete the collection instead."
+    "emptyPetSlugs": "That would remove every pet from this collection. Add a pet, or delete the collection instead.",
+    "usedCount": "{used}/{max} used.",
+    "newCollection": "New collection",
+    "editCollection": "Edit collection",
+    "needApprovedPet": "You need at least one approved pet to create a collection.",
+    "emptyState": "No collections yet. Group your pets into themed sets that show up on your profile.",
+    "confirmDelete": "Delete \"{title}\"? Your pets stay on your profile, only the collection card is removed.",
+    "deleteFailed": "Could not delete the collection: {code}",
+    "saveFailed": "Could not save the collection: {code}",
+    "curated": "Curated",
+    "personal": "Personal",
+    "petCount": "{count, plural, =1 {1 pet} other {# pets}}",
+    "fieldTitle": "Title",
+    "fieldDescription": "Description (optional)",
+    "descriptionPlaceholder": "What ties them together?",
+    "cancel": "Cancel",
+    "create": "Create",
+    "save": "Save"
   },
   "collectionEditor": {
     "selectPetsFirst": "Select pets first",
@@ -2031,5 +2122,25 @@
     "followUpPlaceholder": "Add a follow-up… (⌘+Enter to send)",
     "send": "Send",
     "sendFailed": "Your reply could not be sent: {code}"
+  },
+  "claimRequest": {
+    "trigger": "I have a pet for this",
+    "submittedTitle": "Submitted",
+    "submittedBody": "Your pet is now pending admin review for this request. You'll get a notification if it's approved.",
+    "done": "Done",
+    "title": "Claim \"{query}\"",
+    "description": "Pick one of your approved pets. Admin will review and confirm the match.",
+    "noApprovedPets": "You don't have any approved pets yet.",
+    "submitOne": "Submit one →",
+    "cancel": "Cancel",
+    "submitCandidate": "Submit candidate",
+    "errors": {
+      "exists": "Already submitted as candidate.",
+      "requestNotOpen": "This request is no longer open.",
+      "petNotApproved": "Pet must be approved first.",
+      "loadFailed": "Your approved pets could not be loaded ({status}).",
+      "failed": "The candidate could not be submitted: {code}",
+      "unknown": "The candidate could not be submitted."
+    }
   }
 }

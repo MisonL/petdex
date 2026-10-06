@@ -234,9 +234,9 @@ export function PinnedReorderGrid({
 
   const statusLabel =
     saveState === "saving"
-      ? "Saving..."
+      ? t("saving")
       : saveState === "saved"
-        ? "Order updated"
+        ? t("saved")
         : saveState === "error"
           ? t("reorderLabel")
           : null;
@@ -245,7 +245,7 @@ export function PinnedReorderGrid({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="font-mono text-[11px] tracking-[0.22em] text-brand uppercase">
-          ★ Pinned
+          {t("heading")}
         </p>
         <div className="flex flex-wrap items-center justify-end gap-2">
           {statusLabel ? (
@@ -261,7 +261,7 @@ export function PinnedReorderGrid({
             </span>
           ) : null}
           <p className="font-mono text-[10px] tracking-[0.18em] text-muted-4 uppercase">
-            {order.length} of {MAX_PINNED_PETS}
+            {t("count", { count: order.length, max: MAX_PINNED_PETS })}
           </p>
         </div>
       </div>
@@ -277,7 +277,7 @@ export function PinnedReorderGrid({
               className="inline-flex h-7 items-center gap-1 rounded-full border border-red-300/70 bg-white/70 px-2.5 font-medium transition hover:bg-white disabled:opacity-50 dark:border-red-800 dark:bg-red-950/50"
             >
               <RefreshCcw className="size-3" />
-              Retry
+              {t("retry")}
             </button>
             <button
               type="button"
@@ -285,16 +285,14 @@ export function PinnedReorderGrid({
               disabled={isSaving}
               className="inline-flex h-7 items-center rounded-full border border-red-300/70 bg-white/70 px-2.5 font-medium transition hover:bg-white disabled:opacity-50 dark:border-red-800 dark:bg-red-950/50"
             >
-              Restore saved order
+              {t("restore")}
             </button>
           </div>
         </div>
       ) : null}
 
       {!oneOnly ? (
-        <p className="text-xs text-muted-3">
-          Drag a pet by its handle to reorder. Changes save when you drop.
-        </p>
+        <p className="text-xs text-muted-3">{t("dragHint")}</p>
       ) : null}
 
       <DndContext

@@ -2,6 +2,7 @@ type MessageNode = Record<string, unknown>;
 
 export const CLIENT_MESSAGE_PATHS = [
   "claim",
+  "claimRequest",
   "collectionActionMenu",
   "collectionDetail",
   "collectionEditor",
@@ -24,6 +25,7 @@ export const CLIENT_MESSAGE_PATHS = [
   "myPets",
   "myPets.claimBanner",
   "myPets.edit",
+  "myPets.edit.errors",
   "notifications",
   "onboarding",
   "openInCodex",
@@ -34,9 +36,11 @@ export const CLIENT_MESSAGE_PATHS = [
   "pet.counters",
   "pet.floater",
   "petActions",
+  "petActions.errors",
   "petStateViewer",
   "pinnedReorder",
   "profile",
+  "profile.pin",
   "profileEditor",
   "profileEditor.errors",
   "profileShare",

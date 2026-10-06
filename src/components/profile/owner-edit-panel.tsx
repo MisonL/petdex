@@ -54,14 +54,28 @@ async function readSpriteVersionFromPetJson(file: File): Promise<1 | 2> {
   try {
     petJson = JSON.parse(await file.text()) as Record<string, unknown>;
   } catch {
-    throw new Error("Invalid JSON file");
+    throw new Error("invalid_json_file");
   }
   const parsed = parseSpriteVersionNumber(petJson);
   if (!parsed.ok) {
-    throw new Error("spriteVersionNumber must be omitted, 1, or 2");
+    throw new Error("invalid_sprite_version");
   }
   return parsed.version;
 }
+
+// The routes answer with these codes; the panel used to render the raw one
+// through `error.replace(/_/g, " ")`.
+const EDIT_ERROR_KEYS: Record<string, string> = {
+  unauthorized: "unauthorized",
+  not_found: "notFound",
+  invalid_json_file: "invalidJsonFile",
+  invalid_sprite_version: "invalidSpriteVersion",
+  presign_failed: "presignFailed",
+  missing_sprite_slot: "missingSpriteSlot",
+  sprite_upload_failed: "spriteUploadFailed",
+  missing_petjson_slot: "missingPetJsonSlot",
+  metadata_upload_failed: "metadataUploadFailed",
+};
 
 const MAX_SPRITE_BYTES = PET_ASSET_MAX_BYTES;
 const MAX_SPRITE_DIM = 4096;
@@ -83,6 +97,7 @@ export function OwnerEditPanel({
   initialRejection: string | null;
 }) {
   const t = useTranslations("myPets.edit");
+  const te = useTranslations("myPets.edit.errors");
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState<Pending | null>(initialPending);
@@ -228,11 +243,7 @@ export function OwnerEditPanel({
             unknown
           >;
           throw new Error(
-            typeof data.message === "string"
-              ? data.message
-              : typeof data.error === "string"
-                ? data.error
-                : "Presign failed",
+            typeof data.error === "string" ? data.error : "presign_failed",
           );
         }
         const { files } = (await presignRes.json()) as {
@@ -242,13 +253,13 @@ export function OwnerEditPanel({
 
         if (spriteFile) {
           const ss = slot("sprite");
-          if (!ss) throw new Error("Missing sprite slot in presign response");
+          if (!ss) throw new Error("missing_sprite_slot");
           const putRes = await fetch(ss.uploadUrl, {
             method: "PUT",
             headers: { "content-type": spriteFile.type },
             body: spriteFile,
           });
-          if (!putRes.ok) throw new Error("Spritesheet upload failed");
+          if (!putRes.ok) throw new Error("sprite_upload_failed");
           const { width, height } = await readImageDims(spriteFile);
           extraBody.spritesheetUrl = ss.publicUrl;
           extraBody.spritesheetWidth = width;
@@ -257,7 +268,7 @@ export function OwnerEditPanel({
 
         if (metaFile) {
           const ms = slot("petjson");
-          if (!ms) throw new Error("Missing petjson slot in presign response");
+          if (!ms) throw new Error("missing_petjson_slot");
           const spriteVersionNumber =
             await readSpriteVersionFromPetJson(metaFile);
           const putRes = await fetch(ms.uploadUrl, {
@@ -265,7 +276,7 @@ export function OwnerEditPanel({
             headers: { "content-type": "application/json" },
             body: metaFile,
           });
-          if (!putRes.ok) throw new Error("Metadata upload failed");
+          if (!putRes.ok) throw new Error("metadata_upload_failed");
           extraBody.petJsonUrl = ms.publicUrl;
           extraBody.spriteVersionNumber = spriteVersionNumber;
         }
@@ -288,7 +299,7 @@ export function OwnerEditPanel({
         pending?: Pending;
       } | null;
       if (!res.ok) {
-        setError(j?.error ?? res.statusText);
+        setError(j?.error ?? `http_${res.status}`);
         return;
       }
 
@@ -309,7 +320,7 @@ export function OwnerEditPanel({
       setOpen(false);
       startTransition(() => router.refresh());
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      setError(err instanceof Error ? err.message : "unknown");
     } finally {
       setBusy(false);
     }
@@ -531,7 +542,7 @@ export function OwnerEditPanel({
                     {/* biome-ignore lint/performance/noImgElement: blob: URL from local file pick, next/image can't optimize it */}
                     <img
                       src={spritePreviewUrl}
-                      alt="Sprite preview"
+                      alt={t("spritePreviewAlt")}
                       className="h-16 w-16 rounded-lg border border-border-base object-contain"
                     />
                     <button
@@ -602,7 +613,11 @@ export function OwnerEditPanel({
 
               {error ? (
                 <p className="rounded-xl bg-chip-danger-bg px-3 py-2 text-xs text-chip-danger-fg">
-                  {error.replace(/_/g, " ")}
+                  {EDIT_ERROR_KEYS[error]
+                    ? te(EDIT_ERROR_KEYS[error])
+                    : error === "unknown"
+                      ? te("unknown")
+                      : te("failed", { code: error })}
                 </p>
               ) : null}
 

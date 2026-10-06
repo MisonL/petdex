@@ -7,7 +7,8 @@
     "browseGallery": "浏览图库",
     "browseGallery__fixme": true,
     "github": "GitHub",
-    "petdexHome": "Petdex 首页"
+    "petdexHome": "Petdex 首页",
+    "close": "关闭"
   },
   "metadata": {
     "root": {
@@ -303,7 +304,24 @@
   "suggestCollection": {
     "cta": "推荐到合集",
     "closeAria": "关闭",
-    "notePlaceholder": "可选：告诉管理员为什么这只宠物适合该合集"
+    "notePlaceholder": "可选：告诉管理员为什么这只宠物适合该合集",
+    "heading": "推荐 {name} 加入……",
+    "pendingSuffix": " · 待处理",
+    "sending": "发送中……",
+    "sendForReview": "提交审核",
+    "footer": "每个请求都会由管理员审核。通过后你就能在合集里看到这只宠物。",
+    "errors": {
+      "unauthorized": "请先登录再推荐宠物。",
+      "rateLimited": "推荐过于频繁，请过几分钟再试。",
+      "invalidPetSlug": "找不到这只宠物。",
+      "urlInField": "这里不能填写链接。",
+      "blockedContent": "该备注包含我们不能接受的用语。",
+      "collectionNotFound": "该合集已不存在。",
+      "petNotOwned": "这只宠物不属于你。",
+      "petNotApproved": "这只宠物需要先通过审核。",
+      "alreadyInCollection": "这只宠物已在合集中。",
+      "failed": "推荐发送失败：{code}"
+    }
   },
   "feedback": {
     "trigger": "反馈",
@@ -1048,7 +1066,21 @@
       "invalidJson": "无效的 JSON 文件",
       "autoApproved": "编辑已应用",
       "queuedForReview": "编辑已提交，等待审核",
-      "uploading": "上传中..."
+      "uploading": "上传中...",
+      "errors": {
+        "unauthorized": "请先登录再编辑这只宠物。",
+        "notFound": "这只宠物已不存在。",
+        "invalidJsonFile": "无法把该 pet.json 解析为 JSON。",
+        "invalidSpriteVersion": "spriteVersionNumber 必须省略，或为 1、2。",
+        "presignFailed": "无法准备上传：{code}",
+        "missingSpriteSlot": "无法准备上传：缺少 sprite 位置。",
+        "spriteUploadFailed": "spritesheet 上传失败。",
+        "missingPetJsonSlot": "无法准备上传：缺少 pet.json 位置。",
+        "metadataUploadFailed": "pet.json 上传失败。",
+        "failed": "编辑保存失败：{code}",
+        "unknown": "编辑保存失败。"
+      },
+      "spritePreviewAlt": "精灵预览"
     },
     "eyebrow": "仪表盘",
     "submissionCount": "{count, plural, =0 {暂无提交} =1 {1 份提交} other {# 份提交}}",
@@ -1284,7 +1316,21 @@
     "withdrawSubmission": "撤回提交",
     "withdrawing": "撤回中…",
     "submitNewVersion": "提交新版本",
-    "editDetails": "编辑名称和描述"
+    "editDetails": "编辑名称和描述",
+    "deleteConfirm": "输入“{slug}”以确认。这会从 Petdex 永久删除 {pet} 并释放该 slug，宠物的文件和点赞记录都会删除。",
+    "deleteMismatch": "slug 不匹配，宠物没有被删除。",
+    "withdrawConfirm": "撤回“{pet}”？待审核的提交无法恢复，只能重新提交。",
+    "errors": {
+      "unauthorized": "请先登录。",
+      "rateLimited": "操作过于频繁，请过几分钟再试。",
+      "notFound": "这只宠物已不存在。",
+      "forbidden": "这只宠物不属于你，无法移除。",
+      "claimRequired": "这只宠物是代你添加的。请先在主页认领，然后再删除。",
+      "invalidSlug": "宠物 id 无效。",
+      "onlyPending": "只有待审核的提交可以撤回。",
+      "network": "请求没能到达 Petdex，请检查网络后重试。",
+      "failed": "操作未完成：{code}"
+    }
   },
   "petStateViewer": {
     "eyebrow": "状态查看器",
@@ -1708,14 +1754,42 @@
       "title": "{name}",
       "description": "{name} 为 Codex 创作的宠物。",
       "ogDescription": "{name} 创作的 Codex 动画宠物。"
+    },
+    "pin": {
+      "capAlert": "最多只能置顶 {max} 只宠物，请先取消一个。",
+      "failed": "置顶保存失败：{code}",
+      "networkError": "置顶保存失败，请检查网络后重试。",
+      "unavailable": "置顶功能暂时不可用",
+      "unpin": "取消置顶",
+      "capReached": "已达置顶上限（{max}）",
+      "pin": "置顶到主页"
     }
   },
   "galleryReorder": {
-    "dragInstruction": "拖动宠物以重新排序。点击「完成」后保存更改。"
+    "dragInstruction": "拖动宠物以重新排序。点击「完成」后保存更改。",
+    "cancel": "取消",
+    "saving": "保存中……",
+    "done": "完成",
+    "saveFailed": "顺序保存失败：{code}",
+    "errors": {
+      "unauthorized": "请先登录再调整顺序。",
+      "rateLimited": "改动过于频繁，请过几分钟再试。",
+      "invalidOrder": "无法读取该顺序。",
+      "tooManyItems": "要排序的宠物太多了。",
+      "emptyOrder": "顺序不能为空。",
+      "noOwnedPets": "这些宠物都不属于你。"
+    }
   },
   "pinnedReorder": {
     "reorderLabel": "无法保存顺序",
-    "saveError": "无法保存顺序：{error}"
+    "saveError": "无法保存顺序：{error}",
+    "heading": "★ 置顶",
+    "saving": "保存中……",
+    "saved": "顺序已更新",
+    "count": "{count}/{max}",
+    "retry": "重试",
+    "restore": "恢复已保存的顺序",
+    "dragHint": "拖动宠物的把手即可调整顺序，松手后自动保存。"
   },
   "ownerCollections": {
     "title": "我的合集",
@@ -1727,7 +1801,24 @@
     "petsSelected": "宠物（已选 {selected}/{total}）",
     "petLimit": "每个合集最多包含 {max} 个宠物。请先移除成员，降到 {max} 个以下才能再添加。",
     "petLimitHint": "你已批准的宠物超过单个合集的上限，最多可选择 {max} 个。",
-    "emptyPetSlugs": "这样会移除该合集中的全部宠物。请添加一个，或改为删除该合集。"
+    "emptyPetSlugs": "这样会移除该合集中的全部宠物。请添加一个，或改为删除该合集。",
+    "usedCount": "已用 {used}/{max}。",
+    "newCollection": "新建合集",
+    "editCollection": "编辑合集",
+    "needApprovedPet": "至少需要一只已通过审核的宠物才能创建合集。",
+    "emptyState": "还没有合集。把宠物编成主题合集，就会显示在你的主页上。",
+    "confirmDelete": "删除“{title}”？宠物会留在你的主页上，只是移除这张合集卡片。",
+    "deleteFailed": "合集删除失败：{code}",
+    "saveFailed": "合集保存失败：{code}",
+    "curated": "官方精选",
+    "personal": "个人",
+    "petCount": "{count} 只宠物",
+    "fieldTitle": "标题",
+    "fieldDescription": "描述（可选）",
+    "descriptionPlaceholder": "它们之间有什么共同点？",
+    "cancel": "取消",
+    "create": "创建",
+    "save": "保存"
   },
   "collectionEditor": {
     "selectPetsFirst": "请先选择宠物",
@@ -2340,5 +2431,25 @@
     "followUpPlaceholder": "补充一条留言……（⌘+Enter 发送）",
     "send": "发送",
     "sendFailed": "回复发送失败：{code}"
+  },
+  "claimRequest": {
+    "trigger": "我有宠物可以满足这个需求",
+    "submittedTitle": "已提交",
+    "submittedBody": "你的宠物正在等待管理员针对该需求进行审核。通过后会通知你。",
+    "done": "完成",
+    "title": "认领“{query}”",
+    "description": "从你已通过的宠物中选一只。管理员会审核并确认匹配。",
+    "noApprovedPets": "你还没有已通过审核的宠物。",
+    "submitOne": "去提交一只 →",
+    "cancel": "取消",
+    "submitCandidate": "提交候选宠物",
+    "errors": {
+      "exists": "已经作为候选提交过了。",
+      "requestNotOpen": "该需求已关闭。",
+      "petNotApproved": "宠物需要先通过审核。",
+      "loadFailed": "无法加载你已通过的宠物（{status}）。",
+      "failed": "候选宠物提交失败：{code}",
+      "unknown": "候选宠物提交失败。"
+    }
   }
 }
