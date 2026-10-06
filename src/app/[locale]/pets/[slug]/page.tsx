@@ -141,6 +141,12 @@ export default async function PetPage({ params }: PageProps) {
   setRequestLocale(localeValue);
   const pet = await getPet(slug);
   const tPet = await getTranslations({ locale: localeValue, namespace: "pet" });
+  // The kind badge under the title used to render the raw slug (`object`) on
+  // every locale; the labels live in `taxonomy`, which the client also ships.
+  const tTaxonomy = await getTranslations({
+    locale: localeValue,
+    namespace: "taxonomy",
+  });
 
   if (!pet) {
     notFound();
@@ -347,7 +353,7 @@ export default async function PetPage({ params }: PageProps) {
                   </p>
                 ) : null}
                 <p className="font-mono text-xs tracking-[0.22em] text-muted-3 uppercase">
-                  {pet.kind}
+                  {tTaxonomy(`kinds.${pet.kind}`)}
                 </p>
                 <p className="rounded-full bg-black px-2.5 py-1 font-mono text-xs font-semibold tracking-[0.08em] text-white shadow-sm">
                   v{pet.spriteVersionNumber}

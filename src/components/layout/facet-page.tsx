@@ -7,6 +7,7 @@ import Link from "next/link";
 import { getLocale, getTranslations } from "next-intl/server";
 
 import type { SearchPet } from "@/lib/pet-search";
+import { PET_KINDS, PET_VIBES } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 import { StaticCommandLine } from "@/components/download/static-command-line";
@@ -41,6 +42,10 @@ export async function FacetPage({
   // were English literals on /es and /zh until they moved into the
   // `facetPages` messages and were threaded down as labels.
   const t = await getTranslations("facetPages");
+  // The card's kind badge and `#vibe` chips render from `taxonomy`, which is
+  // also shipped to the client (the gallery's filter chips read it), so the
+  // labels live there rather than in `facetPages`.
+  const tTaxonomy = await getTranslations("taxonomy");
   const cardLabels = {
     installs: (count: number, formatted: string) =>
       t("cardInstalls", { count, formatted }),
@@ -52,6 +57,12 @@ export async function FacetPage({
     openPet: (name: string) => t("cardOpenPet", { name }),
     spriteStill: (name: string) => t("cardSpriteStill", { name }),
     batchLabel: (month: string) => t("cardBatchLabel", { month }),
+    kinds: Object.fromEntries(
+      PET_KINDS.map((kind) => [kind, tTaxonomy(`kinds.${kind}`)]),
+    ),
+    vibes: Object.fromEntries(
+      PET_VIBES.map((vibe) => [vibe, tTaxonomy(`vibes.${vibe}`)]),
+    ),
   };
   const cmd = `npx petdex install ${exampleSlug ?? pets[0]?.slug ?? "boba"}`;
 

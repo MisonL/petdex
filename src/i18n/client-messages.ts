@@ -55,6 +55,7 @@ export const CLIENT_MESSAGE_PATHS = [
   "submit.form.success",
   "submittedBy",
   "suggestCollection",
+  "taxonomy",
   "theme",
   "unsubscribePage.form",
 ] as const;

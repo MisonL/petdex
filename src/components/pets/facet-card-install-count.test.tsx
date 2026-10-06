@@ -75,6 +75,12 @@ function render(locale: "en" | "es" | "zh", installCount: number): string {
           t("facetPages.cardSpriteStill" as never, { name } as never),
         batchLabel: (month) =>
           t("facetPages.cardBatchLabel" as never, { month } as never),
+        kinds: (
+          MESSAGES[locale] as { taxonomy: { kinds: Record<string, string> } }
+        ).taxonomy.kinds,
+        vibes: (
+          MESSAGES[locale] as { taxonomy: { vibes: Record<string, string> } }
+        ).taxonomy.vibes,
       }}
     />,
   );

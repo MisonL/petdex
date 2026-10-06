@@ -1260,7 +1260,9 @@
       "insideCodex__fixme": true,
       "andClick": "并点击",
       "use": "使用",
-      "findPet": "在 <strong>{displayName}</strong> 下查找"
+      "findPet": "在 <strong>{displayName}</strong> 下查找",
+      "customPets": "自定义宠物",
+      "select": "选择"
     }
   },
   "commandLine": {
@@ -1982,7 +1984,6 @@
     "count": "这个合集里有 {count} 只宠物",
     "kinds": {
       "creature": {
-        "label": "动物",
         "title": "面向编程智能体的动物类动画宠物",
         "title__fixme": true,
         "intro": "动物、小怪兽和各种想象出来的小伙伴都在这里。这是 Petdex 里最大的类别，也是很多创作者的起点：水獭、水豚、狐狸，还有一些说不上名字但很有生命力的小东西。",
@@ -1990,7 +1991,6 @@
         "metaDescription__fixme": true
       },
       "object": {
-        "label": "物品",
         "title": "面向编程智能体的物件类动画宠物",
         "title__fixme": true,
         "intro": "它们不一定是活物，但绝对有性格。回形针、马克杯、冰淇淋球，一些日常物品被画成像素宠物之后，突然就有了陪你写代码的气质。",
@@ -1998,7 +1998,6 @@
         "metaDescription__fixme": true
       },
       "character": {
-        "label": "角色",
         "title": "面向编程智能体的角色类动画宠物",
         "title__fixme": true,
         "intro": "人形角色、吉祥物、原创人物和致敬作品都放在这里。每只宠物都被整理成 Codex 可用的 9 种动画状态。",
@@ -2008,7 +2007,6 @@
     },
     "vibes": {
       "cozy": {
-        "label": "舒适",
         "title": "面向编程智能体的舒适系宠物",
         "title__fixme": true,
         "intro": "温柔、不抢戏，像给终端铺了一条小毯子。柔和的姿势、轻轻眨眼、安静待机，适合长时间写代码时放在旁边。",
@@ -2016,7 +2014,6 @@
         "metaDescription__fixme": true
       },
       "calm": {
-        "label": "平静",
         "title": "面向编程智能体的平静系宠物",
         "title__fixme": true,
         "intro": "适合专注时段的低调伙伴。动画节奏更像呼吸，不会在你调试半天的时候跳出来抢注意力。",
@@ -2024,7 +2021,6 @@
         "metaDescription__fixme": true
       },
       "playful": {
-        "label": "俏皮",
         "title": "面向编程智能体的顽皮系宠物",
         "title__fixme": true,
         "intro": "活泼、淘气、坐不住。它们会摇尾巴、转圈，偶尔像是在提示词旁边插一句嘴。",
@@ -2032,7 +2028,6 @@
         "metaDescription__fixme": true
       },
       "cheerful": {
-        "label": "开朗",
         "title": "面向编程智能体的欢快系宠物",
         "title__fixme": true,
         "intro": "Petdex 里的乐观派。配色明亮、表情轻快，待机时也像是在认真欢迎你打开终端。",
@@ -2040,7 +2035,6 @@
         "metaDescription__fixme": true
       },
       "focused": {
-        "label": "专注",
         "title": "面向编程智能体的专注系宠物",
         "title__fixme": true,
         "intro": "已经进入深度工作模式的伙伴。耳机、显示器、认真凝视，感觉下一秒就要和你一起把这个功能发出去。",
@@ -2048,7 +2042,6 @@
         "metaDescription__fixme": true
       },
       "mischievous": {
-        "label": "淘气",
         "title": "面向编程智能体的调皮系宠物",
         "title__fixme": true,
         "intro": "带一点坏笑和小心思。偷偷摸摸的待机姿势、斜眼表情，让人怀疑刚才那个 linter 报错是不是它干的。",
@@ -2056,7 +2049,6 @@
         "metaDescription__fixme": true
       },
       "heroic": {
-        "label": "英雄",
         "title": "面向编程智能体的英雄系宠物",
         "title__fixme": true,
         "intro": "披风、站姿和一点拯救世界的气场。它们相信你，也相信你那个还没合并的 PR。",
@@ -2064,7 +2056,6 @@
         "metaDescription__fixme": true
       },
       "edgy": {
-        "label": "酷感",
         "title": "面向编程智能体的酷炫系宠物",
         "title__fixme": true,
         "intro": "配色更深，轮廓更利落，态度也更明显。适合想让终端多一点锋芒的时候。",
@@ -2072,7 +2063,6 @@
         "metaDescription__fixme": true
       },
       "mystical": {
-        "label": "神秘",
         "title": "面向编程智能体的神秘系宠物",
         "title__fixme": true,
         "intro": "月亮、星光、长袍和一点神秘感。像是还没等模型回答，它就已经知道答案了。",
@@ -2080,7 +2070,6 @@
         "metaDescription__fixme": true
       },
       "wholesome": {
-        "label": "治愈",
         "title": "面向编程智能体的治愈系宠物",
         "title__fixme": true,
         "intro": "真诚、温柔，很难不喜欢。大眼睛和小动作都刚刚好，适合给工作区加一点软乎乎的善意。",
@@ -2088,7 +2077,6 @@
         "metaDescription__fixme": true
       },
       "chaotic": {
-        "label": "混乱",
         "title": "面向编程智能体的混乱系宠物",
         "title__fixme": true,
         "intro": "能量很满，也不太可预测。动画状态有点不按常理出牌，但这种不对劲刚刚好。",
@@ -2096,7 +2084,6 @@
         "metaDescription__fixme": true
       },
       "melancholic": {
-        "label": "忧郁",
         "title": "面向编程智能体的忧郁系宠物",
         "title__fixme": true,
         "intro": "安静、柔软，带一点怅然。适合夜深了、构建还在失败、你还不想关掉终端的时候。",
@@ -2113,6 +2100,41 @@
     "cardOpenPet": "打开 {name}",
     "cardSpriteStill": "{name} 精灵图",
     "cardBatchLabel": "{month} 批次"
+  },
+  "taxonomy": {
+    "kinds": {
+      "creature": "动物",
+      "object": "物品",
+      "character": "角色"
+    },
+    "vibes": {
+      "cozy": "舒适",
+      "calm": "平静",
+      "playful": "俏皮",
+      "cheerful": "开朗",
+      "focused": "专注",
+      "mischievous": "淘气",
+      "heroic": "英雄",
+      "edgy": "酷感",
+      "mystical": "神秘",
+      "wholesome": "治愈",
+      "chaotic": "混乱",
+      "melancholic": "忧郁"
+    },
+    "colors": {
+      "red": "红色",
+      "orange": "橙色",
+      "yellow": "黄色",
+      "lime": "青柠色",
+      "green": "绿色",
+      "teal": "青色",
+      "blue": "蓝色",
+      "indigo": "靛蓝",
+      "purple": "紫色",
+      "pink": "粉色",
+      "brown": "棕色",
+      "neutral": "中性色"
+    }
   },
   "docsPage": {
     "metadata": {

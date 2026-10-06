@@ -32,6 +32,12 @@ type StaticFacetPetCardProps = {
     // `month` is the localized month and year from `formatBatchLabel`; the
     // "Class of …" wrapper is a phrase, so it lives in the messages.
     batchLabel: (month: string) => string;
+    // The kind badge and the `#vibe` chips used to render the raw slug
+    // ("object", "#focused") on every locale. The maps come from the
+    // `taxonomy` messages; the slug stays as the fallback for a value the
+    // messages do not know yet.
+    kinds: Record<string, string>;
+    vibes: Record<string, string>;
   };
 };
 
@@ -136,7 +142,7 @@ export function StaticFacetPetCard({
               ) : null}
             </h3>
             <span className="font-mono text-[10px] tracking-[0.18em] text-muted-4 uppercase">
-              {pet.kind}
+              {labels.kinds[pet.kind] ?? pet.kind}
             </span>
           </div>
           <p
@@ -159,7 +165,7 @@ export function StaticFacetPetCard({
                   key={vibe}
                   className="font-mono text-[10px] tracking-[0.12em] text-muted-3 uppercase"
                 >
-                  #{vibe}
+                  #{labels.vibes[vibe] ?? vibe}
                 </span>
               ))}
             </div>

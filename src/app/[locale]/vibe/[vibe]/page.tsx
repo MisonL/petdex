@@ -87,6 +87,12 @@ export default async function VibePage({ params }: Props) {
 
   if (total === 0) notFound();
 
+  // The label moved from `facetPages.vibes.<v>.label` to the `taxonomy`
+  // namespace — same string the gallery filter chips render, shipped once.
+  const tTaxonomy = await getTranslations({
+    locale: hasLocale(locale) ? locale : "en",
+    namespace: "taxonomy",
+  });
   const related = PET_VIBES.map(
     (v) => [v, results.facets.vibes[v] ?? 0] as const,
   )
@@ -95,7 +101,7 @@ export default async function VibePage({ params }: Props) {
     .slice(0, 6)
     .map(([v, count]) => ({
       href: withLocale(`/vibe/${v}`, localeValue),
-      label: t(`vibes.${v}.label`),
+      label: tTaxonomy(`vibes.${v}`),
       count,
     }));
 
@@ -122,7 +128,7 @@ export default async function VibePage({ params }: Props) {
     <>
       <JsonLd data={jsonLd} />
       <FacetPage
-        eyebrow={t("vibeEyebrow", { vibe: t(`vibes.${vibe}.label`) })}
+        eyebrow={t("vibeEyebrow", { vibe: tTaxonomy(`vibes.${vibe}`) })}
         title={t(`vibes.${vibe}.title`)}
         intro={t(`vibes.${vibe}.intro`)}
         countLabel={t("count", { count: total })}

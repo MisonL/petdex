@@ -1069,7 +1069,9 @@
       "insideCodex": "dentro de la app para activarlo u ocultarlo.",
       "andClick": "y haz clic en",
       "use": "Usa",
-      "findPet": "Busca <strong>{displayName}</strong> en"
+      "findPet": "Busca <strong>{displayName}</strong> en",
+      "customPets": "Custom pets",
+      "select": "Select"
     }
   },
   "commandLine": {
@@ -1718,19 +1720,16 @@
     "count": "{count, plural, =1 {1 mascota en esta colección} other {# mascotas en esta colección}}",
     "kinds": {
       "creature": {
-        "label": "criatura",
         "title": "Mascotas animadas de tipo criatura para agentes de código",
         "intro": "Animales, bichos y bestias inventadas. La colección más grande del índice. La mayoría de los colaboradores empieza por aquí: nutrias, capibaras, zorros y cosas con demasiadas patas.",
         "metaDescription": "Mascotas animadas de tipo criatura para agentes de código como ChatGPT (Codex), Claude Code y Gemini. Nutrias, capibaras, zorros y más, instalables con un solo comando."
       },
       "object": {
-        "label": "objeto",
         "title": "Mascotas animadas de tipo objeto para agentes de código",
         "intro": "Mascotas que no están vivas pero tienen toda la personalidad. Clips, tazas, bolas de helado: objetos cotidianos que se ganaron un alma.",
         "metaDescription": "Mascotas de tipo objeto para agentes de código. Compañeros animados en pixel art hechos de objetos cotidianos, instalables con un solo comando."
       },
       "character": {
-        "label": "personaje",
         "title": "Mascotas animadas de tipo personaje para agentes de código",
         "intro": "Humanoides, mascotas, figuras de ficción, personajes originales y homenajes, todos en formato pixel de 9 estados.",
         "metaDescription": "Mascotas animadas de tipo personaje para agentes de código como ChatGPT (Codex), Claude Code y Gemini. Compañeros humanoides en pixel art, instalables con un solo comando."
@@ -1738,73 +1737,61 @@
     },
     "vibes": {
       "cozy": {
-        "label": "acogedor",
         "title": "Mascotas acogedoras para agentes de código",
         "intro": "Compañeros cálidos y suaves, con poses tranquilas, parpadeos sutiles y estados idle silenciosos. Elige uno para que tu terminal sea un lugar agradable donde estar.",
         "metaDescription": "Mascotas animadas acogedoras en pixel art para agentes de código. Compañeros suaves y relajantes que puedes instalar con un solo comando."
       },
       "calm": {
-        "label": "tranquilo",
         "title": "Mascotas tranquilas para agentes de código",
         "intro": "Compañeros estables y discretos para sesiones de concentración. Sus animaciones idle respiran en vez de saltar.",
         "metaDescription": "Mascotas tranquilas en pixel art para agentes de código. Compañeros animados de movimiento bajo para trabajo profundo."
       },
       "playful": {
-        "label": "juguetón",
         "title": "Mascotas juguetonas para agentes de código",
         "intro": "Compañeros saltarines que se niegan a quedarse quietos. Espera movimientos de cola, giros y pequeñas interrupciones junto a tu prompt.",
         "metaDescription": "Compañeros animados juguetonas para agentes de código. Pixel art saltarín que puedes instalar con un solo comando."
       },
       "cheerful": {
-        "label": "alegre",
         "title": "Mascotas alegres para agentes de código",
         "intro": "Los optimistas del índice. Paletas brillantes, sprites sonrientes y estados idle que parecen alegrarse de que hayas abierto la terminal.",
         "metaDescription": "Mascotas alegres para agentes de código. Compañeros animados, brillantes y sonrientes, instalables con un solo comando."
       },
       "focused": {
-        "label": "concentrado",
         "title": "Mascotas concentradas para agentes de código",
         "intro": "Compañeros en modo trabajo profundo. Auriculares, monitores, miradas concentradas y energía de listo para publicar.",
         "metaDescription": "Mascotas concentradas para agentes de código. Compañeros concentrados para sesiones largas de trabajo profundo."
       },
       "mischievous": {
-        "label": "travieso",
         "title": "Mascotas traviesas para agentes de código",
         "intro": "Poses idle traviesas, miradas de reojo y la sospecha de que los errores del linter quizá sean culpa suya.",
         "metaDescription": "Mascotas traviesas para agentes de código. Compañeros animados en pixel art y un poco traviesos para tu terminal."
       },
       "heroic": {
-        "label": "heroico",
         "title": "Mascotas heroicas para agentes de código",
         "intro": "Capas, posturas y energía de salvar el día. Estas mascotas creen en ti y en tu PR sin fusionar.",
         "metaDescription": "Mascotas heroicas para agentes de código. Compañeros animados en pixel art y valientes, instalables con un solo comando."
       },
       "edgy": {
-        "label": "atrevido",
         "title": "Mascotas atrevidas para agentes de código",
         "intro": "Paletas más oscuras, siluetas más marcadas y más actitud para terminales que necesitan algo de mordida.",
         "metaDescription": "Mascotas atrevidas para agentes de código. Compañeros animados en pixel art y atrevidos para sesiones largas."
       },
       "mystical": {
-        "label": "místico",
         "title": "Mascotas místicas para agentes de código",
         "intro": "Lunas, destellos, túnicas y la sensación de que este compañero conoce la respuesta antes que el modelo.",
         "metaDescription": "Mascotas místicas para agentes de código. Compañeros animados en pixel art y mágicos, instalables con un solo comando."
       },
       "wholesome": {
-        "label": "cálido",
         "title": "Mascotas cálidas para agentes de código",
         "intro": "Compañeros de buen corazón, con ojos grandes y gestos pequeños. Un poco de ternura para tu espacio de trabajo.",
         "metaDescription": "Mascotas cálidas para agentes de código. Compañeros animados en pixel art y entrañables, instalables con un solo comando."
       },
       "chaotic": {
-        "label": "caótico",
         "title": "Mascotas caóticas para agentes de código",
         "intro": "Máxima energía, mínima previsibilidad. Sus estados cambian de forma un poco rara, para bien.",
         "metaDescription": "Mascotas caóticas para agentes de código. Compañeros animados en pixel art y de alta energía para sesiones largas."
       },
       "melancholic": {
-        "label": "melancólico",
         "title": "Mascotas melancólicas para agentes de código",
         "intro": "Pensativos, suaves y un poco melancólicos. Compañeros para esa parte de la noche en la que el build no deja de fallar.",
         "metaDescription": "Mascotas melancólicas para agentes de código. Compañeros animados en pixel art y pensativos, instalables con un solo comando."
@@ -1819,6 +1806,41 @@
     "cardOpenPet": "Abrir {name}",
     "cardSpriteStill": "Sprite de {name}",
     "cardBatchLabel": "Generación de {month}"
+  },
+  "taxonomy": {
+    "kinds": {
+      "creature": "criatura",
+      "object": "objeto",
+      "character": "personaje"
+    },
+    "vibes": {
+      "cozy": "acogedor",
+      "calm": "tranquilo",
+      "playful": "juguetón",
+      "cheerful": "alegre",
+      "focused": "concentrado",
+      "mischievous": "travieso",
+      "heroic": "heroico",
+      "edgy": "atrevido",
+      "mystical": "místico",
+      "wholesome": "cálido",
+      "chaotic": "caótico",
+      "melancholic": "melancólico"
+    },
+    "colors": {
+      "red": "rojo",
+      "orange": "naranja",
+      "yellow": "amarillo",
+      "lime": "lima",
+      "green": "verde",
+      "teal": "turquesa",
+      "blue": "azul",
+      "indigo": "índigo",
+      "purple": "morado",
+      "pink": "rosa",
+      "brown": "marrón",
+      "neutral": "neutro"
+    }
   },
   "docsPage": {
     "metadata": {

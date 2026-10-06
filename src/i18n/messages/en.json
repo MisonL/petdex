@@ -1069,7 +1069,9 @@
       "insideCodex": "inside the app to wake or tuck it away.",
       "andClick": "and click",
       "use": "Use",
-      "findPet": "Find <strong>{displayName}</strong> under"
+      "findPet": "Find <strong>{displayName}</strong> under",
+      "customPets": "Custom pets",
+      "select": "Select"
     }
   },
   "commandLine": {
@@ -1718,19 +1720,16 @@
     "count": "{count, plural, =1 {1 pet in this collection} other {# pets in this collection}}",
     "kinds": {
       "creature": {
-        "label": "creature",
         "title": "Animated creature pets for coding agents",
         "intro": "Animals, critters, and made-up beasts. The biggest collection in the index. Most contributors start here: otters, capybaras, foxes, and things with too many legs.",
         "metaDescription": "Animated creature pets for coding agents like ChatGPT (Codex), Claude Code, and Gemini. Otters, capybaras, foxes and more, installable with one command."
       },
       "object": {
-        "label": "object",
         "title": "Animated object pets for coding agents",
         "intro": "Pets that aren't alive but absolutely have personality. Paperclips, mugs, ice cream scoops: everyday objects that earned a soul.",
         "metaDescription": "Object pets for coding agents. Animated pixel companions made from everyday objects, installable with one command."
       },
       "character": {
-        "label": "character",
         "title": "Animated character pets for coding agents",
         "intro": "Humanoids, mascots, fictional figures, original characters, and homages, all in 9-state pixel form.",
         "metaDescription": "Animated character pets for coding agents like ChatGPT (Codex), Claude Code, and Gemini. Humanoid pixel companions installable with one command."
@@ -1738,73 +1737,61 @@
     },
     "vibes": {
       "cozy": {
-        "label": "cozy",
         "title": "Cozy pets for coding agents",
         "intro": "Warm, soft companions with gentle poses, subtle blinks, and quiet idle states. Pick one to keep your terminal feeling easy to sit with.",
         "metaDescription": "Cozy animated pixel pets for coding agents. Soft, calming companions you can install with one command."
       },
       "calm": {
-        "label": "calm",
         "title": "Calm pets for coding agents",
         "intro": "Steady, low-key companions for focused sessions. Their idle animations breathe instead of bounce.",
         "metaDescription": "Calm pixel pets for coding agents. Low-motion animated companions for deep work."
       },
       "playful": {
-        "label": "playful",
         "title": "Playful pets for coding agents",
         "intro": "Bouncy companions that refuse to sit still. Expect tail wags, spins, and little interruptions beside your prompt.",
         "metaDescription": "Playful animated companions for coding agents. Bouncy pixel art you can install with one command."
       },
       "cheerful": {
-        "label": "cheerful",
         "title": "Cheerful pets for coding agents",
         "intro": "The optimists of the index. Bright palettes, smiling sprites, and idle states that seem glad you opened the terminal.",
         "metaDescription": "Cheerful pets for coding agents. Bright, smiling animated companions installable with one command."
       },
       "focused": {
-        "label": "focused",
         "title": "Focused pets for coding agents",
         "intro": "Companions in deep work mode. Headphones, monitors, concentrated stares, and ready-to-ship energy.",
         "metaDescription": "Focused pets for coding agents. Concentrated, deep-work companions for long sessions."
       },
       "mischievous": {
-        "label": "mischievous",
         "title": "Mischievous pets for coding agents",
         "intro": "Sneaky idle poses, side-eye, and the suspicion that your linter errors might be their fault.",
         "metaDescription": "Mischievous pets for coding agents. Sneaky animated pixel companions for your terminal."
       },
       "heroic": {
-        "label": "heroic",
         "title": "Heroic pets for coding agents",
         "intro": "Capes, stances, and saving-the-day energy. These pets believe in you and your unmerged PR.",
         "metaDescription": "Heroic pets for coding agents. Brave, animated pixel companions installable with one command."
       },
       "edgy": {
-        "label": "edgy",
         "title": "Edgy pets for coding agents",
         "intro": "Darker palettes, sharper silhouettes, and more attitude for terminals that need a little bite.",
         "metaDescription": "Edgy pets for coding agents. Bold, animated pixel companions for long sessions."
       },
       "mystical": {
-        "label": "mystical",
         "title": "Mystical pets for coding agents",
         "intro": "Moons, sparkles, robes, and the feeling that this companion knows the answer before the model does.",
         "metaDescription": "Mystical pets for coding agents. Magical animated pixel companions installable with one command."
       },
       "wholesome": {
-        "label": "wholesome",
         "title": "Wholesome pets for coding agents",
         "intro": "Pure-hearted companions with big eyes and small gestures. A little softness for your workspace.",
         "metaDescription": "Wholesome pets for coding agents. Sweet animated pixel companions installable with one command."
       },
       "chaotic": {
-        "label": "chaotic",
         "title": "Chaotic pets for coding agents",
         "intro": "Maximum energy, minimum predictability. Their states cycle a little strangely, in a good way.",
         "metaDescription": "Chaotic pets for coding agents. High-energy animated pixel companions for long sessions."
       },
       "melancholic": {
-        "label": "melancholic",
         "title": "Melancholic pets for coding agents",
         "intro": "Pensive, soft, and a little wistful. Companions for the part of the night when the build keeps failing.",
         "metaDescription": "Melancholic pets for coding agents. Pensive animated pixel companions installable with one command."
@@ -1819,6 +1806,41 @@
     "cardOpenPet": "Open {name}",
     "cardSpriteStill": "{name} sprite",
     "cardBatchLabel": "Class of {month}"
+  },
+  "taxonomy": {
+    "kinds": {
+      "creature": "creature",
+      "object": "object",
+      "character": "character"
+    },
+    "vibes": {
+      "cozy": "cozy",
+      "calm": "calm",
+      "playful": "playful",
+      "cheerful": "cheerful",
+      "focused": "focused",
+      "mischievous": "mischievous",
+      "heroic": "heroic",
+      "edgy": "edgy",
+      "mystical": "mystical",
+      "wholesome": "wholesome",
+      "chaotic": "chaotic",
+      "melancholic": "melancholic"
+    },
+    "colors": {
+      "red": "red",
+      "orange": "orange",
+      "yellow": "yellow",
+      "lime": "lime",
+      "green": "green",
+      "teal": "teal",
+      "blue": "blue",
+      "indigo": "indigo",
+      "purple": "purple",
+      "pink": "pink",
+      "brown": "brown",
+      "neutral": "neutral"
+    }
   },
   "docsPage": {
     "metadata": {

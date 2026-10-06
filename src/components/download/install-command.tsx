@@ -164,9 +164,14 @@ export function InstallCommand({ slug, displayName }: InstallCommandProps) {
                   <strong className="text-foreground">{chunks}</strong>
                 ),
               })}{" "}
-              <span className="font-mono text-foreground">Custom pets</span>{" "}
+              <span className="font-mono text-foreground">
+                {t("steps.customPets")}
+              </span>{" "}
               {t("steps.andClick")}{" "}
-              <span className="font-mono text-foreground">Select</span>.
+              <span className="font-mono text-foreground">
+                {t("steps.select")}
+              </span>
+              .
             </li>
             <li>
               {t("steps.use")}{" "}

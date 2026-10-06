@@ -142,6 +142,26 @@ describe("the gallery card takes its labels from messages", () => {
     }
   });
 
+  test("the kind, vibe, and color chips render translated labels", () => {
+    // The group headings were translated but the chips under them were not:
+    // every kind/vibe/color chip fell through to the raw slug (`creature`,
+    // `cozy`, `red`) on /es and /zh, because only the batch and version
+    // groups passed a `labels` map. Every `tone="kind"|"vibe"|"color"` site
+    // must now carry its map, which the counts pin: a new unlabeled group
+    // fails the pairing.
+    expect(source).toContain('useTranslations("taxonomy")');
+    for (const [tone, map] of [
+      ["kind", "kindLabels"],
+      ["vibe", "vibeLabels"],
+      ["color", "colorLabels"],
+    ] as const) {
+      const tones = source.match(new RegExp(`tone="${tone}"`, "g")) ?? [];
+      const wired = source.match(new RegExp(`labels=\\{${map}\\}`, "g")) ?? [];
+      expect(tones.length, tone).toBeGreaterThan(0);
+      expect(wired.length, `${tone} chips without labels`).toBe(tones.length);
+    }
+  });
+
   test("the two long strings are translated rather than left as prose", () => {
     // `endOfGallery` was added to all three message files but never wired, and
     // the vibe-match banner was never extracted at all. Both rendered English

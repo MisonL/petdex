@@ -89,9 +89,22 @@ describe("the facet pet card takes its labels from messages", () => {
       "dexNumber",
       "openPet",
       "spriteStill",
+      "kinds",
+      "vibes",
     ]) {
       expect(source, key).toContain(`labels.${key}`);
     }
+  });
+
+  test("the kind badge and vibe chips are not raw slugs", () => {
+    // `{pet.kind}` and `#{vibe}` rendered the English slug on every locale
+    // ("object", "#focused") while the eyebrow above the grid showed the
+    // translated label. Both now resolve through the `taxonomy` maps, with
+    // the slug kept only as the fallback for an unknown value.
+    expect(source).not.toMatch(/\{pet\.kind\}/);
+    expect(source).not.toMatch(/#\{vibe\}/);
+    expect(source).toContain("labels.kinds[pet.kind] ?? pet.kind");
+    expect(source).toContain("labels.vibes[vibe] ?? vibe");
   });
 
   test("the accessible names are not interpolated English either", () => {

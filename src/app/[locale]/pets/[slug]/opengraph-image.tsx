@@ -52,12 +52,22 @@ export default async function Image({
 
   const spriteDataUrl = await loadFirstFrameAsDataUrl(pet.spritesheetPath);
 
+  // The fallbacks and the vibe chips used to draw the raw English slug
+  // ("object", "cozy") into the image on every locale. The route is already
+  // rendered per locale and loads that locale's messages, so the labels come
+  // from `taxonomy` like the on-page badges.
   const tagsLine =
     pet.tags
       .slice(0, 4)
       .map((t) => `#${t}`)
-      .join("  ") || `#${pet.kind}`;
-  const vibesLine = pet.vibes.slice(0, 3).join(" · ") || pet.kind;
+      .join("  ") || `#${copy.kinds[pet.kind] ?? pet.kind}`;
+  const vibesLine =
+    pet.vibes
+      .slice(0, 3)
+      .map((v) => copy.vibes[v] ?? v)
+      .join(" · ") ||
+    copy.kinds[pet.kind] ||
+    pet.kind;
 
   return new ImageResponse(
     <div
@@ -276,11 +286,17 @@ async function getOgImageCopy(locale: string) {
   const messages = (await import(`@/i18n/messages/${resolvedLocale}.json`))
     .default as {
     ogImage?: { featuredPet?: string; codexPet?: string };
+    taxonomy?: {
+      kinds?: Record<string, string>;
+      vibes?: Record<string, string>;
+    };
   };
 
   return {
     featuredPet: messages.ogImage?.featuredPet ?? "Featured Codex pet",
     codexPet: messages.ogImage?.codexPet ?? "Codex pet",
+    kinds: messages.taxonomy?.kinds ?? {},
+    vibes: messages.taxonomy?.vibes ?? {},
   };
 }
 

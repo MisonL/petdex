@@ -74,6 +74,7 @@ export function ProfilePinningSurface({
 }: ProfilePinningSurfaceProps) {
   const locale = useLocale();
   const t = useTranslations("profile");
+  const tPinned = useTranslations("pinnedReorder");
   const [optimisticPinnedSlugs, setOptimisticPinnedSlugs] =
     useState(initialPinnedSlugs);
   const [pinActionsLocked, setPinActionsLocked] = useState(false);
@@ -139,10 +140,13 @@ export function ProfilePinningSurface({
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <p className="font-mono text-[11px] tracking-[0.22em] text-brand uppercase">
-                ★ Pinned
+                {tPinned("heading")}
               </p>
               <p className="font-mono text-[10px] tracking-[0.18em] text-muted-4 uppercase">
-                {featuredPets.length} of {MAX_PINNED_PETS}
+                {tPinned("count", {
+                  count: featuredPets.length,
+                  max: MAX_PINNED_PETS,
+                })}
               </p>
             </div>
             {featuredPets.length === 1 ? (
@@ -207,6 +211,9 @@ function FeaturedPin({
   installsLabel: (count: string) => string;
 }) {
   const t = useTranslations("profile");
+  const tPinned = useTranslations("pinnedReorder");
+  const tGallery = useTranslations("gallery");
+  const tTaxonomy = useTranslations("taxonomy");
   return (
     <Link
       href={`/pets/${pet.slug}`}
@@ -219,12 +226,12 @@ function FeaturedPin({
           src={pet.spritesheetPath}
           cycleStates
           scale={1.1}
-          label={`${pet.displayName} animated`}
+          label={tGallery("spriteAnimated", { name: pet.displayName })}
         />
       </div>
       <div className="flex flex-1 flex-col justify-center gap-3 border-t border-black/[0.06] p-6 md:border-t-0 md:border-l dark:border-white/[0.06]">
         <span className="font-mono text-[11px] tracking-[0.22em] text-brand uppercase">
-          ★ Pinned
+          {tPinned("heading")}
         </span>
         <h2 className="text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
           {pet.displayName}
@@ -247,7 +254,7 @@ function FeaturedPin({
               )}
             </span>
           ) : null}
-          <span>{pet.kind}</span>
+          <span>{tTaxonomy(`kinds.${pet.kind}`)}</span>
         </div>
       </div>
     </Link>

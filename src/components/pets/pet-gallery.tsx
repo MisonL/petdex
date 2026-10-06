@@ -142,6 +142,7 @@ export function PetGallery({
   const locale = useLocale();
   const isZh = locale === "zh";
   const t = useTranslations("gallery");
+  const tTaxonomy = useTranslations("taxonomy");
   const [query, setQuery] = useState("");
   const trimmedQuery = query.trim();
   const [activeKinds, setActiveKinds] = useState<Set<PetKind>>(new Set());
@@ -326,6 +327,20 @@ export function PetGallery({
     activeSpriteVersions.size;
   const spriteVersionCounts = facets.spriteVersions ?? { "1": 0, "2": 0 };
   const spriteVersionLabels = { "1": "v1", "2": "v2" };
+  // The kind, vibe, and color chips used to fall back to the raw slug from
+  // `FilterChips` (there was no `labels` prop on these groups), so the home
+  // page showed `creature` / `cozy` / `red` on /es and /zh under translated
+  // group headings. The slugs are the same in every locale; only the label
+  // maps differ, and they come from the `taxonomy` messages.
+  const kindLabels = Object.fromEntries(
+    PET_KINDS.map((kind) => [kind, tTaxonomy(`kinds.${kind}`)]),
+  );
+  const vibeLabels = Object.fromEntries(
+    PET_VIBES.map((vibe) => [vibe, tTaxonomy(`vibes.${vibe}`)]),
+  );
+  const colorLabels = Object.fromEntries(
+    COLOR_FAMILIES.map((color) => [color, tTaxonomy(`colors.${color}`)]),
+  );
 
   return (
     <section className="space-y-5">
@@ -459,6 +474,7 @@ export function PetGallery({
                   <FilterChips
                     options={PET_KINDS}
                     counts={facets.kinds}
+                    labels={kindLabels}
                     active={activeKinds}
                     onToggle={(v) => toggleKind(v as PetKind)}
                     tone="kind"
@@ -480,6 +496,7 @@ export function PetGallery({
                   <FilterChips
                     options={PET_VIBES}
                     counts={facets.vibes}
+                    labels={vibeLabels}
                     active={activeVibes}
                     onToggle={(v) => toggleVibe(v as PetVibe)}
                     tone="vibe"
@@ -490,6 +507,7 @@ export function PetGallery({
                   <FilterChips
                     options={COLOR_FAMILIES}
                     counts={facets.colors}
+                    labels={colorLabels}
                     active={activeColors}
                     onToggle={(v) => toggleColor(v as ColorFamily)}
                     tone="color"
@@ -548,6 +566,7 @@ export function PetGallery({
             <FilterChips
               options={[...activeKinds]}
               counts={facets.kinds}
+              labels={kindLabels}
               active={activeKinds}
               onToggle={(v) => toggleKind(v as PetKind)}
               tone="kind"
@@ -555,6 +574,7 @@ export function PetGallery({
             <FilterChips
               options={[...activeVibes]}
               counts={facets.vibes}
+              labels={vibeLabels}
               active={activeVibes}
               onToggle={(v) => toggleVibe(v as PetVibe)}
               tone="vibe"
@@ -562,6 +582,7 @@ export function PetGallery({
             <FilterChips
               options={[...activeColors]}
               counts={facets.colors}
+              labels={colorLabels}
               active={activeColors}
               onToggle={(v) => toggleColor(v as ColorFamily)}
               tone="color"
@@ -602,6 +623,7 @@ export function PetGallery({
             <FilterChips
               options={PET_KINDS}
               counts={facets.kinds}
+              labels={kindLabels}
               active={activeKinds}
               onToggle={(v) => toggleKind(v as PetKind)}
               tone="kind"
@@ -613,6 +635,7 @@ export function PetGallery({
             <FilterChips
               options={PET_VIBES}
               counts={facets.vibes}
+              labels={vibeLabels}
               active={activeVibes}
               onToggle={(v) => toggleVibe(v as PetVibe)}
               tone="vibe"
@@ -633,6 +656,7 @@ export function PetGallery({
             <FilterChips
               options={COLOR_FAMILIES}
               counts={facets.colors}
+              labels={colorLabels}
               active={activeColors}
               onToggle={(v) => toggleColor(v as ColorFamily)}
               tone="color"

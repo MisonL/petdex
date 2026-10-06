@@ -88,9 +88,16 @@ export default async function KindPage({ params }: Props) {
   if (total === 0) notFound();
 
   const otherKinds = PET_KINDS.filter((k) => k !== kind);
+  // The label moved from `facetPages.kinds.<k>.label` to the `taxonomy`
+  // namespace: it is the same string the gallery's filter chips render, and
+  // shipping one copy keeps the client bundle under its size budget.
+  const tTaxonomy = await getTranslations({
+    locale: hasLocale(locale) ? locale : "en",
+    namespace: "taxonomy",
+  });
   const related = otherKinds.map((k) => ({
     href: withLocale(`/kind/${k}`, localeValue),
-    label: t(`kinds.${k}.label`),
+    label: tTaxonomy(`kinds.${k}`),
     count: results.facets.kinds[k] ?? 0,
   }));
 
@@ -117,7 +124,7 @@ export default async function KindPage({ params }: Props) {
     <>
       <JsonLd data={jsonLd} />
       <FacetPage
-        eyebrow={t("kindEyebrow", { kind: t(`kinds.${kind}.label`) })}
+        eyebrow={t("kindEyebrow", { kind: tTaxonomy(`kinds.${kind}`) })}
         title={t(`kinds.${kind}.title`)}
         intro={t(`kinds.${kind}.intro`)}
         countLabel={t("count", { count: total })}
