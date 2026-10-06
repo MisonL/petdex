@@ -1059,7 +1059,33 @@
       "rejected": "已拒绝"
     },
     "submitAnother": "再次提交",
-    "emptyState": "该状态下暂无提交。"
+    "emptyState": "该状态下暂无提交。",
+    "claimBanner": {
+      "claimed": "已认领。刷新页面即可在列表中看到。",
+      "found": "找到 {count} 只可能是你的宠物",
+      "matchedViaBoth": "匹配依据：<mono>{email}</mono> 或 <mono>{github}</mono>。",
+      "matchedViaEmail": "匹配依据：<mono>{email}</mono>。",
+      "matchedViaGithub": "匹配依据：<mono>{github}</mono>。",
+      "matchedHint": "点击认领即可把它们转到你当前的账号，方便管理和重新提交修改。",
+      "claim": "认领",
+      "claiming": "认领中…",
+      "dismiss": "不是我的，忽略",
+      "errors": {
+        "unauthorized": "请先登录再认领宠物。",
+        "rateLimited": "认领过于频繁，请过几分钟再试。",
+        "notFound": "这只宠物已不存在。",
+        "identityMismatch": "这只宠物与你绑定的邮箱或 GitHub 账号不匹配。",
+        "noVerifiedIdentity": "请先添加已验证的邮箱或连接 GitHub，然后再认领。",
+        "network": "请求没能到达 Petdex，请检查网络后重试。",
+        "failed": "认领未成功，请重试。",
+        "failedWithCode": "认领未成功：{code}"
+      }
+    },
+    "status": {
+      "pending": "待审核",
+      "approved": "已通过",
+      "rejected": "已拒绝"
+    }
   },
   "myFeedback": {
     "metadata": {
@@ -1528,7 +1554,26 @@
     "seeGuide": "查看完整安装指南",
     "seeGuide__fixme": true,
     "themeCodexLabel": "套用配色",
-    "themeCodexHint": "Codex 主题"
+    "themeCodexHint": "Codex 主题",
+    "themeDialog": {
+      "title": "来自 {name} 的 Codex 主题",
+      "description": "根据这只宠物的主色生成。Codex Desktop 目前还没有用于安装主题的深链接，所以把它粘贴到设置中即可应用。",
+      "loading": "正在生成主题…",
+      "light": "浅色",
+      "dark": "深色",
+      "copied": "已复制",
+      "copy": "复制{label}",
+      "stepAppearance": "Codex Desktop → 设置 → 外观。",
+      "stepImport": "在浅色主题上点击 <import>导入</import>，粘贴，然后在深色主题上重复一次。",
+      "stepColor": "两个主题都以 {color} 重新着色。",
+      "errors": {
+        "notFound": "这只宠物还未发布，所以暂时没有可生成的主题。",
+        "noColor": "这只宠物还没有提取到主色，而主题正是由主色生成的。",
+        "loadFailed": "无法生成主题，请稍后重试。",
+        "loadFailedWithCode": "无法生成主题：{code}",
+        "clipboardBlocked": "浏览器阻止了写入剪贴板。请重试，或选中文本手动复制。"
+      }
+    }
   },
   "desktopAnnouncement": {
     "eyebrow": "新功能 · 桌面应用",

@@ -849,7 +849,7 @@
       "tryAgain": "Intentar de nuevo",
       "open": "Editar mascota",
       "modalTitle": "Editar mascota",
-      "modalBody": "Los cambios de texto pueden autoaprobarse si cumplen todos los criterios. Los cambios de assets siempre van a revision manual.",
+      "modalBody": "Los cambios de texto pueden autoaprobarse si cumplen todos los criterios. Los cambios de assets siempre van a revisión manual.",
       "fields": {
         "displayName": "Nombre visible",
         "description": "Descripción",
@@ -862,14 +862,14 @@
         "submit": "Enviar edición para revisión"
       },
       "spritesheetLabel": "Spritesheet",
-      "spritesheetHelp": "Reemplaza el sprite actual. Va a revision manual.",
+      "spritesheetHelp": "Reemplaza el sprite actual. Va a revisión manual.",
       "metaLabel": "Metadatos (pet.json)",
-      "metaHelp": "Reemplaza los metadatos actuales. Va a revision manual.",
+      "metaHelp": "Reemplaza los metadatos actuales. Va a revisión manual.",
       "fileTooBig": "El archivo supera los 8 MB",
-      "invalidImage": "Archivo de imagen no valido",
-      "invalidJson": "Archivo JSON no valido",
-      "autoApproved": "Edicion aplicada",
-      "queuedForReview": "Edicion enviada para revision",
+      "invalidImage": "Archivo de imagen no válido",
+      "invalidJson": "Archivo JSON no válido",
+      "autoApproved": "Edición aplicada",
+      "queuedForReview": "Edición enviada para revisión",
       "uploading": "Subiendo..."
     },
     "eyebrow": "Panel",
@@ -881,7 +881,33 @@
       "rejected": "Rechazadas"
     },
     "submitAnother": "Enviar otra",
-    "emptyState": "Sin envíos en este estado."
+    "emptyState": "Sin envíos en este estado.",
+    "claimBanner": {
+      "claimed": "Reclamadas. Actualiza la página para verlas en tu lista.",
+      "found": "Encontramos {count, plural, =1 {1 mascota} other {# mascotas}} que parecen tuyas",
+      "matchedViaBoth": "Coinciden con <mono>{email}</mono> o <mono>{github}</mono>.",
+      "matchedViaEmail": "Coinciden con <mono>{email}</mono>.",
+      "matchedViaGithub": "Coinciden con <mono>{github}</mono>.",
+      "matchedHint": "Haz clic en reclamar para mover cada una a tu cuenta actual y poder gestionarlas y reenviar ediciones.",
+      "claim": "Reclamar",
+      "claiming": "Reclamando…",
+      "dismiss": "No son mías, descartar",
+      "errors": {
+        "unauthorized": "Inicia sesión para reclamar una mascota.",
+        "rateLimited": "Demasiadas reclamaciones. Inténtalo de nuevo en unos minutos.",
+        "notFound": "Esa mascota ya no está disponible.",
+        "identityMismatch": "Esa mascota no está vinculada a tu correo ni a tu cuenta de GitHub.",
+        "noVerifiedIdentity": "Añade un correo verificado o conecta GitHub antes de reclamar.",
+        "network": "La solicitud no llegó a Petdex. Revisa tu conexión e inténtalo de nuevo.",
+        "failed": "La reclamación no se completó. Inténtalo de nuevo.",
+        "failedWithCode": "La reclamación no se completó: {code}"
+      }
+    },
+    "status": {
+      "pending": "Pendiente",
+      "approved": "Aprobada",
+      "rejected": "Rechazada"
+    }
   },
   "myFeedback": {
     "metadata": {
@@ -1167,7 +1193,7 @@
       "primaryTitle": "Instalar y conectar Petdex",
       "cliSubtext": "Copia el setup recomendado para terminal",
       "manualLabel": "Descargar .dmg",
-      "manualSubtext": "Para terminales bloqueadas, instalacion manual en macOS o guardar el instalador localmente.",
+      "manualSubtext": "Para terminales bloqueadas, instalación manual en macOS o guardar el instalador localmente.",
       "desktopOnly": "Solo escritorio. Visita desde una Mac"
     },
     "activation": {
@@ -1199,7 +1225,7 @@
       },
       "pickYourFighter": {
         "title": "Elige tu luchador",
-        "description": "Click derecho alterna 9 estados del sprite. Mas de 200 mascotas de la coleccion."
+        "description": "Clic derecho alterna 9 estados del sprite. Más de 200 mascotas de la colección."
       }
     },
     "setup": {
@@ -1211,15 +1237,15 @@
       },
       "installPet": {
         "title": "Instala {slug}",
-        "hint": "Anade esta mascota a tu coleccion local"
+        "hint": "Añade esta mascota a tu colección local"
       },
       "installPets": {
         "title": "Instala {count} mascotas",
-        "hint": "Anade estas mascotas a tu coleccion local"
+        "hint": "Añade estas mascotas a tu colección local"
       },
       "stayUpdated": {
         "title": "Mantente actualizado",
-        "hint": "Descarga la ultima version del escritorio y reinicia la mascota si estaba corriendo. Corre cuando quieras."
+        "hint": "Descarga la última versión del escritorio y reinicia la mascota si estaba corriendo. Corre cuando quieras."
       }
     },
     "platforms": {
@@ -1239,13 +1265,13 @@
         "name": "Windows",
         "detail": "Proximamente"
       },
-      "footer": "¿Quieres un lanzamiento mas rapido en Linux o Windows? Dale una estrella al repo o abre un issue."
+      "footer": "¿Quieres un lanzamiento más rápido en Linux o Windows? Dale una estrella al repo o abre un issue."
     },
-    "docsLink": "Leer la documentacion",
+    "docsLink": "Leer la documentación",
     "pendingPet": {
       "eyebrow": "Casi listo.",
       "messageBefore": "Mascota en cola:",
-      "messageAfter": "despues del setup.",
+      "messageAfter": "después del setup.",
       "hint": "Solo macOS por ahora"
     }
   },
@@ -1262,9 +1288,28 @@
     "ariaLabel": "Abrir {displayName} en la app de escritorio de ChatGPT"
   },
   "installCompact": {
-    "seeGuide": "Ver guia de instalacion completa",
+    "seeGuide": "Ver guía de instalación completa",
     "themeCodexLabel": "Tematizar mi Codex",
-    "themeCodexHint": "Repintar Codex Desktop"
+    "themeCodexHint": "Repintar Codex Desktop",
+    "themeDialog": {
+      "title": "Tema de Codex de {name}",
+      "description": "Generado a partir del color dominante de la mascota. Codex Desktop todavía no tiene un enlace directo para instalar temas, así que pega esto en Ajustes para aplicarlo.",
+      "loading": "Creando el tema…",
+      "light": "Claro",
+      "dark": "Oscuro",
+      "copied": "Copiado",
+      "copy": "Copiar {label}",
+      "stepAppearance": "Codex Desktop → Ajustes → Apariencia.",
+      "stepImport": "Haz clic en <import>Importar</import> en el tema claro, pega y repite con el tema oscuro.",
+      "stepColor": "Ambos se repintan desde {color}.",
+      "errors": {
+        "notFound": "Esta mascota no está publicada, así que todavía no hay un tema que crear.",
+        "noColor": "Esta mascota aún no tiene color dominante, que es de donde se deriva el tema.",
+        "loadFailed": "No se pudo crear el tema. Inténtalo de nuevo en un momento.",
+        "loadFailedWithCode": "No se pudo crear el tema: {code}",
+        "clipboardBlocked": "El navegador bloqueó la escritura en el portapapeles. Inténtalo de nuevo o selecciona el texto y cópialo a mano."
+      }
+    }
   },
   "desktopAnnouncement": {
     "eyebrow": "Nuevo · App de escritorio",

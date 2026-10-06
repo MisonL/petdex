@@ -881,7 +881,33 @@
       "rejected": "Rejected"
     },
     "submitAnother": "Submit another",
-    "emptyState": "No submissions in this state."
+    "emptyState": "No submissions in this state.",
+    "claimBanner": {
+      "claimed": "Claimed. Refresh to see them in your list.",
+      "found": "We found {count, plural, =1 {1 pet} other {# pets}} that look like yours",
+      "matchedViaBoth": "Matched via <mono>{email}</mono> or <mono>{github}</mono>.",
+      "matchedViaEmail": "Matched via <mono>{email}</mono>.",
+      "matchedViaGithub": "Matched via <mono>{github}</mono>.",
+      "matchedHint": "Click claim to move each one to your current account so you can manage and re-submit edits.",
+      "claim": "Claim",
+      "claiming": "Claiming…",
+      "dismiss": "Not mine, dismiss",
+      "errors": {
+        "unauthorized": "Sign in to claim a pet.",
+        "rateLimited": "Too many claims. Try again in a few minutes.",
+        "notFound": "That pet is no longer available.",
+        "identityMismatch": "That pet is not linked to your email or GitHub account.",
+        "noVerifiedIdentity": "Add a verified email or connect GitHub before claiming.",
+        "network": "The request could not reach Petdex. Check your connection and try again.",
+        "failed": "The claim did not go through. Try again.",
+        "failedWithCode": "The claim did not go through: {code}"
+      }
+    },
+    "status": {
+      "pending": "Pending",
+      "approved": "Approved",
+      "rejected": "Rejected"
+    }
   },
   "myFeedback": {
     "metadata": {
@@ -1264,7 +1290,26 @@
   "installCompact": {
     "seeGuide": "See full install guide",
     "themeCodexLabel": "Theme my Codex",
-    "themeCodexHint": "Repaint Codex Desktop"
+    "themeCodexHint": "Repaint Codex Desktop",
+    "themeDialog": {
+      "title": "Codex theme from {name}",
+      "description": "Generated from the pet's dominant color. Codex Desktop has no deep link for theme install yet, so paste this into Settings to apply.",
+      "loading": "Building theme…",
+      "light": "Light",
+      "dark": "Dark",
+      "copied": "Copied",
+      "copy": "Copy {label}",
+      "stepAppearance": "Codex Desktop → Settings → Appearance.",
+      "stepImport": "Click <import>Import</import> on the Light theme, paste, then repeat for the Dark theme.",
+      "stepColor": "Both repaint from {color}.",
+      "errors": {
+        "notFound": "This pet is not published, so there is no theme to build yet.",
+        "noColor": "This pet has no dominant color yet, which is what the theme is derived from.",
+        "loadFailed": "The theme could not be built. Try again in a moment.",
+        "loadFailedWithCode": "The theme could not be built: {code}",
+        "clipboardBlocked": "Clipboard write blocked. Try again, or select the text and copy it manually."
+      }
+    }
   },
   "desktopAnnouncement": {
     "eyebrow": "New · Desktop App",
