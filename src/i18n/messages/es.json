@@ -1445,7 +1445,7 @@
   },
   "takedownPage": {
     "metadata": {
-      "title": "Takedown",
+      "title": "Solicitud de baja",
       "description": "Cómo reportar una mascota que infringe tus derechos."
     },
     "eyebrow": "Legal · Takedown",
@@ -1466,7 +1466,7 @@
   },
   "unsubscribePage": {
     "metadata": {
-      "title": "Unsubscribe",
+      "title": "Cancelar suscripción",
       "description": "Gestiona tus preferencias de correo de Petdex."
     },
     "eyebrow": "Email · Preferences",
@@ -1487,7 +1487,7 @@
   },
   "telemetryPage": {
     "metadata": {
-      "title": "Telemetry",
+      "title": "Recopilación de datos",
       "description": "Qué recoge la telemetría de la CLI de petdex y cómo desactivarla."
     },
     "eyebrow": "Legal · Telemetry",
@@ -1646,9 +1646,9 @@
   },
   "docsPage": {
     "metadata": {
-      "title": "Docs",
+      "title": "Documentación",
       "description": "Cómo instalar, distribuir y automatizar mascotas con la CLI de Petdex.",
-      "ogTitle": "Petdex CLI · Docs"
+      "ogTitle": "Petdex CLI · Documentación"
     },
     "nav": {
       "getStarted": "Get started",
