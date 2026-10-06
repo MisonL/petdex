@@ -107,7 +107,7 @@ export function ProfileInlineEditor({
         handle?: string | null;
       } | null;
       if (!res.ok) {
-        setError(j?.error ?? res.statusText);
+        setError(j?.error ?? `http_${res.status}`);
         return;
       }
       setOpen(false);

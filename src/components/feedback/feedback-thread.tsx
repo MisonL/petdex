@@ -75,7 +75,7 @@ export function FeedbackThread({
         const j = (await res.json().catch(() => null)) as {
           error?: string;
         } | null;
-        alert(t("sendFailed", { code: j?.error ?? res.statusText }));
+        alert(t("sendFailed", { code: j?.error ?? `http_${res.status}` }));
         return;
       }
       const data = (await res.json()) as { reply: Reply };

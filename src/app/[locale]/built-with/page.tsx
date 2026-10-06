@@ -214,7 +214,7 @@ export default async function BuiltWithPage({
                 src={MALLOW_PREVIEW}
                 layout="row"
                 scale={0.48}
-                label="Mallow pet"
+                label={t("spritePreviewLabel", { name: "Mallow" })}
               />
             </div>
           </div>
@@ -301,7 +301,7 @@ export default async function BuiltWithPage({
                 src={BOBA_PREVIEW}
                 layout="row"
                 scale={0.5}
-                label="Boba pet"
+                label={t("spritePreviewLabel", { name: "Boba" })}
               />
             </div>
           </div>

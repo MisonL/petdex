@@ -86,7 +86,8 @@
     "manageAccount": "Gestionar cuenta",
     "signOut": "Cerrar sesión",
     "more": "Más",
-    "explore": "Explorar"
+    "explore": "Explorar",
+    "userAvatar": "Avatar de la persona usuaria"
   },
   "stickers": {
     "eyebrow": "Laboratorio de reacciones",
@@ -688,7 +689,8 @@
     "card": {
       "screenshotAlt": "Screenshot de {name}",
       "site": "Sitio"
-    }
+    },
+    "spritePreviewLabel": "mascota {name}"
   },
   "brand": {
     "metadata": {
@@ -1228,7 +1230,10 @@
       "updated": "Actualizada {date}"
     },
     "animatedLabel": "{name} en movimiento",
-    "spriteIdleLabel": "{name} en reposo"
+    "spriteIdleLabel": "{name} en reposo",
+    "eyebrowFeatured": "Destacada",
+    "eyebrowEntry": "Entrada de Petdex",
+    "dexNumber": "N.º {number}"
   },
   "collectionDetail": {
     "backToCollections": "← Ver todas las colecciones",
@@ -1501,7 +1506,11 @@
       "capReached": "Límite de fijadas alcanzado ({max})",
       "pin": "Fijar en el perfil"
     },
-    "creatorOfPetdexTitle": "Una de las personas que construyó Petdex"
+    "creatorOfPetdexTitle": "Una de las personas que construyó Petdex",
+    "dragAria": "Arrastra {name} para reordenarlo",
+    "openPetAria": "Abrir {name}",
+    "rankTitle": "Puesto n.º {rank} de {total} por mascotas aprobadas. Ver la clasificación completa",
+    "rankLabel": "n.º {rank} en mascotas"
   },
   "galleryReorder": {
     "dragInstruction": "Arrastra cualquier mascota para reordenar. Los cambios se guardan al hacer clic en Listo.",

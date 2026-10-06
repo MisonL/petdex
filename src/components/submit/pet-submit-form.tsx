@@ -545,7 +545,7 @@ export function PetSubmitForm() {
         const res = await putToR2(slot.uploadUrl, body, ct);
         if (!res.ok) {
           throw new Error(
-            `R2 PUT ${role} ${res.status} ${res.statusText} (${body.size} bytes)`,
+            `R2 PUT ${role} http_${res.status} (${body.size} bytes)`,
           );
         }
       }

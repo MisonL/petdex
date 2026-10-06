@@ -86,7 +86,8 @@
     "manageAccount": "Manage account",
     "signOut": "Sign out",
     "more": "More",
-    "explore": "Explore"
+    "explore": "Explore",
+    "userAvatar": "User avatar"
   },
   "stickers": {
     "eyebrow": "Reaction lab",
@@ -688,7 +689,8 @@
     "card": {
       "screenshotAlt": "{name} screenshot",
       "site": "Site"
-    }
+    },
+    "spritePreviewLabel": "{name} pet"
   },
   "brand": {
     "metadata": {
@@ -1228,7 +1230,10 @@
       "updated": "Updated {date}"
     },
     "animatedLabel": "{name} animated",
-    "spriteIdleLabel": "{name} idle"
+    "spriteIdleLabel": "{name} idle",
+    "eyebrowFeatured": "Featured",
+    "eyebrowEntry": "Petdex entry",
+    "dexNumber": "No. {number}"
   },
   "collectionDetail": {
     "backToCollections": "← All collections",
@@ -1501,7 +1506,11 @@
       "capReached": "Pin cap reached ({max})",
       "pin": "Pin to profile"
     },
-    "creatorOfPetdexTitle": "One of the people who built Petdex"
+    "creatorOfPetdexTitle": "One of the people who built Petdex",
+    "dragAria": "Drag {name} to reorder",
+    "openPetAria": "Open {name}",
+    "rankTitle": "Ranked #{rank} of {total} by approved pets. See the full leaderboard",
+    "rankLabel": "#{rank} most pets"
   },
   "galleryReorder": {
     "dragInstruction": "Drag any pet to reorder. Changes save when you click Done.",

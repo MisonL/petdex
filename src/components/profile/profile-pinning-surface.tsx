@@ -206,11 +206,12 @@ function FeaturedPin({
   locale: string;
   installsLabel: (count: string) => string;
 }) {
+  const t = useTranslations("profile");
   return (
     <Link
       href={`/pets/${pet.slug}`}
       prefetch={false}
-      aria-label={`Open ${pet.displayName}`}
+      aria-label={t("openPetAria", { name: pet.displayName })}
       className="featured-pin-card group relative flex flex-col overflow-hidden rounded-3xl border border-brand-light/45 bg-surface/80 backdrop-blur transition hover:bg-white md:flex-row md:items-stretch dark:hover:bg-stone-800"
     >
       <div className="pet-sprite-stage featured-pin-stage flex shrink-0 items-center justify-center px-8 py-10 md:w-[420px] md:py-14">

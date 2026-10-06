@@ -93,7 +93,8 @@
     "manageAccount": "管理账号",
     "signOut": "退出登录",
     "more": "更多",
-    "explore": "探索"
+    "explore": "探索",
+    "userAvatar": "用户头像"
   },
   "stickers": {
     "eyebrow": "反应实验室",
@@ -782,7 +783,8 @@
     "card": {
       "screenshotAlt": "{name} 截图",
       "site": "网站"
-    }
+    },
+    "spritePreviewLabel": "{name} 宠物"
   },
   "brand": {
     "metadata": {
@@ -1433,7 +1435,10 @@
       "updated": "更新于 {date}"
     },
     "animatedLabel": "{name} 动画",
-    "spriteIdleLabel": "{name} 待机"
+    "spriteIdleLabel": "{name} 待机",
+    "eyebrowFeatured": "精选",
+    "eyebrowEntry": "Petdex 条目",
+    "dexNumber": "编号 {number}"
   },
   "collectionDetail": {
     "backToCollections": "← 返回全部合集",
@@ -1765,7 +1770,11 @@
       "capReached": "已达置顶上限（{max}）",
       "pin": "置顶到主页"
     },
-    "creatorOfPetdexTitle": "Petdex 的建造者之一"
+    "creatorOfPetdexTitle": "Petdex 的建造者之一",
+    "dragAria": "拖动 {name} 重新排序",
+    "openPetAria": "打开 {name}",
+    "rankTitle": "按已通过宠物数排名第 {rank}，共 {total} 位。查看完整排行榜",
+    "rankLabel": "宠物数第 {rank}"
   },
   "galleryReorder": {
     "dragInstruction": "拖动宠物以重新排序。点击「完成」后保存更改。",

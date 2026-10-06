@@ -246,6 +246,7 @@ function ReorderItem({
     transition,
     isDragging,
   } = useSortable({ id: pet.slug });
+  const tProfile = useTranslations("profile");
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -264,7 +265,7 @@ function ReorderItem({
     >
       <button
         type="button"
-        aria-label={`Drag ${pet.displayName} to reorder`}
+        aria-label={tProfile("dragAria", { name: pet.displayName })}
         className="absolute top-2 right-2 inline-flex size-7 items-center justify-center rounded-full border border-border-base bg-surface text-muted-2 transition hover:border-border-strong hover:text-foreground"
         {...attributes}
         {...listeners}

@@ -382,6 +382,7 @@ function SortablePinnedPet({
     id: pet.slug,
     disabled: oneOnly || isSaving,
   });
+  const tp = useTranslations("profile");
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -420,7 +421,7 @@ function SortablePinnedPet({
           ref={setActivatorNodeRef}
           type="button"
           disabled={isSaving}
-          aria-label={`Drag ${pet.displayName} to reorder`}
+          aria-label={tp("dragAria", { name: pet.displayName })}
           className="absolute top-6 right-4 z-40 grid size-8 -translate-y-1/2 cursor-grab touch-none place-items-center rounded-md text-muted-3 transition hover:bg-surface-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-50"
           {...attributes}
           {...listeners}

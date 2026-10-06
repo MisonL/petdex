@@ -75,7 +75,7 @@ export function ProfilePinButton({
         if (j?.error === "pin_cap_reached") {
           alert(t("capAlert", { max: maxPins }));
         } else {
-          alert(t("failed", { code: j?.error ?? res.statusText }));
+          alert(t("failed", { code: j?.error ?? `http_${res.status}` }));
         }
         return;
       }

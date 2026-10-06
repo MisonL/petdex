@@ -148,7 +148,7 @@ function UserDropdown({ compact = false }: { compact?: boolean }) {
       >
         <Image
           src={avatarUrl}
-          alt={displayName ?? "User avatar"}
+          alt={displayName ?? t("userAvatar")}
           width={44}
           height={44}
           className="size-full object-cover"

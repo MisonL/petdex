@@ -335,11 +335,15 @@ export default async function PetPage({ params }: PageProps) {
             <header className="flex flex-col gap-5">
               <div className="flex flex-wrap items-baseline gap-x-4 gap-y-2">
                 <p className="font-mono text-xs tracking-[0.22em] text-brand uppercase">
-                  {pet.featured ? "Featured" : "Petdex entry"}
+                  {pet.featured
+                    ? tPet("eyebrowFeatured")
+                    : tPet("eyebrowEntry")}
                 </p>
                 {currentDexNumber != null ? (
                   <p className="font-mono text-xs tracking-[0.22em] text-muted-3 uppercase">
-                    No. {formatDexNumber(currentDexNumber)}
+                    {tPet("dexNumber", {
+                      number: formatDexNumber(currentDexNumber),
+                    })}
                   </p>
                 ) : null}
                 <p className="font-mono text-xs tracking-[0.22em] text-muted-3 uppercase">

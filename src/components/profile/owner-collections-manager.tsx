@@ -144,7 +144,7 @@ function CollectionCard({
       });
       if (!res.ok) {
         const j = (await res.json().catch(() => ({}))) as { error?: string };
-        alert(t("deleteFailed", { code: j.error ?? res.statusText }));
+        alert(t("deleteFailed", { code: j.error ?? `http_${res.status}` }));
         return;
       }
       startTransition(() => router.refresh());
