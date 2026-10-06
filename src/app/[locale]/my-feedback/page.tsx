@@ -34,27 +34,20 @@ export async function generateMetadata({
   };
 }
 
-const KIND_META: Record<
-  string,
-  { label: string; tone: string; icon: React.ReactNode }
-> = {
+const KIND_META: Record<string, { tone: string; icon: React.ReactNode }> = {
   suggestion: {
-    label: "Suggest",
     tone: "bg-chip-warning-bg text-chip-warning-fg ring-chip-warning-fg/20",
     icon: <Lightbulb className="size-3.5" />,
   },
   bug: {
-    label: "Bug",
     tone: "bg-chip-danger-bg text-chip-danger-fg ring-chip-danger-fg/20",
     icon: <Bug className="size-3.5" />,
   },
   praise: {
-    label: "Praise",
     tone: "bg-chip-success-bg text-chip-success-fg ring-chip-success-fg/20",
     icon: <Heart className="size-3.5" />,
   },
   other: {
-    label: "Other",
     tone: "bg-surface-muted text-stone-900 ring-stone-200 dark:text-stone-200 dark:ring-stone-700",
     icon: <MessageSquare className="size-3.5" />,
   },
@@ -70,6 +63,7 @@ export default async function MyFeedbackPage({
   searchParams: Promise<SP>;
 }) {
   const t = await getTranslations("myFeedback");
+  const tKinds = await getTranslations("feedback.kinds");
   const { userId } = await auth();
   if (!userId) {
     redirect("/");
@@ -210,6 +204,16 @@ export default async function MyFeedbackPage({
             <ul className="space-y-2">
               {visible.map(({ row: r, agg, unread, replied, waiting }) => {
                 const meta = KIND_META[r.kind] ?? KIND_META.other;
+                // `feedback.kinds` already names these four in every locale;
+                // the local copy was a second, untranslated spelling of them.
+                const kindLabel = [
+                  "suggestion",
+                  "bug",
+                  "praise",
+                  "other",
+                ].includes(r.kind)
+                  ? tKinds(r.kind)
+                  : r.kind;
                 const lastAdminAt = agg?.latestAdminAt ?? null;
                 const lastAdminBody = agg?.latestAdminBody ?? null;
                 const replyCount = agg?.replyCount ?? 0;
@@ -231,7 +235,7 @@ export default async function MyFeedbackPage({
                               className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[10px] tracking-[0.12em] uppercase ring-1 ${meta.tone}`}
                             >
                               {meta.icon}
-                              {meta.label}
+                              {kindLabel}
                             </span>
                             {unread ? (
                               <span className="inline-flex items-center gap-1 rounded-full bg-brand px-2 py-0.5 font-mono text-[10px] tracking-[0.12em] text-white uppercase">

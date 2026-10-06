@@ -144,7 +144,7 @@ export default async function CollectionPage({ params }: PageProps) {
           <div className="mt-6 grid gap-8 md:mt-10 lg:grid-cols-[1fr_420px] lg:items-center">
             <div>
               <p className="font-mono text-xs tracking-[0.22em] text-brand uppercase">
-                Featured collection
+                {t("featuredEyebrow")}
               </p>
               <h1 className="mt-3 text-balance text-[44px] leading-[0.98] font-semibold tracking-tight md:text-[72px]">
                 {collection.title}
@@ -160,7 +160,7 @@ export default async function CollectionPage({ params }: PageProps) {
                     prefetch={false}
                     className="inline-flex h-10 items-center rounded-full bg-inverse px-4 text-sm font-medium text-on-inverse transition hover:bg-inverse-hover"
                   >
-                    View creator
+                    {t("viewCreator")}
                   </Link>
                 ) : null}
                 {collection.externalUrl ? (
@@ -171,13 +171,13 @@ export default async function CollectionPage({ params }: PageProps) {
                     className="inline-flex h-9 items-center gap-1.5 rounded-full border border-border-base bg-surface/70 px-3.5 text-[13px] font-medium text-muted-2 backdrop-blur transition hover:bg-surface-muted hover:text-foreground"
                   >
                     <ExternalLink className="size-4" />
-                    Visit IP site
+                    {t("visitIpSite")}
                   </Link>
                 ) : null}
               </div>
 
               <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-[11px] tracking-[0.18em] text-muted-3 uppercase">
-                <span>{collection.pets.length} pets</span>
+                <span>{t("petCount", { count: collection.pets.length })}</span>
                 <CollectionCaughtProgress petSlugs={petSlugs} />
                 {totalLikes > 0 ? (
                   <span className="inline-flex items-center gap-1.5">
@@ -188,7 +188,9 @@ export default async function CollectionPage({ params }: PageProps) {
                 {totalInstalls > 0 ? (
                   <span className="inline-flex items-center gap-1.5">
                     <TerminalSquare className="size-3" />
-                    {formatLocalizedNumber(totalInstalls, locale)} installs
+                    {t("installCount", {
+                      count: formatLocalizedNumber(totalInstalls, locale),
+                    })}
                   </span>
                 ) : null}
               </div>
@@ -200,7 +202,7 @@ export default async function CollectionPage({ params }: PageProps) {
                   src={leadPet.spritesheetPath}
                   cycleStates
                   scale={1}
-                  label={`${leadPet.displayName} animated`}
+                  label={t("animatedLabel", { name: leadPet.displayName })}
                 />
               ) : null}
             </div>
@@ -212,17 +214,17 @@ export default async function CollectionPage({ params }: PageProps) {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <p className="font-mono text-[11px] tracking-[0.22em] text-brand uppercase">
-              Set contents
+              {t("setContents")}
             </p>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight">
-              Catch the full collection
+              {t("catchFull")}
             </h2>
           </div>
           <Link
             href="/collections"
             className="inline-flex h-9 items-center rounded-full border border-border-base bg-surface/70 px-3.5 text-[13px] font-medium text-muted-2 backdrop-blur transition hover:bg-surface-muted hover:text-foreground"
           >
-            All collections
+            {t("allCollections")}
           </Link>
         </div>
 

@@ -1139,7 +1139,8 @@
   "pet": {
     "navigation": {
       "ariaLabel": "Navegación del Dex",
-      "shuffleTitle": "Cambiar a una mascota aleatoria (Space)"
+      "shuffleTitle": "Cambiar a una mascota aleatoria (Space)",
+      "shuffle": "Aleatoria"
     },
     "keyboardHint": {
       "tip": "Consejo:",
@@ -1162,7 +1163,25 @@
       "title": "{name}: mascota animada de Codex",
       "description": "Instala {name} para Codex: {description} Un solo comando, pixel art animado, {tags}.",
       "tagsFallback": "código abierto"
-    }
+    },
+    "partOf": "Parte de",
+    "counters": {
+      "installs": "{count} instalaciones",
+      "downloads": "{count} descargas",
+      "skeleton": "— instalaciones · — descargas"
+    },
+    "floater": {
+      "aria": "{name}: arrastra, haz clic o solo mírala",
+      "title": "{name}: arrástrame, házme clic",
+      "spriteLabel": "{name}, mascota interactiva"
+    },
+    "submission": {
+      "title": "Envío",
+      "curated": "Entrada seleccionada.",
+      "updated": "Actualizada {date}"
+    },
+    "animatedLabel": "{name} en movimiento",
+    "spriteIdleLabel": "{name} en reposo"
   },
   "collectionDetail": {
     "backToCollections": "← Ver todas las colecciones",
@@ -1176,7 +1195,17 @@
     "metadata": {
       "title": "Colección {title}",
       "ogTitle": "{title} en Petdex"
-    }
+    },
+    "featuredEyebrow": "Colección destacada",
+    "viewCreator": "Ver creadora",
+    "visitIpSite": "Visitar el sitio de la IP",
+    "petCount": "{count, plural, =1 {1 mascota} other {# mascotas}}",
+    "installCount": "{count} instalaciones",
+    "caught": "capturadas {caught}/{total}",
+    "setContents": "Contenido del set",
+    "catchFull": "Captura la colección completa",
+    "allCollections": "Todas las colecciones",
+    "animatedLabel": "{name} en movimiento"
   },
   "download": {
     "metadata": {
@@ -1907,5 +1936,100 @@
       "windows": "Descargar para Windows",
       "linux": "Descargar para Linux"
     }
+  },
+  "profileTabs": {
+    "noPetsYet": "Aún no hay mascotas",
+    "ownerEmptyBody": "Cuando envíes una mascota y se apruebe, aparecerá aquí.",
+    "visitorEmptyBody": "Esta creadora todavía no ha publicado ninguna mascota.",
+    "submitFirstPet": "Enviar tu primera mascota",
+    "pinSaving": "El orden fijado se está guardando",
+    "pendingReviewHeading": "Pendientes de revisión ({count})",
+    "pendingReviewHint": "Solo tú puedes verlas hasta que un admin las apruebe.",
+    "rejectedHeading": "Rechazadas ({count})",
+    "rejectedHint": "Solo tú puedes verlas. Envía una versión nueva cuando quieras.",
+    "likedIntro": "Mascotas capturadas con el corazón, de la más reciente a la más antigua. Toca una tarjeta para revisarla, instalarla o quitar el me gusta.",
+    "noCollectionsYet": "Aún no hay colecciones.",
+    "curated": "Seleccionada",
+    "personal": "Personal",
+    "petCount": "{count, plural, =1 {1 mascota} other {# mascotas}}",
+    "featuredCollection": "Colección destacada",
+    "viewCollection": "Ver la colección",
+    "legacyCollectionMeta": "{count, plural, =1 {1 mascota} other {# mascotas}} · @{handle}",
+    "status": {
+      "pending": "Pendiente",
+      "rejected": "Rechazada"
+    }
+  },
+  "profileEditor": {
+    "title": "Edita tu perfil",
+    "subtitle": "Vive en petdex.dev/u/{handle}. Los cambios se publican al instante, sin revisión de administradores.",
+    "displayName": "Nombre visible",
+    "displayNamePlaceholder": "Kevin Wu",
+    "profileUrl": "URL del perfil",
+    "handlePlaceholder": "kevwuzy",
+    "handleHint": "Entre 3 y 30 caracteres: minúsculas, números, guiones o guiones bajos.",
+    "bio": "Biografía",
+    "bioPlaceholder": "Pixel art, criaturas acogedoras y algún que otro camarón.",
+    "pinnedPets": "Mascotas fijadas ({pinned}/{max})",
+    "noApprovedPets": "Cuando se apruebe una mascota podrás fijarla aquí.",
+    "pinCapTitle": "Máximo {max} fijadas. Quita una primero",
+    "clickToUnpin": "Haz clic para quitarla",
+    "clickToPin": "Haz clic para fijarla",
+    "pinTip": "Consejo: cada tarjeta de tu perfil también tiene un botón para fijarla con un clic.",
+    "cancel": "Cancelar",
+    "save": "Guardar",
+    "errors": {
+      "unauthorized": "Inicia sesión antes de editar tu perfil.",
+      "rateLimited": "Demasiadas ediciones. Inténtalo de nuevo en unos minutos.",
+      "invalidDisplayName": "Ese nombre visible no está permitido.",
+      "invalidHandle": "Esa URL de perfil no es válida.",
+      "handleTooShort": "La URL del perfil necesita al menos 3 caracteres.",
+      "handleTaken": "Esa URL de perfil ya está en uso.",
+      "invalidBio": "Esa biografía es demasiado larga o tiene caracteres no admitidos.",
+      "invalidFeatured": "No se pudieron guardar esas mascotas fijadas.",
+      "pinCapReached": "Puedes fijar hasta {max} mascotas. Quita una primero.",
+      "petNotOwned": "Una de las mascotas fijadas no es tuya o no está aprobada.",
+      "nothingToUpdate": "No cambió nada.",
+      "failed": "No se pudo guardar tu perfil: {code}"
+    }
+  },
+  "notifications": {
+    "title": "Notificaciones",
+    "markAllRead": "Marcar todo como leído",
+    "allCaughtUp": "Estás al día.",
+    "relativeNow": "ahora",
+    "relativeMinutes": "{count} min",
+    "relativeHours": "{count} h",
+    "relativeDays": "{count} d",
+    "petApproved": "{pet} ya está publicada",
+    "petRejected": "{pet} necesita cambios",
+    "editApproved": "La edición de {pet} ya está publicada",
+    "editRejected": "La edición de {pet} fue rechazada",
+    "feedbackReplied": "{author} respondió a tu comentario",
+    "requestFulfilledByYou": "{pet} cumplió \"{query}\"",
+    "requestFulfilledByYouSub": "La comunidad lo pidió y tú lo cumpliste.",
+    "requestFulfilled": "Tu petición \"{query}\" se cumplió",
+    "requestFulfilledSub": "Ya disponible como {pet}",
+    "fallbackYourPet": "Tu mascota",
+    "fallbackYourSubmission": "Tu envío",
+    "fallbackARequest": "una petición",
+    "fallbackEllipsis": "..."
+  },
+  "feedbackThread": {
+    "kindFallback": "Comentario",
+    "status": {
+      "pending": "Pendiente",
+      "addressed": "Atendido",
+      "archived": "Archivado"
+    },
+    "notifyOn": "Avísame por correo",
+    "notifyOff": "Correo silenciado",
+    "noReplies": "Aún no hay respuestas. Escribe un seguimiento abajo para continuar la conversación.",
+    "adminName": "Hunter",
+    "you": "Tú",
+    "replyPlaceholder": "Responder a la persona… (⌘+Enter para enviar)",
+    "followUpPlaceholder": "Añadir un seguimiento… (⌘+Enter para enviar)",
+    "send": "Enviar",
+    "sendFailed": "No se pudo enviar tu respuesta: {code}"
   }
 }

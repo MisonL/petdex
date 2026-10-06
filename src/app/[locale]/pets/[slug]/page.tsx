@@ -277,7 +277,7 @@ export default async function PetPage({ params }: PageProps) {
               title={tPet("navigation.shuffleTitle")}
             >
               <Shuffle className="size-4" />
-              Shuffle
+              {tPet("navigation.shuffle")}
               <kbd className="ml-1 rounded border border-border-base bg-surface px-1.5 py-0.5 font-mono text-[10px] tracking-[0.05em] text-muted-3">
                 Space
               </kbd>
@@ -311,7 +311,7 @@ export default async function PetPage({ params }: PageProps) {
                     src={pet.spritesheetPath}
                     state="idle"
                     scale={0.95}
-                    label={`${pet.displayName} idle`}
+                    label={tPet("spriteIdleLabel", { name: pet.displayName })}
                   />
                 </span>
                 {/* Interactive floater on md+ only. PetFloater
@@ -440,7 +440,7 @@ export default async function PetPage({ params }: PageProps) {
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="inline-flex items-center gap-1.5 font-mono text-[11px] tracking-[0.18em] text-muted-3 uppercase">
                     <Layers className="size-3.5" />
-                    Part of
+                    {tPet("partOf")}
                   </span>
                   {memberOfCollections.map((col) => (
                     <Link
@@ -532,11 +532,17 @@ export default async function PetPage({ params }: PageProps) {
               </div>
             ) : (
               <InfoCard
-                title="Submission"
+                title={tPet("submission.title")}
                 icon={<Sparkles className="size-4" />}
               >
-                <p>Curated entry.</p>
-                <p>Updated {new Date(pet.importedAt).toLocaleDateString()}</p>
+                <p>{tPet("submission.curated")}</p>
+                <p>
+                  {tPet("submission.updated", {
+                    date: new Date(pet.importedAt).toLocaleDateString(
+                      localeValue,
+                    ),
+                  })}
+                </p>
               </InfoCard>
             )}
 

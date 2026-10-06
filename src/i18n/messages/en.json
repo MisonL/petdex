@@ -1139,7 +1139,8 @@
   "pet": {
     "navigation": {
       "ariaLabel": "Dex navigation",
-      "shuffleTitle": "Shuffle to a random pet (Space)"
+      "shuffleTitle": "Shuffle to a random pet (Space)",
+      "shuffle": "Shuffle"
     },
     "keyboardHint": {
       "tip": "Tip:",
@@ -1162,7 +1163,25 @@
       "title": "{name}: Animated Codex pet",
       "description": "Install {name} for Codex: {description} One command, animated pixel art, {tags}.",
       "tagsFallback": "open source"
-    }
+    },
+    "partOf": "Part of",
+    "counters": {
+      "installs": "{count} installs",
+      "downloads": "{count} downloads",
+      "skeleton": "— installs · — downloads"
+    },
+    "floater": {
+      "aria": "{name}: drag, click, or just watch",
+      "title": "{name}: drag me, click me",
+      "spriteLabel": "{name} interactive sprite"
+    },
+    "submission": {
+      "title": "Submission",
+      "curated": "Curated entry.",
+      "updated": "Updated {date}"
+    },
+    "animatedLabel": "{name} animated",
+    "spriteIdleLabel": "{name} idle"
   },
   "collectionDetail": {
     "backToCollections": "← All collections",
@@ -1176,7 +1195,17 @@
     "metadata": {
       "title": "{title} collection",
       "ogTitle": "{title} on Petdex"
-    }
+    },
+    "featuredEyebrow": "Featured collection",
+    "viewCreator": "View creator",
+    "visitIpSite": "Visit IP site",
+    "petCount": "{count, plural, =1 {1 pet} other {# pets}}",
+    "installCount": "{count} installs",
+    "caught": "caught {caught}/{total}",
+    "setContents": "Set contents",
+    "catchFull": "Catch the full collection",
+    "allCollections": "All collections",
+    "animatedLabel": "{name} animated"
   },
   "download": {
     "metadata": {
@@ -1907,5 +1936,100 @@
       "windows": "Download for Windows",
       "linux": "Download for Linux"
     }
+  },
+  "profileTabs": {
+    "noPetsYet": "No pets yet",
+    "ownerEmptyBody": "Once you submit a pet and it gets approved, it shows up here.",
+    "visitorEmptyBody": "This creator has not shipped a public pet yet.",
+    "submitFirstPet": "Submit your first pet",
+    "pinSaving": "Pinned order is saving",
+    "pendingReviewHeading": "Pending review ({count})",
+    "pendingReviewHint": "Visible only to you until an admin approves.",
+    "rejectedHeading": "Rejected ({count})",
+    "rejectedHint": "Visible only to you. Submit a fresh version when ready.",
+    "likedIntro": "Pets caught with the heart, most recent first. Tap a card to revisit, install, or unlike.",
+    "noCollectionsYet": "No collections yet.",
+    "curated": "Curated",
+    "personal": "Personal",
+    "petCount": "{count, plural, =1 {1 pet} other {# pets}}",
+    "featuredCollection": "Featured collection",
+    "viewCollection": "View collection",
+    "legacyCollectionMeta": "{count, plural, =1 {1 pet} other {# pets}} · @{handle}",
+    "status": {
+      "pending": "Pending",
+      "rejected": "Rejected"
+    }
+  },
+  "profileEditor": {
+    "title": "Edit your profile",
+    "subtitle": "Lives at petdex.dev/u/{handle}. Changes go live instantly. No admin review.",
+    "displayName": "Display name",
+    "displayNamePlaceholder": "Kevin Wu",
+    "profileUrl": "Profile URL",
+    "handlePlaceholder": "kevwuzy",
+    "handleHint": "3-30 lowercase letters, numbers, dashes or underscores.",
+    "bio": "Bio",
+    "bioPlaceholder": "Pixel art, cozy creatures, and the occasional shrimp.",
+    "pinnedPets": "Pinned pets ({pinned}/{max})",
+    "noApprovedPets": "Once a pet is approved you can pin it here.",
+    "pinCapTitle": "Max {max} pinned. Unpin one first",
+    "clickToUnpin": "Click to unpin",
+    "clickToPin": "Click to pin",
+    "pinTip": "Tip: each pet card on your profile has a one-click Pin button too.",
+    "cancel": "Cancel",
+    "save": "Save",
+    "errors": {
+      "unauthorized": "Sign in before editing your profile.",
+      "rateLimited": "Too many edits. Try again in a few minutes.",
+      "invalidDisplayName": "That display name is not allowed.",
+      "invalidHandle": "That profile URL is not valid.",
+      "handleTooShort": "Profile URLs need at least 3 characters.",
+      "handleTaken": "That profile URL is already taken.",
+      "invalidBio": "That bio is too long or contains unsupported characters.",
+      "invalidFeatured": "Those pinned pets could not be saved.",
+      "pinCapReached": "You can pin up to {max} pets. Unpin one first.",
+      "petNotOwned": "One of the pinned pets is not yours or is not approved.",
+      "nothingToUpdate": "Nothing changed.",
+      "failed": "Your profile could not be saved: {code}"
+    }
+  },
+  "notifications": {
+    "title": "Notifications",
+    "markAllRead": "Mark all read",
+    "allCaughtUp": "You're all caught up.",
+    "relativeNow": "now",
+    "relativeMinutes": "{count}m",
+    "relativeHours": "{count}h",
+    "relativeDays": "{count}d",
+    "petApproved": "{pet} is live",
+    "petRejected": "{pet} needs changes",
+    "editApproved": "Edit to {pet} is live",
+    "editRejected": "Edit to {pet} was rejected",
+    "feedbackReplied": "{author} replied to your feedback",
+    "requestFulfilledByYou": "{pet} fulfilled \"{query}\"",
+    "requestFulfilledByYouSub": "The community asked, you delivered.",
+    "requestFulfilled": "Your request \"{query}\" was fulfilled",
+    "requestFulfilledSub": "Now live as {pet}",
+    "fallbackYourPet": "Your pet",
+    "fallbackYourSubmission": "Your submission",
+    "fallbackARequest": "a request",
+    "fallbackEllipsis": "..."
+  },
+  "feedbackThread": {
+    "kindFallback": "Feedback",
+    "status": {
+      "pending": "Pending",
+      "addressed": "Addressed",
+      "archived": "Archived"
+    },
+    "notifyOn": "Email me on reply",
+    "notifyOff": "Email muted",
+    "noReplies": "No replies yet. Send a follow-up below to keep the thread going.",
+    "adminName": "Hunter",
+    "you": "You",
+    "replyPlaceholder": "Reply to the user… (⌘+Enter to send)",
+    "followUpPlaceholder": "Add a follow-up… (⌘+Enter to send)",
+    "send": "Send",
+    "sendFailed": "Your reply could not be sent: {code}"
   }
 }

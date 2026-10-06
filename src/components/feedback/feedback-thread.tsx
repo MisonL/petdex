@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 
 import { Bell, BellOff, Loader2, Send } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import { useHeaderState } from "@/components/layout/header-state-provider";
 
@@ -20,13 +21,6 @@ type Feedback = {
   message: string;
   createdAt: string;
   notifyEmail: boolean;
-};
-
-const KIND_LABEL: Record<string, string> = {
-  suggestion: "Suggestion",
-  bug: "Bug",
-  praise: "Praise",
-  other: "Other",
 };
 
 const STATUS_TONE: Record<string, string> = {
@@ -53,6 +47,9 @@ export function FeedbackThread({
   const endRef = useRef<HTMLDivElement | null>(null);
   const { refresh } = useHeaderState();
   const feedbackId = feedback.id;
+  const t = useTranslations("feedbackThread");
+  const tKinds = useTranslations("feedback.kinds");
+  const tStatus = useTranslations("feedbackThread.status");
 
   useEffect(() => {
     if (replies.length === 0) return;
@@ -78,7 +75,7 @@ export function FeedbackThread({
         const j = (await res.json().catch(() => null)) as {
           error?: string;
         } | null;
-        alert(`Failed: ${j?.error ?? res.statusText}`);
+        alert(t("sendFailed", { code: j?.error ?? res.statusText }));
         return;
       }
       const data = (await res.json()) as { reply: Reply };
@@ -114,14 +111,23 @@ export function FeedbackThread({
       <div className="rounded-2xl border border-border-base bg-surface/80 p-4 backdrop-blur">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-mono text-[10px] tracking-[0.12em] text-muted-3 uppercase">
-            {KIND_LABEL[feedback.kind] ?? "Feedback"}
+            {feedback.kind === "suggestion" ||
+            feedback.kind === "bug" ||
+            feedback.kind === "praise" ||
+            feedback.kind === "other"
+              ? tKinds(feedback.kind)
+              : t("kindFallback")}
           </span>
           <span
             className={`inline-flex items-center rounded-full px-2 py-0.5 font-mono text-[10px] tracking-[0.12em] uppercase ring-1 ${
               STATUS_TONE[feedback.status] ?? STATUS_TONE.pending
             }`}
           >
-            {feedback.status}
+            {feedback.status === "pending" ||
+            feedback.status === "addressed" ||
+            feedback.status === "archived"
+              ? tStatus(feedback.status)
+              : feedback.status}
           </span>
           <span className="ml-auto font-mono text-[10px] tracking-[0.12em] text-muted-4 uppercase">
             {new Date(feedback.createdAt).toLocaleString()}
@@ -141,7 +147,7 @@ export function FeedbackThread({
             ) : (
               <BellOff className="size-3.5" />
             )}
-            {notify ? "Email me on reply" : "Email muted"}
+            {notify ? t("notifyOn") : t("notifyOff")}
           </button>
         ) : null}
       </div>
@@ -150,7 +156,7 @@ export function FeedbackThread({
       <ol className="space-y-2">
         {replies.length === 0 ? (
           <li className="rounded-2xl border border-dashed border-border-base bg-surface/60 p-6 text-center text-xs text-muted-3">
-            No replies yet. Send a follow-up below to keep the thread going.
+            {t("noReplies")}
           </li>
         ) : (
           replies.map((r) => {
@@ -172,7 +178,7 @@ export function FeedbackThread({
                       fromAdmin ? "text-muted-3" : "text-white/70"
                     }`}
                   >
-                    <span>{fromAdmin ? "Hunter" : "You"}</span>
+                    <span>{fromAdmin ? t("adminName") : t("you")}</span>
                     <span>·</span>
                     <span>{new Date(r.createdAt).toLocaleString()}</span>
                   </div>
@@ -208,8 +214,8 @@ export function FeedbackThread({
           maxLength={2000}
           placeholder={
             viewerKind === "admin"
-              ? "Reply to the user… (⌘+Enter to send)"
-              : "Add a follow-up… (⌘+Enter to send)"
+              ? t("replyPlaceholder")
+              : t("followUpPlaceholder")
           }
           className="w-full resize-none bg-transparent text-sm leading-6 text-stone-900 placeholder:text-muted-4 focus:outline-none dark:text-stone-100"
         />
@@ -227,7 +233,7 @@ export function FeedbackThread({
             ) : (
               <Send className="size-3.5" />
             )}
-            Send
+            {t("send")}
           </button>
         </div>
       </form>

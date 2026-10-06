@@ -1335,7 +1335,8 @@
       "ariaLabel": "Dex 导航",
       "ariaLabel__fixme": true,
       "shuffleTitle": "切换到随机宠物（Space）",
-      "shuffleTitle__fixme": true
+      "shuffleTitle__fixme": true,
+      "shuffle": "随机"
     },
     "keyboardHint": {
       "tip": "提示：",
@@ -1367,7 +1368,25 @@
       "title": "{name}：Codex 动画宠物",
       "description": "为 Codex 安装 {name}：{description} 一条命令、动画像素画、{tags}。",
       "tagsFallback": "开源"
-    }
+    },
+    "partOf": "所属合集",
+    "counters": {
+      "installs": "{count} 次安装",
+      "downloads": "{count} 次下载",
+      "skeleton": "— 次安装 · — 次下载"
+    },
+    "floater": {
+      "aria": "{name}：拖动、点击，或者就看着它",
+      "title": "{name}：拖我，点我",
+      "spriteLabel": "{name} 互动精灵"
+    },
+    "submission": {
+      "title": "提交信息",
+      "curated": "官方精选条目。",
+      "updated": "更新于 {date}"
+    },
+    "animatedLabel": "{name} 动画",
+    "spriteIdleLabel": "{name} 待机"
   },
   "collectionDetail": {
     "backToCollections": "← 返回全部合集",
@@ -1381,7 +1400,17 @@
     "metadata": {
       "title": "{title} 合集",
       "ogTitle": "{title} 在 Petdex"
-    }
+    },
+    "featuredEyebrow": "精选合集",
+    "viewCreator": "查看创作者",
+    "visitIpSite": "访问 IP 官网",
+    "petCount": "{count} 只宠物",
+    "installCount": "{count} 次安装",
+    "caught": "已捕获 {caught}/{total}",
+    "setContents": "合集内容",
+    "catchFull": "集齐整个合集",
+    "allCollections": "全部合集",
+    "animatedLabel": "{name} 动画"
   },
   "download": {
     "metadata": {
@@ -2216,5 +2245,100 @@
       "linux": "下载 Linux 版"
     },
     "__fixme": true
+  },
+  "profileTabs": {
+    "noPetsYet": "还没有宠物",
+    "ownerEmptyBody": "提交宠物并通过审核后，它就会出现在这里。",
+    "visitorEmptyBody": "这位创作者还没有公开的宠物。",
+    "submitFirstPet": "提交第一只宠物",
+    "pinSaving": "置顶顺序正在保存",
+    "pendingReviewHeading": "待审核（{count}）",
+    "pendingReviewHint": "在管理员通过之前只有你自己能看到。",
+    "rejectedHeading": "已拒绝（{count}）",
+    "rejectedHint": "只有你自己能看到，随时可以提交新版本。",
+    "likedIntro": "用红心捕获的宠物，按时间倒序排列。点击卡片可以回看、安装或取消喜欢。",
+    "noCollectionsYet": "还没有合集。",
+    "curated": "官方精选",
+    "personal": "个人",
+    "petCount": "{count} 只宠物",
+    "featuredCollection": "精选合集",
+    "viewCollection": "查看合集",
+    "legacyCollectionMeta": "{count} 只宠物 · @{handle}",
+    "status": {
+      "pending": "待审核",
+      "rejected": "已拒绝"
+    }
+  },
+  "profileEditor": {
+    "title": "编辑你的资料",
+    "subtitle": "主页地址是 petdex.dev/u/{handle}。修改会立即生效，无需管理员审核。",
+    "displayName": "显示名称",
+    "displayNamePlaceholder": "Kevin Wu",
+    "profileUrl": "主页地址",
+    "handlePlaceholder": "kevwuzy",
+    "handleHint": "3-30 个小写字母、数字、短横线或下划线。",
+    "bio": "简介",
+    "bioPlaceholder": "像素画、治愈系小生物，偶尔来只虾。",
+    "pinnedPets": "置顶宠物（{pinned}/{max}）",
+    "noApprovedPets": "宠物通过审核后就可以在这里置顶。",
+    "pinCapTitle": "最多置顶 {max} 只，请先取消一个",
+    "clickToUnpin": "点击取消置顶",
+    "clickToPin": "点击置顶",
+    "pinTip": "提示：主页上的每张宠物卡片也有一个一键置顶按钮。",
+    "cancel": "取消",
+    "save": "保存",
+    "errors": {
+      "unauthorized": "请先登录再编辑资料。",
+      "rateLimited": "修改过于频繁，请过几分钟再试。",
+      "invalidDisplayName": "这个显示名称不可用。",
+      "invalidHandle": "这个主页地址无效。",
+      "handleTooShort": "主页地址至少需要 3 个字符。",
+      "handleTaken": "这个主页地址已被占用。",
+      "invalidBio": "简介过长或包含不支持的字符。",
+      "invalidFeatured": "无法保存这些置顶宠物。",
+      "pinCapReached": "最多只能置顶 {max} 只宠物，请先取消一个。",
+      "petNotOwned": "其中一只置顶宠物不属于你，或尚未通过审核。",
+      "nothingToUpdate": "没有需要更新的内容。",
+      "failed": "资料保存失败：{code}"
+    }
+  },
+  "notifications": {
+    "title": "通知",
+    "markAllRead": "全部标为已读",
+    "allCaughtUp": "没有新通知了。",
+    "relativeNow": "刚刚",
+    "relativeMinutes": "{count} 分钟前",
+    "relativeHours": "{count} 小时前",
+    "relativeDays": "{count} 天前",
+    "petApproved": "{pet} 已上线",
+    "petRejected": "{pet} 需要修改",
+    "editApproved": "{pet} 的修改已上线",
+    "editRejected": "{pet} 的修改被拒绝",
+    "feedbackReplied": "{author} 回复了你的反馈",
+    "requestFulfilledByYou": "{pet} 满足了“{query}”",
+    "requestFulfilledByYouSub": "社区提出需求，你把它实现了。",
+    "requestFulfilled": "你的需求“{query}”已被满足",
+    "requestFulfilledSub": "已上线为 {pet}",
+    "fallbackYourPet": "你的宠物",
+    "fallbackYourSubmission": "你的提交",
+    "fallbackARequest": "某个需求",
+    "fallbackEllipsis": "..."
+  },
+  "feedbackThread": {
+    "kindFallback": "反馈",
+    "status": {
+      "pending": "待处理",
+      "addressed": "已处理",
+      "archived": "已归档"
+    },
+    "notifyOn": "有回复时邮件通知我",
+    "notifyOff": "邮件通知已关闭",
+    "noReplies": "还没有回复。在下面继续留言即可保持对话。",
+    "adminName": "Hunter",
+    "you": "你",
+    "replyPlaceholder": "回复对方……（⌘+Enter 发送）",
+    "followUpPlaceholder": "补充一条留言……（⌘+Enter 发送）",
+    "send": "发送",
+    "sendFailed": "回复发送失败：{code}"
   }
 }

@@ -33,6 +33,8 @@ export function ProfileInlineEditor({
   approvedPets: ApprovedPet[];
 }) {
   const t = useTranslations("profile");
+  const tp = useTranslations("profileEditor");
+  const te = useTranslations("profileEditor.errors");
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [displayName, setDisplayName] = useState(initialDisplayName ?? "");
@@ -43,6 +45,40 @@ export function ProfileInlineEditor({
   const [error, setError] = useState<string | null>(null);
   const { refresh: refreshHeaderState } = useHeaderState();
   const [, startTransition] = useTransition();
+
+  // The route answers with an internal code, and this panel used to render it
+  // through `error.replace(/_/g, " ")` — which turns `handle_taken` into
+  // "HANDLE TAKEN", not a sentence in any language. Map the codes the route
+  // actually sends; anything else falls back to one message carrying the code.
+  const errorKey = (() => {
+    if (!error) return null;
+    switch (error) {
+      case "unauthorized":
+        return "unauthorized";
+      case "rate_limited":
+        return "rateLimited";
+      case "invalid_display_name":
+        return "invalidDisplayName";
+      case "invalid_handle":
+        return "invalidHandle";
+      case "handle_too_short":
+        return "handleTooShort";
+      case "handle_taken":
+        return "handleTaken";
+      case "invalid_bio":
+        return "invalidBio";
+      case "invalid_featured":
+        return "invalidFeatured";
+      case "pin_cap_reached":
+        return "pinCapReached";
+      case "pet_not_owned_or_not_approved":
+        return "petNotOwned";
+      case "nothing_to_update":
+        return "nothingToUpdate";
+      default:
+        return null;
+    }
+  })();
 
   function togglePin(slug: string) {
     setPinned((prev) => {
@@ -114,11 +150,10 @@ export function ProfileInlineEditor({
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-xl font-medium tracking-tight">
-                  Edit your profile
+                  {tp("title")}
                 </h2>
                 <p className="mt-1 text-xs text-muted-3">
-                  Lives at petdex.dev/u/{handle}. Changes go live instantly. No
-                  admin review.
+                  {tp("subtitle", { handle })}
                 </p>
               </div>
               <button
@@ -143,14 +178,14 @@ export function ProfileInlineEditor({
                     htmlFor="profile-inline-display-name"
                     className="font-mono text-[10px] tracking-[0.12em] text-muted-3 uppercase"
                   >
-                    Display name
+                    {tp("displayName")}
                   </label>
                   <input
                     id="profile-inline-display-name"
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
                     maxLength={48}
-                    placeholder="Kevin Wu"
+                    placeholder={tp("displayNamePlaceholder")}
                     className="mt-1 h-10 w-full rounded-xl border border-border-base bg-surface px-3 text-sm text-foreground focus:border-brand focus:outline-none"
                   />
                 </div>
@@ -159,7 +194,7 @@ export function ProfileInlineEditor({
                     htmlFor="profile-inline-handle"
                     className="font-mono text-[10px] tracking-[0.12em] text-muted-3 uppercase"
                   >
-                    Profile URL
+                    {tp("profileUrl")}
                   </label>
                   <div className="mt-1 flex h-10 items-center rounded-xl border border-border-base bg-surface px-3 focus-within:border-brand">
                     <span className="shrink-0 font-mono text-xs text-muted-4">
@@ -172,12 +207,12 @@ export function ProfileInlineEditor({
                         setProfileHandle(e.target.value.toLowerCase())
                       }
                       maxLength={30}
-                      placeholder="kevwuzy"
+                      placeholder={tp("handlePlaceholder")}
                       className="min-w-0 flex-1 bg-transparent font-mono text-sm text-foreground focus:outline-none"
                     />
                   </div>
                   <p className="mt-1 font-mono text-[10px] text-muted-4">
-                    3-30 lowercase letters, numbers, dashes or underscores.
+                    {tp("handleHint")}
                   </p>
                 </div>
               </div>
@@ -187,7 +222,7 @@ export function ProfileInlineEditor({
                   htmlFor="profile-inline-bio"
                   className="font-mono text-[10px] tracking-[0.12em] text-muted-3 uppercase"
                 >
-                  Bio
+                  {tp("bio")}
                 </label>
                 <textarea
                   id="profile-inline-bio"
@@ -195,7 +230,7 @@ export function ProfileInlineEditor({
                   onChange={(e) => setBio(e.target.value)}
                   maxLength={280}
                   rows={4}
-                  placeholder="Pixel art, cozy creatures, and the occasional shrimp."
+                  placeholder={tp("bioPlaceholder")}
                   className="mt-1 w-full resize-none rounded-xl border border-border-base bg-surface px-3 py-2 text-sm text-foreground focus:border-brand focus:outline-none"
                 />
                 <p className="mt-1 font-mono text-[10px] text-muted-4">
@@ -205,11 +240,14 @@ export function ProfileInlineEditor({
 
               <div>
                 <p className="font-mono text-[10px] tracking-[0.12em] text-muted-3 uppercase">
-                  Pinned pets ({pinned.length}/{MAX_PINNED_PETS})
+                  {tp("pinnedPets", {
+                    pinned: pinned.length,
+                    max: MAX_PINNED_PETS,
+                  })}
                 </p>
                 {approvedPets.length === 0 ? (
                   <p className="mt-2 font-mono text-[10px] text-muted-4">
-                    Once a pet is approved you can pin it here.
+                    {tp("noApprovedPets")}
                   </p>
                 ) : (
                   <div className="mt-2 flex flex-wrap gap-1.5">
@@ -225,10 +263,10 @@ export function ProfileInlineEditor({
                           disabled={capped}
                           title={
                             capped
-                              ? `Max ${MAX_PINNED_PETS} pinned. Unpin one first`
+                              ? tp("pinCapTitle", { max: MAX_PINNED_PETS })
                               : active
-                                ? "Click to unpin"
-                                : "Click to pin"
+                                ? tp("clickToUnpin")
+                                : tp("clickToPin")
                           }
                           className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
                             active
@@ -244,14 +282,17 @@ export function ProfileInlineEditor({
                   </div>
                 )}
                 <p className="mt-2 font-mono text-[10px] text-muted-4">
-                  Tip: each pet card on your profile has a one-click Pin button
-                  too.
+                  {tp("pinTip")}
                 </p>
               </div>
 
               {error ? (
                 <p className="rounded-xl bg-chip-danger-bg px-3 py-2 text-xs text-chip-danger-fg">
-                  {error.replace(/_/g, " ")}
+                  {errorKey === "pinCapReached"
+                    ? te("pinCapReached", { max: MAX_PINNED_PETS })
+                    : errorKey
+                      ? te(errorKey)
+                      : te("failed", { code: error })}
                 </p>
               ) : null}
 
@@ -261,7 +302,7 @@ export function ProfileInlineEditor({
                   onClick={() => setOpen(false)}
                   className="inline-flex h-9 items-center rounded-full border border-border-base bg-surface px-3 text-xs font-medium text-muted-2 transition hover:border-border-strong"
                 >
-                  Cancel
+                  {tp("cancel")}
                 </button>
                 <button
                   type="submit"
@@ -269,7 +310,7 @@ export function ProfileInlineEditor({
                   className="inline-flex h-9 items-center gap-1.5 rounded-full bg-inverse px-4 text-xs font-medium text-on-inverse transition hover:bg-inverse-hover disabled:opacity-60"
                 >
                   {busy ? <Loader2 className="size-3.5 animate-spin" /> : null}
-                  Save
+                  {tp("save")}
                 </button>
               </div>
             </form>
