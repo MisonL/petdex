@@ -171,6 +171,7 @@ export default async function CollectionsPage({
                   byOwner: owner
                     ? browserT("card.byOwner", { name: owner.name })
                     : null,
+                  spriteStill: (name) => browserT("card.spriteStill", { name }),
                 }}
               />
             );

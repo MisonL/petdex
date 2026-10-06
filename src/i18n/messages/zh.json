@@ -41,6 +41,12 @@
       }
     }
   },
+  "ogImage": {
+    "featuredPet": "精选 Codex 宠物",
+    "codexPet": "Codex 宠物",
+    "featuredCollectionsLabel": "精选合集",
+    "creatorLabel": "Petdex 创作者"
+  },
   "header": {
     "gallery": "图库",
     "create": "创建",
@@ -193,7 +199,9 @@
       "eyebrow": "精选合集",
       "title": "值得安装的精选合集",
       "viewAll": "查看全部",
-      "petsCount": "{count} 个宠物"
+      "petsCount": "{count} 个宠物",
+      "coverEmpty": "合集",
+      "spriteAnimated": "{name} 动画"
     },
     "worksWith": "支持",
     "__fixme": true
@@ -1342,6 +1350,7 @@
     "frames": "{count} 帧",
     "rowFrames": "第 {row} 行 - {count} 帧",
     "animationLabel": "{petName} {state} 动画",
+    "spriteLabel": "{petName} {state}",
     "states": {
       "idle": {
         "label": "待机",
@@ -1734,7 +1743,8 @@
     "card": {
       "petCount": "{count} 个宠物",
       "siteLink": "网站 Site",
-      "byOwner": "作者：{name}"
+      "byOwner": "作者：{name}",
+      "spriteStill": "{name} 精灵图"
     },
     "kindLabel": {
       "franchise": "系列 Franchise",
@@ -1791,7 +1801,8 @@
       "tooManyItems": "要排序的宠物太多了。",
       "emptyOrder": "顺序不能为空。",
       "noOwnedPets": "这些宠物都不属于你。"
-    }
+    },
+    "spriteStill": "{name} 精灵图"
   },
   "pinnedReorder": {
     "reorderLabel": "无法保存顺序",

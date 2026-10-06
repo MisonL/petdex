@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 
 import { Bell, BellOff, Loader2, Send } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { useHeaderState } from "@/components/layout/header-state-provider";
 
@@ -47,6 +47,7 @@ export function FeedbackThread({
   const endRef = useRef<HTMLDivElement | null>(null);
   const { refresh } = useHeaderState();
   const feedbackId = feedback.id;
+  const locale = useLocale();
   const t = useTranslations("feedbackThread");
   const tKinds = useTranslations("feedback.kinds");
   const tStatus = useTranslations("feedbackThread.status");
@@ -130,7 +131,7 @@ export function FeedbackThread({
               : feedback.status}
           </span>
           <span className="ml-auto font-mono text-[10px] tracking-[0.12em] text-muted-4 uppercase">
-            {new Date(feedback.createdAt).toLocaleString()}
+            {new Date(feedback.createdAt).toLocaleString(locale)}
           </span>
         </div>
         <p className="mt-3 text-sm leading-6 whitespace-pre-wrap text-foreground">
@@ -180,7 +181,7 @@ export function FeedbackThread({
                   >
                     <span>{fromAdmin ? t("adminName") : t("you")}</span>
                     <span>·</span>
-                    <span>{new Date(r.createdAt).toLocaleString()}</span>
+                    <span>{new Date(r.createdAt).toLocaleString(locale)}</span>
                   </div>
                   <p className="whitespace-pre-wrap">{r.body}</p>
                 </div>

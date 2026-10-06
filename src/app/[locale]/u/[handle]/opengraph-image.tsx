@@ -19,6 +19,8 @@ import { fetchR2Asset } from "@/lib/r2-fetch";
 import { toCurrentR2PublicUrl } from "@/lib/r2-public-url";
 import { isAllowedAssetUrl, isAllowedAvatarUrl } from "@/lib/url-allowlist";
 
+import { defaultLocale, hasLocale } from "@/i18n/config";
+
 export const runtime = "nodejs";
 export const contentType = "image/png";
 export const size = { width: 1200, height: 630 };
@@ -37,7 +39,8 @@ export default async function Image({
 }: {
   params: Promise<{ locale: string; handle: string }>;
 }) {
-  const { handle } = await params;
+  const { locale, handle } = await params;
+  const copy = await getOgImageCopy(locale);
   const ownerId = await userIdForHandle(handle);
   if (!ownerId) return petdexFallback();
 
@@ -186,7 +189,7 @@ export default async function Image({
             fontWeight: 600,
           }}
         >
-          Petdex creator
+          {copy.creatorLabel}
         </div>
       </div>
 
@@ -447,6 +450,16 @@ function petdexFallback() {
     </div>,
     { ...size },
   );
+}
+
+async function getOgImageCopy(locale: string) {
+  const resolvedLocale = locale && hasLocale(locale) ? locale : defaultLocale;
+  const messages = (await import(`@/i18n/messages/${resolvedLocale}.json`))
+    .default as { ogImage?: { creatorLabel?: string } };
+
+  return {
+    creatorLabel: messages.ogImage?.creatorLabel ?? "Petdex creator",
+  };
 }
 
 function clip(s: string, n: number): string {

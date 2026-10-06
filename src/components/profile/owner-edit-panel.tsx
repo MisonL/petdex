@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 
 import { Loader2, Pencil, X } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { parseSpriteVersionNumber } from "@/lib/sprite-version";
 import { PET_ASSET_MAX_BYTES } from "@/lib/upload-limits";
@@ -98,6 +98,7 @@ export function OwnerEditPanel({
 }) {
   const t = useTranslations("myPets.edit");
   const te = useTranslations("myPets.edit.errors");
+  const locale = useLocale();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState<Pending | null>(initialPending);
@@ -355,7 +356,7 @@ export function OwnerEditPanel({
           <span>
             {t("submittedPrefix")}{" "}
             {pending?.submittedAt
-              ? new Date(pending.submittedAt).toLocaleDateString()
+              ? new Date(pending.submittedAt).toLocaleDateString(locale)
               : ""}
             {t("submittedSuffix")}
           </span>

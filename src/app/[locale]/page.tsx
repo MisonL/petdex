@@ -323,6 +323,8 @@ async function FeaturedCollections({
                   coverSlug={collection.coverPetSlug}
                   max={5}
                   scale={0.5}
+                  emptyLabel={t("coverEmpty")}
+                  spriteLabel={(name) => t("spriteAnimated", { name })}
                   className="border-b border-foreground/[0.05]"
                 />
                 <CardContent className="flex flex-1 flex-col p-4">

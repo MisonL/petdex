@@ -35,6 +35,12 @@
       }
     }
   },
+  "ogImage": {
+    "featuredPet": "Featured Codex pet",
+    "codexPet": "Codex pet",
+    "featuredCollectionsLabel": "Featured collections",
+    "creatorLabel": "Petdex creator"
+  },
   "header": {
     "gallery": "Gallery",
     "create": "Create",
@@ -172,7 +178,9 @@
       "eyebrow": "Featured collections",
       "title": "Featured collections worth installing",
       "viewAll": "View all",
-      "petsCount": "{count, plural, =1 {1 pet} other {# pets}}"
+      "petsCount": "{count, plural, =1 {1 pet} other {# pets}}",
+      "coverEmpty": "Collection",
+      "spriteAnimated": "{name} animation"
     },
     "worksWith": "Works with"
   },
@@ -1148,6 +1156,7 @@
     "frames": "{count} frames",
     "rowFrames": "Row {row} - {count} frames",
     "animationLabel": "{petName} {state} animation",
+    "spriteLabel": "{petName} {state}",
     "states": {
       "idle": {
         "label": "Idle",
@@ -1470,7 +1479,8 @@
     "card": {
       "petCount": "{count, plural, =1 {1 pet} other {# pets}}",
       "siteLink": "Site",
-      "byOwner": "by {name}"
+      "byOwner": "by {name}",
+      "spriteStill": "{name} sprite"
     },
     "kindLabel": {
       "franchise": "Franchise",
@@ -1527,7 +1537,8 @@
       "tooManyItems": "There are too many pets to order.",
       "emptyOrder": "The order cannot be empty.",
       "noOwnedPets": "None of those pets are yours."
-    }
+    },
+    "spriteStill": "{name} sprite"
   },
   "pinnedReorder": {
     "reorderLabel": "Could not save order",

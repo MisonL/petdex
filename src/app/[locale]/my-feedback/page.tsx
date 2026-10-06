@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 import { desc, sql as dsql, eq, inArray } from "drizzle-orm";
 import { Bug, Heart, Lightbulb, MessageSquare } from "lucide-react";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 
 import { db, schema } from "@/lib/db/client";
 
@@ -64,6 +64,7 @@ export default async function MyFeedbackPage({
 }) {
   const t = await getTranslations("myFeedback");
   const tKinds = await getTranslations("feedback.kinds");
+  const locale = await getLocale();
   const { userId } = await auth();
   if (!userId) {
     redirect("/");
@@ -251,7 +252,7 @@ export default async function MyFeedbackPage({
                               </span>
                             ) : null}
                             <span className="ml-auto font-mono text-[10px] tracking-[0.12em] text-muted-4 uppercase">
-                              {new Date(r.createdAt).toLocaleDateString()}
+                              {new Date(r.createdAt).toLocaleDateString(locale)}
                             </span>
                           </div>
 

@@ -247,6 +247,7 @@ function ReorderItem({
     isDragging,
   } = useSortable({ id: pet.slug });
   const tProfile = useTranslations("profile");
+  const t = useTranslations("galleryReorder");
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -276,7 +277,7 @@ function ReorderItem({
         <PetSprite
           src={pet.spritesheetPath}
           scale={0.7}
-          label={`${pet.displayName} sprite`}
+          label={t("spriteStill", { name: pet.displayName })}
         />
       </div>
       <p className="line-clamp-1 text-center text-xs font-medium text-muted-1">

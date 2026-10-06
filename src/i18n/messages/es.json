@@ -35,6 +35,12 @@
       }
     }
   },
+  "ogImage": {
+    "featuredPet": "Mascota de Codex destacada",
+    "codexPet": "Mascota de Codex",
+    "featuredCollectionsLabel": "Colecciones destacadas",
+    "creatorLabel": "Creador en Petdex"
+  },
   "header": {
     "gallery": "Galería",
     "create": "Crear",
@@ -172,7 +178,9 @@
       "eyebrow": "Colecciones destacadas",
       "title": "Colecciones destacadas para instalar",
       "viewAll": "Ver todas",
-      "petsCount": "{count, plural, =1 {1 mascota} other {# mascotas}}"
+      "petsCount": "{count, plural, =1 {1 mascota} other {# mascotas}}",
+      "coverEmpty": "Colección",
+      "spriteAnimated": "Animación de {name}"
     },
     "worksWith": "Funciona con"
   },
@@ -1148,6 +1156,7 @@
     "frames": "{count} fotogramas",
     "rowFrames": "Fila {row} - {count} frames",
     "animationLabel": "{petName} animación {state}",
+    "spriteLabel": "{petName} {state}",
     "states": {
       "idle": {
         "label": "Inactivo",
@@ -1470,7 +1479,8 @@
     "card": {
       "petCount": "{count, plural, =1 {1 mascota} other {# mascotas}}",
       "siteLink": "Sitio",
-      "byOwner": "por {name}"
+      "byOwner": "por {name}",
+      "spriteStill": "Sprite de {name}"
     },
     "kindLabel": {
       "franchise": "Franquicia",
@@ -1527,7 +1537,8 @@
       "tooManyItems": "Hay demasiadas mascotas para ordenar.",
       "emptyOrder": "El orden no puede quedar vacío.",
       "noOwnedPets": "Ninguna de esas mascotas es tuya."
-    }
+    },
+    "spriteStill": "Sprite de {name}"
   },
   "pinnedReorder": {
     "reorderLabel": "No se pudo guardar el orden",
