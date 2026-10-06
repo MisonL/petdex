@@ -317,7 +317,7 @@
     "openIssue": "去 GitHub 提交 issue →",
     "kinds": {
       "suggestion": "建议",
-      "bug": "Bug",
+      "bug": "问题反馈",
       "praise": "表扬",
       "other": "其他"
     },
@@ -611,9 +611,9 @@
         "beforeSettings__fixme": true,
         "settingsPath": "Settings → Appearance → Pets",
         "middle": "并点击",
-        "select": "Select",
+        "select": "选择",
         "afterSelect": "，在",
-        "customPets": "Custom pets",
+        "customPets": "自定义宠物",
         "tipBefore": "之后可以用",
         "tipAfter": "来唤醒它或把它收起来。",
         "tipAfter__fixme": true
@@ -1386,7 +1386,7 @@
     },
     "activation": {
       "items": {
-        "hooks": "Agent hooks",
+        "hooks": "Agent 钩子",
         "hooks__fixme": true,
         "desktop": "桌面应用",
         "desktop__fixme": true,
@@ -1606,7 +1606,7 @@
     "card": {
       "petCount": "{count} 个宠物",
       "siteLink": "网站 Site",
-      "byOwner": "by {name}"
+      "byOwner": "作者：{name}"
     },
     "kindLabel": {
       "franchise": "系列 Franchise",
