@@ -21,9 +21,15 @@ export {
   type ResolvedPet,
 };
 
+// No `origin` parameter. Both callers used to compute
+// `new URL(req.url).origin` and pass it here, where it was named `_origin` and
+// never read — so in the container it was the bind address, and any future use
+// of it would have emitted `http://0.0.0.0:3000` into an install script. The
+// script's own URLs are the canonical `https://petdex.dev` literals in
+// `install-script-render.ts`; if a deployment-specific origin is ever needed,
+// take it from `publicOrigin(req)` rather than from `req.url`.
 export async function resolveInstallablePet(
   slug: string,
-  _origin: string,
 ): Promise<ResolvedPet | null> {
   const submitted = await db.query.submittedPets.findFirst({
     where: eq(schema.submittedPets.slug, slug),

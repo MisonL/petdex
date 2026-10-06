@@ -44,7 +44,6 @@ export async function GET(
   ctx: { params: Promise<Params> },
 ): Promise<Response> {
   const { slug } = await ctx.params;
-  const origin = new URL(req.url).origin;
   const platform = detectPlatformFromRequest(req);
 
   if (!INSTALL_SLUG_RE.test(slug)) {
@@ -65,7 +64,7 @@ export async function GET(
     });
   }
 
-  const pet = await resolveInstallablePet(slug, origin);
+  const pet = await resolveInstallablePet(slug);
   if (!pet) {
     const body =
       platform === "ps1"

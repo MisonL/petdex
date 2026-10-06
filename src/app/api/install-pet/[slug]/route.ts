@@ -28,7 +28,6 @@ export async function GET(
   ctx: { params: Promise<Params> },
 ): Promise<Response> {
   const { slug } = await ctx.params;
-  const origin = new URL(req.url).origin;
 
   // Slug shape gate before hitting the DB. Defends against odd inputs and
   // gives a clean 400 instead of 404 for nonsense.
@@ -42,7 +41,7 @@ export async function GET(
     );
   }
 
-  const pet = await resolveInstallablePet(slug, origin);
+  const pet = await resolveInstallablePet(slug);
   if (!pet) {
     return Response.json(
       { ok: false, error: "not_found", slug },

@@ -51,7 +51,7 @@ describe("resolveInstallablePet", () => {
       `https://${legacyHost}/pets/x/sprite.webp`,
     );
 
-    const pet = await resolveInstallablePet("nukey", "https://petdex.dev");
+    const pet = await resolveInstallablePet("nukey");
 
     expect(pet).not.toBeNull();
     // Rewritten, not echoed back — the whole point of accepting the row.
@@ -72,9 +72,7 @@ describe("resolveInstallablePet", () => {
       "https://evil.example/pets/x/sprite.webp",
     );
 
-    expect(
-      await resolveInstallablePet("nukey", "https://petdex.dev"),
-    ).toBeNull();
+    expect(await resolveInstallablePet("nukey")).toBeNull();
   });
 
   it("refuses a pet that is not approved", async () => {
@@ -85,16 +83,12 @@ describe("resolveInstallablePet", () => {
       ),
       status: "pending",
     };
-    expect(
-      await resolveInstallablePet("nukey", "https://petdex.dev"),
-    ).toBeNull();
+    expect(await resolveInstallablePet("nukey")).toBeNull();
   });
 
   it("refuses a missing pet", async () => {
     row = undefined;
-    expect(
-      await resolveInstallablePet("nukey", "https://petdex.dev"),
-    ).toBeNull();
+    expect(await resolveInstallablePet("nukey")).toBeNull();
   });
 });
 
@@ -109,7 +103,7 @@ describe("resolveInstallablePet sprite extension", () => {
       "https://assets.petdex.dev/pets/x/sprite.png?v=2",
     );
 
-    const pet = await resolveInstallablePet("nukey", "https://petdex.dev");
+    const pet = await resolveInstallablePet("nukey");
 
     expect(pet?.spriteExt).toBe("png");
   });
@@ -119,7 +113,7 @@ describe("resolveInstallablePet sprite extension", () => {
       "https://assets.petdex.dev/pets/x/petjson.json",
       "https://assets.petdex.dev/pets/x/sprite.webp",
     );
-    const pet = await resolveInstallablePet("nukey", "https://petdex.dev");
+    const pet = await resolveInstallablePet("nukey");
     expect(pet?.spriteExt).toBe("webp");
   });
 });
