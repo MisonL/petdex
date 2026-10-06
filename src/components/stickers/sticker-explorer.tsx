@@ -50,6 +50,7 @@ type Labels = {
   shareDeck: string;
   shared: string;
   deckFull: string;
+  remove: string;
   reactions: Record<string, string>;
 };
 
@@ -338,7 +339,7 @@ export function StickerExplorer({
                     </button>
                     <button
                       type="button"
-                      aria-label="Remove"
+                      aria-label={labels.remove}
                       onClick={() =>
                         sync(
                           selection,

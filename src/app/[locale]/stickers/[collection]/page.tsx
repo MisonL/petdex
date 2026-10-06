@@ -85,6 +85,7 @@ export default async function StickerCollectionPage({
     addToDeck: t("addToDeck"),
     deck: t("deck"),
     emptyDeck: t("emptyDeck"),
+    remove: t("remove"),
     shareReaction: t("shareReaction"),
     reactionShared: t("reactionShared"),
     shareDeck: t("shareDeck"),

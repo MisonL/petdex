@@ -123,7 +123,8 @@
       "waiting": "Esperando",
       "running": "Ejecutando",
       "review": "Revisando"
-    }
+    },
+    "remove": "Quitar del deck"
   },
   "theme": {
     "toggle": "Cambiar tema",
@@ -1499,7 +1500,8 @@
       "unpin": "Quitar del perfil",
       "capReached": "Límite de fijadas alcanzado ({max})",
       "pin": "Fijar en el perfil"
-    }
+    },
+    "creatorOfPetdexTitle": "Una de las personas que construyó Petdex"
   },
   "galleryReorder": {
     "dragInstruction": "Arrastra cualquier mascota para reordenar. Los cambios se guardan al hacer clic en Listo.",

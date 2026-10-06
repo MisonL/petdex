@@ -344,7 +344,7 @@ export default async function UserProfilePage({ params }: PageProps) {
                 {isOwnerAdmin ? (
                   <span
                     className="inline-flex items-center gap-1 rounded-full bg-brand px-2 py-0.5 font-mono text-[10px] tracking-[0.15em] text-white uppercase"
-                    title="One of the people who built Petdex"
+                    title={t("creatorOfPetdexTitle")}
                   >
                     <Trophy className="size-3" />
                     {t("creatorOfPetdex")}

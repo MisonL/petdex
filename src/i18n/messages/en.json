@@ -123,7 +123,8 @@
       "waiting": "Waiting",
       "running": "Running",
       "review": "Review"
-    }
+    },
+    "remove": "Remove from deck"
   },
   "theme": {
     "toggle": "Toggle theme",
@@ -1499,7 +1500,8 @@
       "unpin": "Unpin from profile",
       "capReached": "Pin cap reached ({max})",
       "pin": "Pin to profile"
-    }
+    },
+    "creatorOfPetdexTitle": "One of the people who built Petdex"
   },
   "galleryReorder": {
     "dragInstruction": "Drag any pet to reorder. Changes save when you click Done.",

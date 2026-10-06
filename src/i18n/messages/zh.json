@@ -130,7 +130,8 @@
       "waiting": "等待",
       "running": "运行中",
       "review": "审核中"
-    }
+    },
+    "remove": "从组合中移除"
   },
   "theme": {
     "toggle": "切换主题",
@@ -1763,7 +1764,8 @@
       "unpin": "取消置顶",
       "capReached": "已达置顶上限（{max}）",
       "pin": "置顶到主页"
-    }
+    },
+    "creatorOfPetdexTitle": "Petdex 的建造者之一"
   },
   "galleryReorder": {
     "dragInstruction": "拖动宠物以重新排序。点击「完成」后保存更改。",
