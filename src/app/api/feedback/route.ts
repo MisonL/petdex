@@ -4,6 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 
 import { db, schema } from "@/lib/db/client";
 import { createNeonRatelimit } from "@/lib/neon-ratelimit";
+import { publicTrafficGuardKey } from "@/lib/public-traffic-guard";
 import { requireSameOrigin } from "@/lib/same-origin";
 
 export const runtime = "nodejs";
@@ -22,10 +23,11 @@ export async function POST(req: Request): Promise<Response> {
   if (csrf) return csrf;
   const { userId } = await auth();
 
-  const ipHeader =
-    req.headers.get("x-forwarded-for") ?? req.headers.get("x-real-ip") ?? "";
-  const ip = ipHeader.split(",")[0]?.trim() || "anon";
-  const key = userId ?? ip;
+  // Same key helper the CLI collection routes and the proxy use: it prefers
+  // the platform-set `x-real-ip` over a client-supplied `x-forwarded-for`,
+  // so an anonymous caller cannot rotate the header and hand themselves a
+  // fresh bucket on every request. (Signed-in callers are keyed by userId.)
+  const key = userId ?? publicTrafficGuardKey(req.headers);
   const { success } = await ratelimit.limit(key);
   if (!success) {
     return NextResponse.json(

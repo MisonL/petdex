@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  bigint,
   boolean,
   index,
   integer,
@@ -891,6 +892,34 @@ export const routeCostSourceBuckets = pgTable(
 export type RouteCostSourceBucket = typeof routeCostSourceBuckets.$inferSelect;
 export type NewRouteCostSourceBucket =
   typeof routeCostSourceBuckets.$inferInsert;
+
+// Storage for the Neon-backed rate limiters (`@crafter/limit`'s neonHttp
+// adapter, wired in src/lib/neon-ratelimit.ts). The table shipped in
+// drizzle/0021_crafter_rate_limits.sql, but this repo's only automated
+// schema path is `drizzle-kit push`, which reconciles the database against
+// *this file* rather than the drizzle/*.sql history — a table that lives
+// only in a migration is invisible to it, and `push --force` drops it as
+// unrecognized. That is what happened: the local stack never had the table,
+// and every Neon-backed limiter (13 of them) failed open. Columns mirror the
+// migration exactly; the adapter's own DDL is byte-identical, so push and
+// the migration agree on the shape.
+export const crafterRateLimits = pgTable(
+  "crafter_rate_limits",
+  {
+    key: text("key").primaryKey(),
+    count: bigint("count", { mode: "number" }).notNull(),
+    windowStartedAt: bigint("window_started_at", { mode: "number" }).notNull(),
+    expiresAt: bigint("expires_at", { mode: "number" }).notNull(),
+  },
+  (table) => ({
+    expiresAtIdx: index("crafter_rate_limits_expires_at_idx").on(
+      table.expiresAt,
+    ),
+  }),
+);
+
+export type CrafterRateLimit = typeof crafterRateLimits.$inferSelect;
+export type NewCrafterRateLimit = typeof crafterRateLimits.$inferInsert;
 
 export const wechatQrUploads = pgTable(
   "wechat_qr_uploads",
