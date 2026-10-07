@@ -15,8 +15,9 @@ import sharp from "sharp";
 
 import { db, schema } from "@/lib/db/client";
 import { userIdForHandle } from "@/lib/handles";
-import { fetchR2Asset } from "@/lib/r2-fetch";
+import { fetchR2AssetBuffer } from "@/lib/r2-fetch";
 import { toCurrentR2PublicUrl } from "@/lib/r2-public-url";
+import { readResponseBodyBounded } from "@/lib/response-body";
 import { isAllowedAssetUrl, isAllowedAvatarUrl } from "@/lib/url-allowlist";
 
 import { defaultLocale, hasLocale } from "@/i18n/config";
@@ -33,6 +34,10 @@ export const revalidate = 86400;
 const FRAME_W = 192;
 const FRAME_H = 208;
 const SPRITE_DISPLAY = 192; // square plate per sprite
+// Clerk avatar images are a few hundred KB at most; 2MB is generous headroom
+// while still refusing an upstream that streams something else entirely.
+const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
+const AVATAR_FETCH_TIMEOUT_MS = 5_000;
 
 export default async function Image({
   params,
@@ -361,9 +366,8 @@ export default async function Image({
 async function loadFirstFrameAsDataUrl(url: string): Promise<string | null> {
   if (!isAllowedAssetUrl(url)) return null;
   try {
-    const res = await fetchR2Asset(url, { redirect: "error" });
-    if (!res.ok) return null;
-    const buf = Buffer.from(await res.arrayBuffer());
+    const buf = await fetchR2AssetBuffer(url);
+    if (!buf) return null;
     const png = await sharp(buf)
       .extract({ left: 0, top: 0, width: FRAME_W, height: FRAME_H })
       .resize(SPRITE_DISPLAY - 24, SPRITE_DISPLAY - 24, { kernel: "nearest" })
@@ -378,9 +382,19 @@ async function loadFirstFrameAsDataUrl(url: string): Promise<string | null> {
 async function loadAvatarAsDataUrl(url: string): Promise<string | null> {
   if (!isAllowedAvatarUrl(url)) return null;
   try {
-    const res = await fetch(url, { redirect: "error" });
+    const res = await fetch(url, {
+      redirect: "error",
+      signal: AbortSignal.timeout(AVATAR_FETCH_TIMEOUT_MS),
+    });
     if (!res.ok) return null;
-    const buf = Buffer.from(await res.arrayBuffer());
+    // Avatars are not R2 assets, but the URL is still one the DB recorded
+    // (Clerk today, possibly proxied later), so the body gets the same
+    // deadline-and-ceiling treatment instead of an unbounded `arrayBuffer()`.
+    const buf = await readResponseBodyBounded(
+      res,
+      AVATAR_MAX_BYTES,
+      AVATAR_FETCH_TIMEOUT_MS,
+    );
     const png = await sharp(buf)
       .resize(220, 220, { fit: "cover" })
       .png()

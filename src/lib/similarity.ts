@@ -21,6 +21,7 @@ import {
   embedTextValue,
   PETDEX_EMBEDDING_MODEL,
 } from "@/lib/embeddings";
+import { fetchR2AssetBuffer } from "@/lib/r2-fetch";
 import { toCurrentR2PublicUrl } from "@/lib/r2-public-url";
 import { isAllowedAssetUrl } from "@/lib/url-allowlist";
 
@@ -32,9 +33,10 @@ export async function dhashFromSpriteUrl(
 ): Promise<string | null> {
   if (!isAllowedAssetUrl(spriteUrl)) return null;
   try {
-    const res = await fetch(spriteUrl);
-    if (!res.ok) return null;
-    const buf = Buffer.from(await res.arrayBuffer());
+    // The allowlist pins the host, but the body is whatever the bucket
+    // serves — bounded read with a deadline, same ceiling as the review path.
+    const buf = await fetchR2AssetBuffer(spriteUrl);
+    if (!buf) return null;
     return dhashFromSpriteBuffer(buf);
   } catch {
     return null;

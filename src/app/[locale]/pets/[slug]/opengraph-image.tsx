@@ -9,7 +9,7 @@ import { ImageResponse } from "next/og";
 import sharp from "sharp";
 
 import { getPet } from "@/lib/pets";
-import { fetchR2Asset } from "@/lib/r2-fetch";
+import { fetchR2AssetBuffer } from "@/lib/r2-fetch";
 import { isAllowedAssetUrl } from "@/lib/url-allowlist";
 
 import { defaultLocale, hasLocale } from "@/i18n/config";
@@ -313,10 +313,10 @@ async function loadFirstFrameAsDataUrl(url: string): Promise<string | null> {
   }
   try {
     // No `cache: "force-cache"` — sprites are >2MB and Next's data cache caps
-    // at 2MB. R2 + the route's own ISR handle caching at the CDN edge.
-    const res = await fetchR2Asset(url, { redirect: "error" });
-    if (!res.ok) return null;
-    const buf = Buffer.from(await res.arrayBuffer());
+    // at 2MB. R2 + the route's own ISR handle caching at the CDN edge. The
+    // bounded helper adds a deadline and the 8MB upload ceiling on top.
+    const buf = await fetchR2AssetBuffer(url);
+    if (!buf) return null;
 
     // Crop the first idle frame (top-left cell of the 6×9 grid), upscale
     // with nearest-neighbor to keep crisp pixels, and encode as PNG so
