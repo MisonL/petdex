@@ -124,10 +124,6 @@ export async function persistSubmission(
   const resendKey = process.env.RESEND_API_KEY;
   const ownerNotify = process.env.PETDEX_OWNER_EMAIL;
   if (resendKey && ownerNotify) {
-    // SMTP header injection defense — strip control chars from anything
-    // that could end up in a header. The Resend SDK probably escapes, but
-    // we don't trust user-controlled fields anywhere near a header.
-    const safeName = body.displayName.replace(/[\r\n\t]+/g, " ").slice(0, 80);
     void (async () => {
       try {
         const resend = new Resend(resendKey);
@@ -140,10 +136,15 @@ export async function persistSubmission(
           spritesheetUrl: body.spritesheetUrl,
           zipUrl: body.zipUrl,
         });
+        // The subject is header-safe by construction: the template runs
+        // `sanitizeSubject` over the interpolated name. The previous defense
+        // here — `subject.replace(displayName, safeName)` — was bypassable,
+        // because a replacement string expands `$&` and a name containing it
+        // re-inserted the matched CRLF.
         await resend.emails.send({
           from: "Petdex <petdex@notifications.crafter.run>",
           to: ownerNotify,
-          subject: email.subject.replace(body.displayName, safeName),
+          subject: email.subject,
           html: email.html,
           text: email.text,
         });
