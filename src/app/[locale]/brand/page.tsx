@@ -1,7 +1,7 @@
 import Image from "next/image";
 
 import { Download, ExternalLink } from "lucide-react";
-import { getTranslations } from "next-intl/server";
+import { getTranslations, setRequestLocale } from "next-intl/server";
 
 import { buildLocaleAlternates } from "@/lib/locale-routing";
 
@@ -61,6 +61,11 @@ const COLORS = [
   { key: "ink", value: "#1A1D2E", className: "bg-[#1a1d2e]" },
 ] as const;
 
+// See the note in `about/page.tsx`: `revalidate` alone leaves the static/
+// dynamic classification up to build-time detection, which is what let the
+// deployed `/about` route drift into E132. This page reads no dynamic data,
+// so `force-static` only makes its ISR explicit.
+export const dynamic = "force-static";
 export const revalidate = 3600;
 
 export async function generateMetadata({
@@ -87,7 +92,18 @@ export async function generateMetadata({
   };
 }
 
-export default async function BrandPage() {
+export default async function BrandPage({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  // This page is prerendered, and its default export has to read `params`:
+  // with the signature above, /es and /zh each get a render in their own
+  // locale, and without it every locale prefix was served the one default
+  // render — header nav included. `setRequestLocale` pins the nested
+  // `getTranslations` below to that same locale.
+  const { locale } = await params;
+  setRequestLocale(hasLocale(locale) ? locale : "en");
   const t = await getTranslations("brand");
 
   return (

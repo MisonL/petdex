@@ -14,6 +14,17 @@ import { hasLocale } from "@/i18n/config";
 
 const SITE_URL = "https://petdex.dev";
 
+// `force-static` pins the static/dynamic classification at build time. Without
+// it the page is only *conditionally* static: `getApprovedPetCount()` reaches
+// Redis through `cachedAggregate`, whose Upstash client fetches with
+// `cache: "no-store"` — a dynamic signal. A build that has no `UPSTASH_*`
+// (the Docker builder) short-circuits before that fetch and prerenders the
+// route as SSG; the same route at runtime, with Redis configured, then takes
+// the no-store path and Next throws E132 "Page changed from static to dynamic"
+// for every locale that was prerendered. Every other content page in this
+// directory declares `force-static` for the same reason; this one and
+// `brand/page.tsx` were the only two that did not.
+export const dynamic = "force-static";
 export const revalidate = 3600;
 
 export async function generateMetadata({
