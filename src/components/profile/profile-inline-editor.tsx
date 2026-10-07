@@ -48,8 +48,11 @@ export function ProfileInlineEditor({
 
   // The route answers with an internal code, and this panel used to render it
   // through `error.replace(/_/g, " ")` — which turns `handle_taken` into
-  // "HANDLE TAKEN", not a sentence in any language. Map the codes the route
-  // actually sends; anything else falls back to one message carrying the code.
+  // "HANDLE TAKEN", not a sentence in any language. Map every code
+  // `validateProfileHandle` can put on the wire (the route sends
+  // `handle_${validation}`, and the validator returns too_short, too_long,
+  // invalid_format and reserved); anything else falls back to one message
+  // carrying the code.
   const errorKey = (() => {
     if (!error) return null;
     switch (error) {
@@ -60,9 +63,14 @@ export function ProfileInlineEditor({
       case "invalid_display_name":
         return "invalidDisplayName";
       case "invalid_handle":
+      case "handle_invalid_format":
         return "invalidHandle";
       case "handle_too_short":
         return "handleTooShort";
+      case "handle_too_long":
+        return "handleTooLong";
+      case "handle_reserved":
+        return "handleReserved";
       case "handle_taken":
         return "handleTaken";
       case "invalid_bio":

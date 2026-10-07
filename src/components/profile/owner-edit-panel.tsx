@@ -64,10 +64,14 @@ async function readSpriteVersionFromPetJson(file: File): Promise<1 | 2> {
 }
 
 // The routes answer with these codes; the panel used to render the raw one
-// through `error.replace(/_/g, " ")`.
+// through `error.replace(/_/g, " ")`. `unauthorized` and the upload-stage
+// codes the panel throws itself land here too; everything else falls back to
+// `failed`, which carries the code, so an unmapped server code still reads as
+// a sentence rather than `handle_taken`-style shouting.
 const EDIT_ERROR_KEYS: Record<string, string> = {
   unauthorized: "unauthorized",
   not_found: "notFound",
+  pet_not_found: "notFound",
   invalid_json_file: "invalidJsonFile",
   invalid_sprite_version: "invalidSpriteVersion",
   presign_failed: "presignFailed",
@@ -75,6 +79,20 @@ const EDIT_ERROR_KEYS: Record<string, string> = {
   sprite_upload_failed: "spriteUploadFailed",
   missing_petjson_slot: "missingPetJsonSlot",
   metadata_upload_failed: "metadataUploadFailed",
+  // applyPetEdit — the PATCH /api/my-pets/[id]/edit handler.
+  only_approved_editable: "onlyApprovedEditable",
+  display_name_too_short: "displayNameTooShort",
+  description_too_short: "descriptionTooShort",
+  description_too_long: "descriptionTooLong",
+  invalid_tags: "invalidTags",
+  invalid_asset_url: "invalidAssetUrl",
+  asset_no_longer_available: "assetNoLongerAvailable",
+  nothing_changed: "nothingChanged",
+  rate_limited: "rateLimited",
+  url_in_field: "urlInField",
+  blocked_content: "blockedContent",
+  // edit-presign — the POST the panel calls before uploading assets.
+  pet_not_editable: "petNotEditable",
 };
 
 const MAX_SPRITE_BYTES = PET_ASSET_MAX_BYTES;
