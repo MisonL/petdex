@@ -1740,7 +1740,7 @@
     "vibeEyebrow": "Vibe: {vibe}",
     "relatedKinds": "Other kinds",
     "relatedVibes": "Related vibes",
-    "count": "{count, plural, =1 {1 pet in this collection} other {# pets in this collection}}",
+    "count": "{count, plural, =1 {1 pet} other {# pets}}",
     "kinds": {
       "creature": {
         "title": "Animated creature pets for coding agents",

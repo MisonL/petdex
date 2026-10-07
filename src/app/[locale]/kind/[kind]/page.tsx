@@ -95,11 +95,19 @@ export default async function KindPage({ params }: Props) {
     locale: hasLocale(locale) ? locale : "en",
     namespace: "taxonomy",
   });
-  const related = otherKinds.map((k) => ({
-    href: withLocale(`/kind/${k}`, localeValue),
-    label: tTaxonomy(`kinds.${k}`),
-    count: results.facets.kinds[k] ?? 0,
-  }));
+  const related = otherKinds
+    // The count filter is redundant while every kind has pets, but the
+    // sibling vibe page needs it and this page 404s at total === 0 — link
+    // only facets a visitor can actually open. Ties break alphabetically
+    // for a deterministic chip order.
+    .map((k) => [k, results.facets.kinds[k] ?? 0] as const)
+    .filter(([, count]) => count > 0)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([k, count]) => ({
+      href: withLocale(`/kind/${k}`, localeValue),
+      label: tTaxonomy(`kinds.${k}`),
+      count,
+    }));
 
   const jsonLd = {
     "@context": "https://schema.org",

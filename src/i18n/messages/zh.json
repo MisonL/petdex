@@ -2004,7 +2004,7 @@
     "vibeEyebrow": "风格：{vibe}",
     "relatedKinds": "其他类型",
     "relatedVibes": "相关风格",
-    "count": "这个合集里有 {count} 只宠物",
+    "count": "共 {count} 只宠物",
     "kinds": {
       "creature": {
         "title": "面向编程智能体的动物类动画宠物",

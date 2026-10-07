@@ -150,8 +150,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }
 
   // A facet with no approved pets calls `notFound()`, so listing it advertises
-  // a 404 (eight of the twelve vibes are in that state today). The counts come
-  // from the same `unstable_cache`d aggregate the facet pages read.
+  // a 404 — which is why the filter below is not cosmetic: every one of the
+  // twelve vibes is populated in production today, but the set is data-driven
+  // and a vibe can empty out (and on a fresh local seed most of them are). The
+  // counts come from the same `unstable_cache`d aggregate the facet pages read.
   //
   // `loadFacetsForSitemap`, not `loadFacets`: the latter also reads Upstash,
   // and any Redis call from this route makes Next render it dynamically —

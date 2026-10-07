@@ -18,7 +18,7 @@ import { getMetricsBySlugs } from "@/lib/db/metrics";
 import { formatLocalizedNumber } from "@/lib/format-number";
 import { userIdForHandle, viewerIdForFallbackHandle } from "@/lib/handles";
 import { getOwnerRank } from "@/lib/leaderboard";
-import { buildLocaleAlternates } from "@/lib/locale-routing";
+import { buildLocaleAlternates, withLocale } from "@/lib/locale-routing";
 import { type PetWithMetrics, rowToPet } from "@/lib/pets";
 import { toCurrentR2PublicUrl } from "@/lib/r2-public-url";
 
@@ -155,7 +155,12 @@ export default async function UserProfilePage({ params }: PageProps) {
     where: eq(schema.userProfiles.userId, ownerId),
   });
   if (profile?.handle && profile.handle !== requestedHandle) {
-    redirect(`/u/${profile.handle}`);
+    // Locale-prefixed: a bare `/u/...` drops a zh/es visitor back to the
+    // default-locale profile mid-session (the same `withLocale` the rest of
+    // this tree uses for internal navigation).
+    redirect(
+      withLocale(`/u/${profile.handle}`, hasLocale(locale) ? locale : "en"),
+    );
   }
   const publicHandle =
     profile?.handle ?? username?.toLowerCase() ?? requestedHandle;

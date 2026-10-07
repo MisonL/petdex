@@ -7,11 +7,14 @@ import { Bug, Heart, Lightbulb, MessageSquare } from "lucide-react";
 import { getLocale, getTranslations } from "next-intl/server";
 
 import { db, schema } from "@/lib/db/client";
+import { withLocale } from "@/lib/locale-routing";
 
 import { FullAuthProviders } from "@/components/auth/auth-providers";
 import { MyFeedbackFilters } from "@/components/feedback/my-feedback-filters";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+
+import { hasLocale } from "@/i18n/config";
 
 export const dynamic = "force-dynamic";
 
@@ -67,7 +70,7 @@ export default async function MyFeedbackPage({
   const locale = await getLocale();
   const { userId } = await auth();
   if (!userId) {
-    redirect("/");
+    redirect(withLocale("/", hasLocale(locale) ? locale : "en"));
   }
 
   const sp = await searchParams;

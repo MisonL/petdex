@@ -1740,7 +1740,7 @@
     "vibeEyebrow": "Estilo: {vibe}",
     "relatedKinds": "Otros tipos",
     "relatedVibes": "Estilos relacionados",
-    "count": "{count, plural, =1 {1 mascota en esta colección} other {# mascotas en esta colección}}",
+    "count": "{count, plural, =1 {1 mascota} other {# mascotas}}",
     "kinds": {
       "creature": {
         "title": "Mascotas animadas de tipo criatura para agentes de código",

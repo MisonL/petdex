@@ -93,11 +93,16 @@ export default async function VibePage({ params }: Props) {
     locale: hasLocale(locale) ? locale : "en",
     namespace: "taxonomy",
   });
-  const related = PET_VIBES.map(
-    (v) => [v, results.facets.vibes[v] ?? 0] as const,
-  )
-    .filter(([v]) => v !== vibe)
-    .sort((a, b) => b[1] - a[1])
+  const related = PET_VIBES.map((v) => {
+    const count = results.facets.vibes[v] ?? 0;
+    return [v, count] as const;
+  })
+    // Exclude the current vibe, then drop empty siblings: the page 404s at
+    // total === 0, and linking an empty facet hands the visitor that same
+    // 404. Ties break alphabetically so the chip order is deterministic
+    // (Array#sort is not guaranteed stable across engines).
+    .filter(([v, count]) => v !== vibe && count > 0)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .slice(0, 6)
     .map(([v, count]) => ({
       href: withLocale(`/vibe/${v}`, localeValue),
