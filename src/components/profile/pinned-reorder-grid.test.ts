@@ -46,4 +46,29 @@ describe("PinnedReorderGrid behavior contract", () => {
     expect(en.pinnedReorder.restore).toBeTruthy();
     expect(en.pinnedReorder.saveError).toContain("{error}");
   });
+
+  it("maps known save codes to a localized message, not the raw code", () => {
+    // The sibling gallery-reorder-grid maps /api/profile's codes through
+    // ERROR_KEYS; this grid used to interpolate the raw code into the
+    // sentence, so a failure read "Could not save order:
+    // pet_not_owned_or_not_approved". The raw code stays only as the
+    // unknown-code fallback.
+    expect(source).toContain("ERROR_KEYS");
+    expect(source).toMatch(/t\(`errors\.\$\{ERROR_KEYS\[error\]\}`\)/);
+    // Every code the PATCH route can return for this call is mapped.
+    for (const code of [
+      "unauthorized",
+      "rate_limited",
+      "invalid_featured",
+      "pet_not_owned_or_not_approved",
+      "pin_cap_reached",
+    ]) {
+      expect(source).toContain(`${code}:`);
+    }
+    // The mapped messages exist in the catalogue, so the render cannot fall
+    // through to a missing-key error.
+    for (const key of Object.values(en.pinnedReorder.errors)) {
+      expect(key).toBeTruthy();
+    }
+  });
 });

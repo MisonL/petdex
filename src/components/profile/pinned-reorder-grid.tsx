@@ -38,6 +38,18 @@ import {
   shouldResetPinnedOrderFromProps,
 } from "@/components/profile/profile-pinning-state";
 
+// The save is a PATCH to /api/profile, whose error codes are the same set the
+// gallery reorder grid maps. Without this the user sees the raw code
+// (`pet_not_owned_or_not_approved`) interpolated into a localized sentence.
+const ERROR_KEYS: Record<string, string> = {
+  unauthorized: "unauthorized",
+  rate_limited: "rateLimited",
+  invalid_featured: "invalidOrder",
+  pet_not_owned_or_not_approved: "noOwnedPets",
+  pin_cap_reached: "tooManyItems",
+  nothing_to_update: "emptyOrder",
+};
+
 type PinnedReorderGridProps = {
   pets: PetWithMetrics[];
   petStateCount: number;
@@ -172,7 +184,10 @@ export function PinnedReorderGrid({
         const body = (await res.json().catch(() => ({}))) as {
           error?: string;
         };
-        throw new Error(body.error ?? `save failed (${res.status})`);
+        // Keep the code, not the message: the render below maps it through
+        // ERROR_KEYS, and a raw code would otherwise be interpolated into the
+        // localized sentence.
+        throw new Error(body.error ?? `save_failed_${res.status}`);
       }
       setSavedSlugs(slugs);
       onOrderChange?.(slugs);
@@ -268,7 +283,11 @@ export function PinnedReorderGrid({
 
       {error ? (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
-          <p>{t("saveError", { error })}</p>
+          <p>
+            {ERROR_KEYS[error]
+              ? t(`errors.${ERROR_KEYS[error]}`)
+              : t("saveError", { error })}
+          </p>
           <div className="flex items-center gap-2">
             <button
               type="button"

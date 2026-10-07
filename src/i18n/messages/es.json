@@ -1564,7 +1564,15 @@
     "count": "{count} de {max}",
     "retry": "Reintentar",
     "restore": "Restaurar el orden guardado",
-    "dragHint": "Arrastra una mascota por su asa para reordenar. Los cambios se guardan al soltar."
+    "dragHint": "Arrastra una mascota por su asa para reordenar. Los cambios se guardan al soltar.",
+    "errors": {
+      "unauthorized": "Inicia sesión antes de reordenar.",
+      "rateLimited": "Demasiados cambios. Inténtalo en unos minutos.",
+      "invalidOrder": "No se pudo leer ese orden.",
+      "noOwnedPets": "Ninguna de esas mascotas es tuya.",
+      "tooManyItems": "Puedes fijar como máximo 6 mascotas.",
+      "emptyOrder": "No hay nada que guardar."
+    }
   },
   "ownerCollections": {
     "title": "Mis colecciones",

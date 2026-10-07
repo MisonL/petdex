@@ -1828,7 +1828,15 @@
     "count": "{count}/{max}",
     "retry": "重试",
     "restore": "恢复已保存的顺序",
-    "dragHint": "拖动宠物的把手即可调整顺序，松手后自动保存。"
+    "dragHint": "拖动宠物的把手即可调整顺序，松手后自动保存。",
+    "errors": {
+      "unauthorized": "请先登录再调整顺序。",
+      "rateLimited": "改动太频繁，请几分钟后再试。",
+      "invalidOrder": "无法读取该顺序。",
+      "noOwnedPets": "这些宠物都不属于你。",
+      "tooManyItems": "最多只能置顶 6 只宠物。",
+      "emptyOrder": "没有可保存的内容。"
+    }
   },
   "ownerCollections": {
     "title": "我的合集",

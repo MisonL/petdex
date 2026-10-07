@@ -1564,7 +1564,15 @@
     "count": "{count} of {max}",
     "retry": "Retry",
     "restore": "Restore saved order",
-    "dragHint": "Drag a pet by its handle to reorder. Changes save when you drop."
+    "dragHint": "Drag a pet by its handle to reorder. Changes save when you drop.",
+    "errors": {
+      "unauthorized": "Sign in before reordering.",
+      "rateLimited": "Too many changes. Try again in a few minutes.",
+      "invalidOrder": "That order could not be read.",
+      "noOwnedPets": "None of those pets are yours.",
+      "tooManyItems": "You can pin at most 6 pets.",
+      "emptyOrder": "There is nothing to save."
+    }
   },
   "ownerCollections": {
     "title": "My collections",
