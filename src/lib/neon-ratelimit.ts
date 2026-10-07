@@ -3,10 +3,13 @@ import {
   fixedWindow,
   Limiter,
   type RateLimitResult,
+  type Storage,
 } from "@crafter/limit";
+import { memory } from "@crafter/limit/memory";
 import { neonHttp } from "@crafter/limit/neon";
 import { neon } from "@neondatabase/serverless";
 
+import { isLocalDatabaseUrl } from "./db/url-classification";
 import { IS_MOCK } from "./mock";
 
 type NeonRatelimit = {
@@ -26,19 +29,32 @@ const mockResult: RateLimitResult = {
   reset: 0,
 };
 
-let storage: ReturnType<typeof neonHttp> | null = null;
+let storage: Storage | null = null;
 
-function getStorage(): ReturnType<typeof neonHttp> {
+function getStorage(): Storage {
   if (storage) return storage;
-  if (!process.env.DATABASE_URL) {
+  const url = process.env.DATABASE_URL;
+  if (!url) {
     throw new Error("DATABASE_URL is not set");
   }
-  storage = neonHttp({
-    client: neon(process.env.DATABASE_URL),
-    failureMode: "open",
-    onError: (error) => console.error("Neon rate limit failed", error),
-  });
-  return storage;
+  // A plain local Postgres cannot be reached by the Neon HTTP adapter — every
+  // call throws `Unable to connect` and the limiter fails open, so rate
+  // limiting silently did nothing in the environments contributors actually
+  // run (`bun run dev:docker` and the self-contained deploy stack). Those run
+  // a single app instance, so an in-process counter is the right storage
+  // there; `allowInServerless` only acknowledges the library's guard for the
+  // odd host that sets a serverless marker while pointing at a local URL.
+  // Production is a Neon URL and keeps the distributed adapter — this branch
+  // triggers only for loopback and the compose service name.
+  const created: Storage = isLocalDatabaseUrl(url)
+    ? memory({ allowInServerless: true })
+    : neonHttp({
+        client: neon(url),
+        failureMode: "open",
+        onError: (error) => console.error("Neon rate limit failed", error),
+      });
+  storage = created;
+  return created;
 }
 
 export function createNeonRatelimit(

@@ -14,22 +14,9 @@ import { IS_MOCK } from "../mock";
 import { getMockDb, mockDbReady } from "../mock/db";
 import { runAtomicReturning } from "./atomic";
 import * as schema from "./schema";
+import { isLocalDatabaseUrl } from "./url-classification";
 
 type DrizzleDb = ReturnType<typeof drizzleNeon<typeof schema>>;
-
-function isLocalUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    return (
-      parsed.hostname === "localhost" ||
-      parsed.hostname === "127.0.0.1" ||
-      parsed.hostname === "::1" ||
-      parsed.hostname === "postgres" // docker compose service name
-    );
-  } catch {
-    return false;
-  }
-}
 
 function buildClient(): DrizzleDb {
   if (IS_MOCK) {
@@ -43,7 +30,7 @@ function buildClient(): DrizzleDb {
   // websocket protocol. Detect localhost URLs and switch to the
   // postgres-js driver so `bun run dev:docker` Just Works against the
   // container stack.
-  if (isLocalUrl(process.env.DATABASE_URL)) {
+  if (isLocalDatabaseUrl(process.env.DATABASE_URL)) {
     const sql = postgres(process.env.DATABASE_URL, { max: 5 });
     const inner = drizzlePostgres(sql, { schema });
     // postgres-js returns the row array directly from .execute(); the
