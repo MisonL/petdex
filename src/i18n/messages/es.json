@@ -69,10 +69,10 @@
     "kindsDesc": "Animales, personajes, criaturas, objetos",
     "vibesDesc": "Cozy, edgy, místico, heroico y más",
     "build": "Crear",
-    "buildDesc": "Hacé y publicá tu pixel pet",
+    "buildDesc": "Haz y publica tu pixel pet",
     "createDesc": "Crea un pet con la skill Hatch Pet, 5 min de idea a sprite",
-    "submitDesc": "Subí tu carpeta y Petdex lo hostea para todos",
-    "docsDesc": "Instala el Petdex CLI y publicá pets por npm",
+    "submitDesc": "Sube tu carpeta y Petdex lo hostea para todos",
+    "docsDesc": "Instala el Petdex CLI y publica pets por npm",
     "builtWith": "Hecho con Petdex",
     "builtWithDesc": "Apps que la comunidad está shippeando sobre el formato Petdex",
     "communityDesc": "Discord con canales de shipping y voice rooms",
@@ -380,8 +380,8 @@
         "descriptionLabel": "Descripción",
         "descriptionPlaceholder": "Ingresa una descripción corta",
         "licenseLabel": "Licencia",
-        "licensePlaceholder": "Elegí una licencia",
-        "licenseHint": "Vos mantenés el copyright. Esto le dice a los demás qué pueden hacer con tu arte.",
+        "licensePlaceholder": "Elige una licencia",
+        "licenseHint": "Tú mantienes el copyright. Esto le dice a los demás qué pueden hacer con tu arte.",
         "licenseOption": {
           "cc0": "CC0 — dominio público, sin crédito",
           "cc-by": "CC BY — cualquier uso, con crédito",
@@ -625,7 +625,7 @@
     },
     "eyebrow": "Hecho con Petdex",
     "title": "Proyectos reales. Integraciones reales.",
-    "subtitle": "Una guía editorial de {total} productos open source y source-available construidos con Petdex. Mirá qué shippean, cómo se integran y hacia dónde van.",
+    "subtitle": "Una guía editorial de {total} productos open source y source-available construidos con Petdex. Mira qué shippean, cómo se integran y hacia dónde van.",
     "stats": {
       "stars": "{total} stars combinadas",
       "projects": "{total} proyectos",
@@ -636,7 +636,7 @@
       "updatedLabel": "Actualizado"
     },
     "cta": {
-      "submit": "Enviá tu proyecto",
+      "submit": "Envía tu proyecto",
       "starPetdex": "Dale star a Petdex",
       "browseRegistry": "Explorar el registro"
     },
@@ -646,8 +646,8 @@
     },
     "chapters": {
       "eyebrow": "La guía del ecosistema",
-      "title": "Explorá por capítulo",
-      "description": "Recorré el ecosistema Petdex por categoría. Cada capítulo muestra qué están shippeando y cómo le dan vida a Petdex.",
+      "title": "Explora por capítulo",
+      "description": "Recorre el ecosistema Petdex por categoría. Cada capítulo muestra qué están shippeando y cómo le dan vida a Petdex.",
       "viewAll": "Ver todos ({count})"
     },
     "registry": {
@@ -686,13 +686,13 @@
     },
     "submit": {
       "eyebrow": "Cómo entrar a la lista",
-      "title": "Shippeá algo con Petdex, después postulá",
-      "step1": "Construí algo que consuma la galería, la API o el formato de Petdex con atribución explícita.",
-      "step2": "Abrí un issue de GitHub usando el template \"Add my project to /built-with\".",
-      "step3": "Mandanos una cita como evidencia (link al README o ruta del código que prueba la integración).",
+      "title": "Shippea algo con Petdex, después postula",
+      "step1": "Construye algo que consuma la galería, la API o el formato de Petdex con atribución explícita.",
+      "step2": "Abre un issue de GitHub usando el template \"Add my project to /built-with\".",
+      "step3": "Mándanos una cita como evidencia (link al README o ruta del código que prueba la integración).",
       "step4": "Revisamos, tomamos un screenshot 1280x720 y mergeamos.",
       "openIssue": "Abrir issue de submission",
-      "summary": "Construí con la galería, la API o el formato de pets, agregá atribución explícita y mandanos la evidencia. Revisamos cada entrada antes de publicarla."
+      "summary": "Construye con la galería, la API o el formato de pets, agrega atribución explícita y mándanos la evidencia. Revisamos cada entrada antes de publicarla."
     },
     "card": {
       "screenshotAlt": "Screenshot de {name}",
@@ -1234,7 +1234,10 @@
     "metadata": {
       "title": "{name}: mascota animada de Codex",
       "description": "Instala {name} para Codex: {description} Un solo comando, pixel art animado, {tags}.",
-      "tagsFallback": "código abierto"
+      "tagsFallback": "código abierto",
+      "keywordCodexPet": "{name}, mascota de Codex",
+      "keywordPixelPet": "{name}, mascota pixel art",
+      "keywordCodexPetShort": "mascota de Codex"
     },
     "partOf": "Parte de",
     "counters": {
@@ -1907,7 +1910,7 @@
           },
           "desktop": {
             "title": "Inicializa escritorio y hooks",
-            "body": "Bajá la app de escritorio. Conecta tus agentes de código desde su ventana de Ajustes, sin terminal.",
+            "body": "Baja la app de escritorio. Conecta tus agentes de código desde su ventana de Ajustes, sin terminal.",
             "result": "La mascota flota sobre tu espacio de trabajo y reacciona a cada tool call.",
             "link": "Descargar Petdex Desktop"
           },
@@ -1965,16 +1968,16 @@
         "intro": "Petdex Desktop es una mascota flotante que vive sobre tu espacio de trabajo y reacciona a las llamadas de herramientas de tu agente de código. macOS, Linux y Windows. Mira <download>/download</download> para el recorrido visual.",
         "sidecarCallout": "La aplicación de escritorio expone un servidor HTTP local de hooks integrado en el proceso en el puerto <code>7777</code>. Cualquier programa que pueda usar <code>curl</code> y leer el token de cada sesión en <code>~/.petdex/runtime/update-token</code> puede controlar la mascota. El token cambia en cada inicio de la aplicación y el archivo tiene permisos <code>0600</code>, por lo que solo tu usuario puede leerlo. Los navegadores y sitios remotos no pueden:",
         "windowTitle": "Convivir con la mascota",
-        "windowBody": "La mascota flota sobre todas las ventanas y nunca roba el foco. Los clics atraviesan la burbuja de actividad hacia lo que haya detrás, así que un mensaje sobre tu editor no puede tragarse una tecla. El sprite sí se arrastra: agarralo y soltalo donde quieras.",
+        "windowBody": "La mascota flota sobre todas las ventanas y nunca roba el foco. Los clics atraviesan la burbuja de actividad hacia lo que haya detrás, así que un mensaje sobre tu editor no puede tragarse una tecla. El sprite sí se arrastra: agárralo y suéltalo donde quieras.",
         "shortcutsTitle": "Atajos",
-        "shortcutsBody": "Pasá el cursor sobre la mascota y apretá <kbd>Cmd</kbd> + <kbd>,</kbd> para abrir Ajustes, o <kbd>Cmd</kbd> + <kbd>W</kbd> para guardarla. Los dos están también en el menú Pet mientras la app tiene el foco.",
+        "shortcutsBody": "Pasa el cursor sobre la mascota y aprieta <kbd>Cmd</kbd> + <kbd>,</kbd> para abrir Ajustes, o <kbd>Cmd</kbd> + <kbd>W</kbd> para guardarla. Los dos están también en el menú Pet mientras la app tiene el foco.",
         "settingsTitle": "Qué hay en Ajustes",
-        "settingsPets": "<strong>Mascotas.</strong> Buscá entre las instaladas, previsualizá cada una y cambiá la activa sin reiniciar. Cada mascota que dejes en la carpeta aparece acá.",
-        "settingsAgents": "<strong>Agentes.</strong> Muestra qué agentes de código hay en la máquina y si sus hooks están conectados. Instalá o desconectá cualquiera con un clic; la app escribe los hooks sola, sin terminal.",
-        "settingsAppearance": "<strong>Apariencia.</strong> Ajustá el tamaño del sprite y apagá la burbuja de actividad si preferís que la mascota esté callada.",
+        "settingsPets": "<strong>Mascotas.</strong> Busca entre las instaladas, previsualiza cada una y cambia la activa sin reiniciar. Cada mascota que dejes en la carpeta aparece acá.",
+        "settingsAgents": "<strong>Agentes.</strong> Muestra qué agentes de código hay en la máquina y si sus hooks están conectados. Instala o desconecta cualquiera con un clic; la app escribe los hooks sola, sin terminal.",
+        "settingsAppearance": "<strong>Apariencia.</strong> Ajusta el tamaño del sprite y apaga la burbuja de actividad si prefieres que la mascota esté callada.",
         "chatgptTitle": "Mascotas de ChatGPT",
         "chatgptBody": "ChatGPT exporta mascotas como spritesheet de 1536x2288, que es exactamente el atlas que Petdex ya lee: las mismas nueve filas de estados, los mismos conteos de frames. Una mascota hecha allá funciona acá sin conversión.",
-        "chatgptImport": "<strong>Traer una.</strong> Descargá la spritesheet desde ChatGPT y soltá el PNG en <submit>/submit</submit>. Petdex mide la grilla, genera el pet.json que la exportación no trae, y te muestra una vista previa animada antes de ponerle nombre.",
+        "chatgptImport": "<strong>Traer una.</strong> Descarga la spritesheet desde ChatGPT y suelta el PNG en <submit>/submit</submit>. Petdex mide la grilla, genera el pet.json que la exportación no trae, y te muestra una vista previa animada antes de ponerle nombre.",
         "chatgptExport": "<strong>Llevarte una.</strong> Cada página de mascota tiene un botón Open in Codex que la instala en la app de escritorio de ChatGPT. Importar directo desde un link para compartir de ChatGPT no se puede: esas URLs están atadas a la sesión del navegador que las creó."
       },
       "distribute": {

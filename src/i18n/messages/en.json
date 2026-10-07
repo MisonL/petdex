@@ -1234,7 +1234,10 @@
     "metadata": {
       "title": "{name}: Animated Codex pet",
       "description": "Install {name} for Codex: {description} One command, animated pixel art, {tags}.",
-      "tagsFallback": "open source"
+      "tagsFallback": "open source",
+      "keywordCodexPet": "{name} Codex pet",
+      "keywordPixelPet": "{name} pixel pet",
+      "keywordCodexPetShort": "Codex pet"
     },
     "partOf": "Part of",
     "counters": {

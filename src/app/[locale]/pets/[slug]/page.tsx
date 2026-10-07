@@ -102,9 +102,9 @@ export async function generateMetadata({ params }: PageProps) {
     ),
     keywords: [
       pet.displayName,
-      `${pet.displayName} Codex pet`,
-      `${pet.displayName} pixel pet`,
-      "Codex pet",
+      tMeta("keywordCodexPet", { name: pet.displayName }),
+      tMeta("keywordPixelPet", { name: pet.displayName }),
+      tMeta("keywordCodexPetShort"),
       ...pet.tags.slice(0, 4),
       ...pet.vibes.slice(0, 2),
     ],

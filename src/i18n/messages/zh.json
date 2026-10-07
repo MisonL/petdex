@@ -1439,7 +1439,10 @@
     "metadata": {
       "title": "{name}：Codex 动画宠物",
       "description": "为 Codex 安装 {name}：{description} 一条命令、动画像素画、{tags}。",
-      "tagsFallback": "开源"
+      "tagsFallback": "开源",
+      "keywordCodexPet": "{name} Codex 宠物",
+      "keywordPixelPet": "{name} 像素宠物",
+      "keywordCodexPetShort": "Codex 宠物"
     },
     "partOf": "所属合集",
     "counters": {
