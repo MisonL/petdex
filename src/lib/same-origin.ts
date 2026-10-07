@@ -50,7 +50,7 @@ function vercelHosts(): string[] {
 /**
  * The origins this deployment is configured to serve, from `PETDEX_URL`.
  *
- * `SITE_HOSTS` names petdex.dev and localhost, so a self-hosted deployment
+ * `SITE_ORIGINS` names petdex.dev and localhost, so a self-hosted deployment
  * (a container on its own origin) rejected its own browser origin: a
  * same-origin `fetch()` POST sends `Origin: <that origin>`, and every
  * guarded endpoint 403s. The compose deployment hit this on

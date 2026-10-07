@@ -119,7 +119,7 @@ describe("isSameOrigin", () => {
     // The aliases exist for one server, not for whatever else is listening on
     // the machine. Admitting every port would make this an allowlist for the
     // whole loopback interface. (`localhost` with no port is already allowed
-    // outright by SITE_HOSTS for local dev, so the probe uses a port.)
+    // outright by SITE_ORIGINS for local dev, so the probe uses a port.)
     process.env.PETDEX_URL = "http://127.0.0.1:3100";
     expect(isSameOrigin(post("http://localhost:4000"))).toBe(false);
     expect(isSameOrigin(post("http://127.0.0.1:4000"))).toBe(false);
@@ -132,12 +132,12 @@ describe("isSameOrigin", () => {
     // than `host`.
     process.env.PETDEX_URL = "http://127.0.0.1:3100";
     expect(isSameOrigin(post("https://127.0.0.1:3100"))).toBe(false);
-    expect(isSameOrigin(post("https://petdex.dev"))).toBe(true); // SITE_HOSTS
+    expect(isSameOrigin(post("https://petdex.dev"))).toBe(true); // SITE_ORIGINS
   });
 
   test("a non-loopback PETDEX_URL gets no aliases", () => {
     // Aliases are only for the loopback names; a real host does not get them.
-    // Probed with a port so SITE_HOSTS' bare `localhost` entry does not answer
+    // Probed with a port so SITE_ORIGINS' bare `localhost` entry does not answer
     // for the alias path being tested.
     process.env.PETDEX_URL = "https://petdex.example.com";
     expect(isSameOrigin(post("http://localhost:3100"))).toBe(false);
