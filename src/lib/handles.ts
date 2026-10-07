@@ -18,6 +18,19 @@ export function fallbackHandle(userId: string): string {
   return userId.slice(-FALLBACK_HANDLE_LENGTH).toLowerCase();
 }
 
+// A handle the reverse lookup's id-suffix sweep will accept: exactly
+// FALLBACK_HANDLE_LENGTH characters, lowercased. The character class has to
+// cover everything `fallbackHandle` can emit, or the /u/<handle> links built
+// from it 404 for the very user they were generated for. Clerk ids and the
+// seed/mock ids are alphanumeric plus `_` (`user_seed_dev` → `seed_dev`),
+// and profile handles additionally allow `-`; a narrower class here silently
+// rejects those tails.
+export function isFallbackHandleShape(handle: string): boolean {
+  return (
+    handle.length === FALLBACK_HANDLE_LENGTH && /^[a-z0-9_-]+$/.test(handle)
+  );
+}
+
 export function viewerIdForFallbackHandle(
   handle: string,
   viewerId: string | null,
@@ -124,13 +137,10 @@ async function resolveUserIdForHandle(
   }
 
   // Fallback: id-suffix lookup. We accept the handle if it matches the
-  // FALLBACK_LENGTH and only contains safe characters, then sweep the
-  // tables that store userIds (pets, requests, feedback, profiles) for
-  // any id whose tail matches. Refuses ambiguous matches (>1 user).
-  if (
-    normalized.length === FALLBACK_HANDLE_LENGTH &&
-    /^[a-z0-9]+$/.test(normalized)
-  ) {
+  // fallback shape, then sweep the tables that store userIds (pets,
+  // requests, feedback, profiles) for any id whose tail matches. Refuses
+  // ambiguous matches (>1 user).
+  if (isFallbackHandleShape(normalized)) {
     try {
       const { db, schema } = await import("@/lib/db/client");
       const { sql } = await import("drizzle-orm");
