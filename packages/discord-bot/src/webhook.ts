@@ -92,6 +92,15 @@ async function postPetApproved(
   await channel.send({
     content: `🎉 **${ev.pet.displayName}** just landed on Petdex — submitted by ${mention}.`,
     embeds: [embed],
+    // Pet names are user-supplied, and mention parsing in regular messages
+    // defaults to all types — a name containing `<@&role-id>` or
+    // `@everyone` would ping when this lands. `parse: []` suppresses every
+    // mention type; the explicit `users` list then re-allows the one
+    // mention the line above constructs on purpose. The only invalid mix
+    // per Discord's docs is `parse: ["users"]` together with `users`.
+    allowedMentions: ev.pet.discordUserId
+      ? { parse: [], users: [ev.pet.discordUserId] }
+      : { parse: [] },
   });
 }
 
