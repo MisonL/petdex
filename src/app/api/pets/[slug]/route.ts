@@ -57,10 +57,16 @@ export async function GET(
     return NextResponse.json({ error: "pet_not_found" }, { status: 404 });
   }
 
-  return NextResponse.json({
-    id: row.id,
-    slug: row.slug,
-    status: row.status,
-    displayName: row.displayName,
-  });
+  return NextResponse.json(
+    {
+      id: row.id,
+      slug: row.slug,
+      status: row.status,
+      displayName: row.displayName,
+    },
+    // Bearer-scoped data: never let a shared cache hold it. Cloudflare
+    // does not cache Authorization'd requests by default, but the header
+    // is the app's own guarantee, and the sibling private routes set it.
+    { headers: { "Cache-Control": "private, no-store" } },
+  );
 }
