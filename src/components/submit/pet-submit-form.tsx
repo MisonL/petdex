@@ -564,22 +564,37 @@ export function PetSubmitForm() {
 
     setSubmission({ kind: "uploading", step: "registering" });
 
-    const res = await fetch("/api/submit", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        zipUrl,
-        spritesheetUrl,
-        petJsonUrl,
-        displayName,
-        description,
-        petId: parsed.petId,
-        spritesheetWidth: parsed.spritesheetWidth,
-        spritesheetHeight: parsed.spritesheetHeight,
-        spriteVersionNumber: parsed.spriteVersionNumber,
-        license,
-      }),
-    });
+    // The fetch and the response parse are outside the upload try/catch above:
+    // a dropped connection, a 502 from the edge, or a body that is not JSON
+    // rejects here, and without this block the state stays on "registering"
+    // forever — the button keeps spinning on "Finalizing…" with no error card
+    // and no way to retry, while the three R2 objects are already uploaded.
+    let res: Response;
+    try {
+      res = await fetch("/api/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          zipUrl,
+          spritesheetUrl,
+          petJsonUrl,
+          displayName,
+          description,
+          petId: parsed.petId,
+          spritesheetWidth: parsed.spritesheetWidth,
+          spritesheetHeight: parsed.spritesheetHeight,
+          spriteVersionNumber: parsed.spriteVersionNumber,
+          license,
+        }),
+      });
+    } catch (err) {
+      const reason = (err as Error).message ?? "network";
+      setSubmission({
+        kind: "error",
+        message: t("errors.uploadFailed", { reason }),
+      });
+      return;
+    }
 
     if (!res.ok) {
       const data = (await res.json().catch(() => ({}))) as {
@@ -594,7 +609,16 @@ export function PetSubmitForm() {
       return;
     }
 
-    const data = (await res.json()) as SubmitResponse;
+    let data: SubmitResponse;
+    try {
+      data = (await res.json()) as SubmitResponse;
+    } catch {
+      setSubmission({
+        kind: "error",
+        message: t("errors.submissionFailed"),
+      });
+      return;
+    }
     setSubmission({
       kind: "success",
       slug: data.slug,
