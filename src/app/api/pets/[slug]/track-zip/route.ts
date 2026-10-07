@@ -4,17 +4,13 @@ import { eq } from "drizzle-orm";
 
 import { db, schema } from "@/lib/db/client";
 import { incrementZipDownloadCount } from "@/lib/db/metrics";
+import { publicTrafficGuardKey } from "@/lib/public-traffic-guard";
 import { trackZipRatelimit } from "@/lib/ratelimit";
 import { requireSameOrigin } from "@/lib/same-origin";
 
 export const runtime = "nodejs";
 
 type Params = { slug: string };
-
-function clientKey(req: Request): string {
-  const xff = req.headers.get("x-forwarded-for") ?? "";
-  return xff.split(",")[0]?.trim() || "anon";
-}
 
 export async function POST(
   req: Request,
@@ -27,7 +23,9 @@ export async function POST(
   // and require the slug to actually exist. Without these, a bash loop
   // can inflate any pet's zip-download counter and pollute pet_metrics
   // with rows for fake slugs.
-  const { success } = await trackZipRatelimit.limit(clientKey(req));
+  const { success } = await trackZipRatelimit.limit(
+    publicTrafficGuardKey(req.headers),
+  );
   if (!success) {
     return NextResponse.json({ error: "rate_limited" }, { status: 429 });
   }

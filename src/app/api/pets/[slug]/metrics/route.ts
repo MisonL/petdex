@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getMetricsForSlug, getMetricsSummary } from "@/lib/db/metrics";
 import { PET_METRICS_CACHE_CONTROL } from "@/lib/pet-metrics-cache";
+import { publicTrafficGuardKey } from "@/lib/public-traffic-guard";
 import { metricsReadRatelimit } from "@/lib/ratelimit";
 import { requireSameOrigin } from "@/lib/same-origin";
 
@@ -26,9 +27,9 @@ export async function GET(
   const csrf = requireSameOrigin(req);
   if (csrf) return csrf;
 
-  const ip =
-    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  const lim = await metricsReadRatelimit.limit(ip);
+  const lim = await metricsReadRatelimit.limit(
+    publicTrafficGuardKey(req.headers),
+  );
   if (!lim.success) {
     return NextResponse.json({ error: "rate_limited" }, { status: 429 });
   }

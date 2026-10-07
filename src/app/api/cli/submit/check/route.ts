@@ -12,6 +12,7 @@ import { and, eq, inArray } from "drizzle-orm";
 
 import { verifyCliBearer } from "@/lib/cli-auth";
 import { db, schema } from "@/lib/db/client";
+import { publicTrafficGuardKey } from "@/lib/public-traffic-guard";
 import { cliVerifyRatelimit } from "@/lib/ratelimit";
 import { deriveSlug } from "@/lib/submissions";
 
@@ -22,13 +23,10 @@ const MAX_CANDIDATES = 100;
 type Candidate = { petId?: string; slugHint?: string };
 type Body = { candidates?: Candidate[] };
 
-function clientIp(req: Request): string {
-  const xff = req.headers.get("x-forwarded-for") ?? "";
-  return xff.split(",")[0]?.trim() || "anon";
-}
-
 export async function POST(req: Request): Promise<Response> {
-  const verifyLim = await cliVerifyRatelimit.limit(clientIp(req));
+  const verifyLim = await cliVerifyRatelimit.limit(
+    publicTrafficGuardKey(req.headers),
+  );
   if (!verifyLim.success) {
     return NextResponse.json({ error: "rate_limited" }, { status: 429 });
   }

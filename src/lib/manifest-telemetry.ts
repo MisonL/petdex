@@ -4,6 +4,7 @@
 // write.
 
 import { db, schema } from "@/lib/db/client";
+import { publicTrafficGuardKey } from "@/lib/public-traffic-guard";
 
 function newId(): string {
   return `mfetch_${crypto.randomUUID().replace(/-/g, "").slice(0, 22)}`;
@@ -30,11 +31,9 @@ export async function logManifestFetch(
 ): Promise<void> {
   try {
     const h = req.headers;
-    // Vercel injects x-real-ip / x-forwarded-for; fallback chain.
-    const ip =
-      h.get("x-real-ip") ??
-      h.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-      "unknown";
+    // Same key helper as the rate limiters: prefers the platform-set
+    // `x-real-ip`, falls through to `x-forwarded-for`, then a constant.
+    const ip = publicTrafficGuardKey(h);
     const ipHash = await hashIp(ip);
     const userAgent = h.get("user-agent")?.slice(0, 200) ?? null;
     const country = h.get("x-vercel-ip-country") ?? null;

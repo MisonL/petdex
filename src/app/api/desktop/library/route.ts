@@ -2,17 +2,15 @@ import { NextResponse } from "next/server";
 
 import { verifyCliBearer } from "@/lib/cli-auth";
 import { getDesktopLibrary } from "@/lib/desktop-library";
+import { publicTrafficGuardKey } from "@/lib/public-traffic-guard";
 import { cliVerifyRatelimit } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
 
-function clientIp(req: Request): string {
-  const forwarded = req.headers.get("x-forwarded-for") ?? "";
-  return forwarded.split(",")[0]?.trim() || "anon";
-}
-
 export async function GET(req: Request): Promise<Response> {
-  const limit = await cliVerifyRatelimit.limit(clientIp(req));
+  const limit = await cliVerifyRatelimit.limit(
+    publicTrafficGuardKey(req.headers),
+  );
   if (!limit.success) {
     return NextResponse.json({ error: "rate_limited" }, { status: 429 });
   }

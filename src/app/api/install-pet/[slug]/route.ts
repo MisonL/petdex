@@ -10,6 +10,7 @@
  * style installs. This one is a typed JSON contract for programmatic clients.
  */
 import { resolveInstallablePet } from "@/lib/install-script";
+import { publicTrafficGuardKey } from "@/lib/public-traffic-guard";
 import { installCounterRatelimit } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
@@ -54,9 +55,8 @@ export async function GET(
 
   // Rate-limited fire-and-forget metric (mirror the script endpoint).
   void (async () => {
-    const xff = req.headers.get("x-forwarded-for") ?? "";
-    const ip = xff.split(",")[0]?.trim() || "anon";
-    const { success } = await installCounterRatelimit.limit(ip);
+    const key = publicTrafficGuardKey(req.headers);
+    const { success } = await installCounterRatelimit.limit(key);
     if (success) {
       const { incrementInstallCount } = await import("@/lib/db/metrics");
       await incrementInstallCount(slug).catch(() => {});

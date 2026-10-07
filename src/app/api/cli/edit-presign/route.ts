@@ -13,6 +13,7 @@ import {
   buildPendingAssetKey,
   type PendingAssetRole,
 } from "@/lib/pending-asset";
+import { publicTrafficGuardKey } from "@/lib/public-traffic-guard";
 import { presignPut } from "@/lib/r2";
 import { cliVerifyRatelimit, editPresignRatelimit } from "@/lib/ratelimit";
 
@@ -26,13 +27,10 @@ type Body = {
   spritesheetExt?: "webp" | "png";
 };
 
-function clientIp(req: Request): string {
-  const xff = req.headers.get("x-forwarded-for") ?? "";
-  return xff.split(",")[0]?.trim() || "anon";
-}
-
 export async function POST(req: Request): Promise<Response> {
-  const verifyLim = await cliVerifyRatelimit.limit(clientIp(req));
+  const verifyLim = await cliVerifyRatelimit.limit(
+    publicTrafficGuardKey(req.headers),
+  );
   if (!verifyLim.success) {
     return NextResponse.json({ error: "rate_limited" }, { status: 429 });
   }
