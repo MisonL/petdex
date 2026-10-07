@@ -12,10 +12,18 @@
 // Allow same-origin, the canonical site URL, the Vercel URL of the running
 // deployment (preview or production), and localhost for local dev.
 
-const SITE_HOSTS = new Set<string>([
-  "petdex.dev",
-  "localhost:3000",
-  "localhost",
+// Compared as full origins, not hosts, so the scheme is part of the entry.
+// A host-only check admitted `http://petdex.dev` on the https site: the app
+// never serves that origin (Cloudflare 308s it to https and HSTS pins it),
+// so nothing legitimate carries it, and a request that does is claiming a
+// site this deployment is not. The loopback names keep both schemes because
+// local dev serves plain http and a dev over https is still the same server.
+const SITE_ORIGINS = new Set<string>([
+  "https://petdex.dev",
+  "http://localhost:3000",
+  "https://localhost:3000",
+  "http://localhost",
+  "https://localhost",
 ]);
 
 /**
@@ -90,16 +98,19 @@ export function isSameOrigin(req: Request): boolean {
     } catch {
       return false;
     }
-    if (SITE_HOSTS.has(parsed.host)) return true;
+    if (SITE_ORIGINS.has(parsed.origin)) return true;
     // Compared as a full origin, not a host, so the scheme has to match the
     // configured one: an `http://` deployment must not accept an `https://`
     // origin of the same host, and vice versa.
     if (configuredOrigins().has(parsed.origin)) return true;
     return vercelHosts().includes(parsed.host);
   }
-  // No Origin header. Use Sec-Fetch-Site as a fallback.
+  // No Origin header. Use Sec-Fetch-Site as a fallback. Only `same-origin`
+  // and `none` qualify: `same-site` covers sibling subdomains, which are not
+  // this app's origin, and browsers that set Sec-Fetch-Site send Origin on
+  // every state-changing request anyway.
   const sfs = req.headers.get("sec-fetch-site");
-  if (sfs === "same-origin" || sfs === "same-site" || sfs === "none") {
+  if (sfs === "same-origin" || sfs === "none") {
     return true;
   }
   // No Origin and no Sec-Fetch-Site: this is most likely a non-browser

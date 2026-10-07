@@ -64,6 +64,14 @@ describe("isSameOrigin", () => {
     expect(isSameOrigin(post("https://attacker.example.com"))).toBe(false);
   });
 
+  test("rejects the plain-http origin of the site's own host", () => {
+    // The site is https-only (Cloudflare 308s http and HSTS pins it), so no
+    // legitimate page runs at `http://petdex.dev` and no request carries that
+    // Origin. The host-only check used to admit it.
+    expect(isSameOrigin(post("http://petdex.dev"))).toBe(false);
+    expect(isSameOrigin(post("https://petdex.dev"))).toBe(true);
+  });
+
   test("rejects a malformed Origin", () => {
     expect(isSameOrigin(post("not a url"))).toBe(false);
   });
@@ -148,5 +156,17 @@ describe("isSameOrigin", () => {
       headers: { "sec-fetch-site": "cross-site" },
     });
     expect(isSameOrigin(crossSite)).toBe(false);
+  });
+
+  test("Sec-Fetch-Site same-site is not this origin", () => {
+    // `same-site` includes sibling subdomains, which this app does not serve
+    // and which are not part of its origin. Browsers that send Sec-Fetch-Site
+    // also send Origin on state-changing requests, so nothing legitimate
+    // reaches this fallback with `same-site`.
+    const sibling = new Request("https://petdex.dev/api/pets/boba/like", {
+      method: "POST",
+      headers: { "sec-fetch-site": "same-site" },
+    });
+    expect(isSameOrigin(sibling)).toBe(false);
   });
 });
