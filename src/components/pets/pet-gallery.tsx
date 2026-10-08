@@ -346,7 +346,7 @@ export function PetGallery({
     <section className="space-y-5">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="font-mono text-xs tracking-[0.18em] text-brand-light uppercase">
+          <p className="font-mono text-xs tracking-[0.18em] text-brand uppercase dark:text-brand-light">
             {t("eyebrow", { totalPets })}
           </p>
           <h2 className="mt-1.5 text-3xl font-medium tracking-tight text-black md:text-4xl dark:text-stone-100">
@@ -409,7 +409,7 @@ export function PetGallery({
             <SlidersHorizontal className="size-3.5" />
             {t("filtersButton")}
             {activeFilterCount > 0 ? (
-              <span className="grid size-4.5 place-items-center rounded-full bg-brand font-mono text-[9px] font-semibold text-white">
+              <span className="grid size-4.5 place-items-center rounded-full bg-brand font-mono text-[9px] font-semibold text-on-inverse">
                 {activeFilterCount}
               </span>
             ) : null}
@@ -690,7 +690,7 @@ export function PetGallery({
 
       {searchMode === "vibe" && pets.length > 0 ? (
         <div className="flex items-center gap-2 rounded-2xl border border-brand-light/35 bg-brand-tint/70 px-4 py-2.5 text-sm text-muted-1">
-          <span className="grid size-6 shrink-0 place-items-center rounded-full bg-brand text-white">
+          <span className="grid size-6 shrink-0 place-items-center rounded-full bg-brand text-on-inverse">
             <Sparkles className="size-3" />
           </span>
           <span>{t("vibeMatch", { query: trimmedQuery })}</span>
@@ -729,10 +729,16 @@ export function PetGallery({
         <div
           ref={sentinelRef}
           className="flex items-center justify-center py-8"
-          aria-hidden="true"
         >
           {loadingMore ? (
-            <span className="inline-flex items-center gap-2 font-mono text-[11px] tracking-[0.18em] text-muted-3 uppercase">
+            // aria-hidden belongs on the transient spinner, not the wrapper:
+            // the wrapper also holds the "Load more" button, which is the
+            // only manual way to load the next page (the IntersectionObserver
+            // sentinel never fires for a keyboard user who does not scroll).
+            <span
+              aria-hidden="true"
+              className="inline-flex items-center gap-2 font-mono text-[11px] tracking-[0.18em] text-muted-3 uppercase"
+            >
               <Loader2 className="size-3.5 animate-spin" />
               {t("loadingMore")}
             </span>
@@ -1358,7 +1364,7 @@ function NoResults({
               type="button"
               onClick={submitRequest}
               disabled={state.tag === "submitting"}
-              className="inline-flex h-10 items-center gap-1.5 rounded-full bg-brand px-4 text-sm font-medium text-white transition hover:bg-brand-deep disabled:opacity-60"
+              className="inline-flex h-10 items-center gap-1.5 rounded-full bg-brand px-4 text-sm font-medium text-on-inverse transition hover:bg-brand-deep disabled:opacity-60"
             >
               <Plus className="size-4" />
               {state.tag === "submitting"

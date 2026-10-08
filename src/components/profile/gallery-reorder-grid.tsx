@@ -173,7 +173,7 @@ export function GalleryReorderGrid({ pets, children }: Props) {
         <p className="text-xs text-muted-2">{t("dragInstruction")}</p>
         <div className="flex items-center gap-2">
           {error ? (
-            <span className="text-xs text-destructive">
+            <span role="alert" className="text-xs text-destructive">
               {ERROR_KEYS[error]
                 ? t(`errors.${ERROR_KEYS[error]}`)
                 : t("saveFailed", { code: error })}

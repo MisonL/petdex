@@ -76,7 +76,7 @@ export function DesktopReleaseDialog() {
           <Link
             href={localizePath(locale, "/download")}
             onClick={() => handleOpenChange(false)}
-            className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-brand px-5 text-sm font-semibold text-white transition hover:bg-brand-deep"
+            className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-brand px-5 text-sm font-semibold text-on-inverse transition hover:bg-brand-deep"
           >
             <ArrowDownToLine className="size-4" />
             {t("cta")}

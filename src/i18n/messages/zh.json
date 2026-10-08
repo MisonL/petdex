@@ -8,7 +8,8 @@
     "browseGallery__fixme": true,
     "github": "GitHub",
     "petdexHome": "Petdex 首页",
-    "close": "关闭"
+    "close": "关闭",
+    "skipToContent": "跳到主要内容"
   },
   "metadata": {
     "root": {
@@ -1103,7 +1104,12 @@
         "failed": "编辑保存失败：{code}",
         "unknown": "编辑保存失败。"
       },
-      "spritePreviewAlt": "精灵预览"
+      "spritePreviewAlt": "精灵预览",
+      "a11y": {
+        "close": "关闭",
+        "removeSprite": "移除已选的精灵图集",
+        "removeMeta": "移除已选的 pet.json"
+      }
     },
     "eyebrow": "仪表盘",
     "submissionCount": "{count, plural, =0 {暂无提交} =1 {1 份提交} other {# 份提交}}",
@@ -2460,6 +2466,9 @@
       "petNotOwned": "其中一只置顶宠物不属于你，或尚未通过审核。",
       "nothingToUpdate": "没有需要更新的内容。",
       "failed": "资料保存失败：{code}"
+    },
+    "a11y": {
+      "close": "关闭"
     }
   },
   "notifications": {
@@ -2482,7 +2491,8 @@
     "fallbackYourPet": "你的宠物",
     "fallbackYourSubmission": "你的提交",
     "fallbackARequest": "某个需求",
-    "fallbackEllipsis": "..."
+    "fallbackEllipsis": "...",
+    "unreadLabel": "未读"
   },
   "feedbackThread": {
     "kindFallback": "反馈",

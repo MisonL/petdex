@@ -1,12 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 
 import { Loader2, Pencil, Pin, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { MAX_PINNED_PETS } from "@/lib/profiles";
+import { useFocusTrap } from "@/lib/use-focus-trap";
 
 import { useHeaderState } from "@/components/layout/header-state-provider";
 
@@ -37,6 +38,8 @@ export function ProfileInlineEditor({
   const te = useTranslations("profileEditor.errors");
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  useFocusTrap(open, dialogRef);
   const [displayName, setDisplayName] = useState(initialDisplayName ?? "");
   const [profileHandle, setProfileHandle] = useState(handle);
   const [bio, setBio] = useState(initialBio ?? "");
@@ -143,7 +146,9 @@ export function ProfileInlineEditor({
 
       {open ? (
         <div
+          ref={dialogRef}
           aria-modal
+          aria-labelledby="profile-inline-editor-title"
           role="dialog"
           tabIndex={-1}
           className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4"
@@ -157,7 +162,10 @@ export function ProfileInlineEditor({
           <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-surface p-6 shadow-xl">
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-xl font-medium tracking-tight">
+                <h2
+                  id="profile-inline-editor-title"
+                  className="text-xl font-medium tracking-tight"
+                >
                   {tp("title")}
                 </h2>
                 <p className="mt-1 text-xs text-muted-3">
@@ -166,6 +174,7 @@ export function ProfileInlineEditor({
               </div>
               <button
                 type="button"
+                aria-label={tp("a11y.close")}
                 onClick={() => setOpen(false)}
                 className="rounded-full p-1 text-muted-3 hover:bg-surface-muted hover:text-foreground"
               >
@@ -278,7 +287,7 @@ export function ProfileInlineEditor({
                           }
                           className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
                             active
-                              ? "border-brand bg-brand text-white hover:bg-brand-deep"
+                              ? "border-brand bg-brand text-on-inverse hover:bg-brand-deep"
                               : "border-border-base bg-surface text-muted-2 hover:border-border-strong"
                           }`}
                         >

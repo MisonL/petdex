@@ -66,7 +66,7 @@ export default async function MyFeedbackThreadPage({
   return (
     <FullAuthProviders>
       <SiteHeader />
-      <main className="min-h-dvh pb-20">
+      <main id="main" className="min-h-dvh pb-20">
         <section className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-5 pt-10 pb-12 md:px-8 md:pt-14">
           <Link
             href="/my-feedback"

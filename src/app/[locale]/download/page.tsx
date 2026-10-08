@@ -99,64 +99,68 @@ export default async function DownloadPage({
   ];
 
   return (
-    <main className="relative min-h-dvh bg-background text-foreground">
+    <>
       <SiteHeader />
-
-      <DownloadHero />
-
-      <section
-        id="what-it-does"
-        className="mx-auto w-full max-w-[1440px] px-5 py-16 md:px-8"
+      <main
+        id="main"
+        className="relative min-h-dvh bg-background text-foreground"
       >
-        <div className="text-center">
-          <p className="font-mono text-xs tracking-[0.22em] text-brand uppercase">
-            {t("features.eyebrow")}
-          </p>
-          <h2 className="mt-3 text-3xl font-semibold tracking-tight md:text-4xl">
-            {t("features.title")}
-          </h2>
-        </div>
+        <DownloadHero />
 
-        <div className="mt-12 grid gap-6 md:grid-cols-3">
-          {features.map((feature) => {
-            const Icon = feature.icon;
-            return (
-              <div
-                key={feature.title}
-                className="flex flex-col gap-4 rounded-3xl border border-border-base bg-surface p-6"
-              >
-                <span className="grid size-10 shrink-0 place-items-center rounded-full bg-brand-tint text-brand ring-1 ring-brand/15 dark:bg-brand-tint-dark dark:ring-brand/25">
-                  <Icon className="size-5" />
-                </span>
-                <div>
-                  <h3 className="text-base font-semibold text-foreground">
-                    {feature.title}
-                  </h3>
-                  <p className="mt-1.5 text-sm leading-6 text-muted-2">
-                    {feature.description}
-                  </p>
+        <section
+          id="what-it-does"
+          className="mx-auto w-full max-w-[1440px] px-5 py-16 md:px-8"
+        >
+          <div className="text-center">
+            <p className="font-mono text-xs tracking-[0.22em] text-brand uppercase">
+              {t("features.eyebrow")}
+            </p>
+            <h2 className="mt-3 text-3xl font-semibold tracking-tight md:text-4xl">
+              {t("features.title")}
+            </h2>
+          </div>
+
+          <div className="mt-12 grid gap-6 md:grid-cols-3">
+            {features.map((feature) => {
+              const Icon = feature.icon;
+              return (
+                <div
+                  key={feature.title}
+                  className="flex flex-col gap-4 rounded-3xl border border-border-base bg-surface p-6"
+                >
+                  <span className="grid size-10 shrink-0 place-items-center rounded-full bg-brand-tint text-brand ring-1 ring-brand/15 dark:bg-brand-tint-dark dark:ring-brand/25">
+                    <Icon className="size-5" />
+                  </span>
+                  <div>
+                    <h3 className="text-base font-semibold text-foreground">
+                      {feature.title}
+                    </h3>
+                    <p className="mt-1.5 text-sm leading-6 text-muted-2">
+                      {feature.description}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      </section>
-      <section className="mx-auto w-full max-w-[1440px] px-5 py-10 md:px-8">
-        <div className="mx-auto max-w-2xl">
-          <Link
-            // `withLocale`, not `/${locale}`: the default locale is
-            // unprefixed, so the literal form sent English readers to
-            // `/en/docs`, which only redirects back to `/docs`.
-            href={withLocale("/docs", locale)}
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-brand transition hover:text-brand-deep"
-          >
-            {t("docsLink")}
-            <ArrowRight className="size-4" />
-          </Link>
-        </div>
-      </section>
+              );
+            })}
+          </div>
+        </section>
+        <section className="mx-auto w-full max-w-[1440px] px-5 py-10 md:px-8">
+          <div className="mx-auto max-w-2xl">
+            <Link
+              // `withLocale`, not `/${locale}`: the default locale is
+              // unprefixed, so the literal form sent English readers to
+              // `/en/docs`, which only redirects back to `/docs`.
+              href={withLocale("/docs", locale)}
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-brand transition hover:text-brand-deep"
+            >
+              {t("docsLink")}
+              <ArrowRight className="size-4" />
+            </Link>
+          </div>
+        </section>
 
-      <SiteFooter />
-    </main>
+        <SiteFooter />
+      </main>
+    </>
   );
 }

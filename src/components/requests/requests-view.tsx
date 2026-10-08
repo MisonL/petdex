@@ -547,6 +547,7 @@ function SortTab({
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={active}
       className={`inline-flex h-9 items-center gap-1.5 rounded-full border px-3 text-xs font-medium backdrop-blur transition ${
         active
           ? "border-brand/40 bg-brand/15 text-brand"
@@ -581,6 +582,7 @@ function RequestKindButton({
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={active}
       className={`rounded-2xl border px-3 py-2 text-left transition ${
         active
           ? "border-brand/40 bg-brand/10 text-foreground"

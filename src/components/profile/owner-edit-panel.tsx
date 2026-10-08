@@ -8,6 +8,7 @@ import { useLocale, useTranslations } from "next-intl";
 
 import { parseSpriteVersionNumber } from "@/lib/sprite-version";
 import { PET_ASSET_MAX_BYTES } from "@/lib/upload-limits";
+import { useFocusTrap } from "@/lib/use-focus-trap";
 
 type Pending = {
   displayName: string | null;
@@ -119,6 +120,8 @@ export function OwnerEditPanel({
   const locale = useLocale();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  useFocusTrap(open, dialogRef);
   const [pending, setPending] = useState<Pending | null>(initialPending);
   const [rejection, setRejection] = useState<string | null>(initialRejection);
   const [busy, setBusy] = useState(false);
@@ -437,7 +440,9 @@ export function OwnerEditPanel({
 
       {open ? (
         <div
+          ref={dialogRef}
           aria-modal
+          aria-labelledby="owner-edit-panel-title"
           role="dialog"
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 dark:bg-black/60"
           onClick={(e) => {
@@ -454,13 +459,17 @@ export function OwnerEditPanel({
           >
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-xl font-medium tracking-tight">
+                <h2
+                  id="owner-edit-panel-title"
+                  className="text-xl font-medium tracking-tight"
+                >
                   {t("modalTitle")}
                 </h2>
                 <p className="mt-1 text-xs text-muted-3">{t("modalBody")}</p>
               </div>
               <button
                 type="button"
+                aria-label={t("a11y.close")}
                 onClick={() => setOpen(false)}
                 className="rounded-full p-1 text-muted-4 hover:bg-surface-muted hover:text-foreground"
               >
@@ -566,6 +575,7 @@ export function OwnerEditPanel({
                     />
                     <button
                       type="button"
+                      aria-label={t("a11y.removeSprite")}
                       onClick={() => {
                         setSpriteFile(null);
                         setSpriteError(null);
@@ -615,6 +625,7 @@ export function OwnerEditPanel({
                     </span>
                     <button
                       type="button"
+                      aria-label={t("a11y.removeMeta")}
                       onClick={() => {
                         setMetaFile(null);
                         setMetaError(null);

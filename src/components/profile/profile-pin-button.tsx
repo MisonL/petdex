@@ -113,7 +113,7 @@ export function ProfilePinButton({
             ? "border-border-base bg-surface/90 text-brand hover:border-brand/30 hover:bg-brand-tint"
             : "border-black/10 bg-surface/90 text-muted-2 hover:border-border-strong hover:text-black"
           : optimisticPinned
-            ? "border-brand/40 bg-brand text-white hover:bg-brand-deep"
+            ? "border-brand/40 bg-brand text-on-inverse hover:bg-brand-deep"
             : "border-black/10 bg-surface/90 text-muted-2 hover:border-border-strong hover:text-black"
       }`}
     >

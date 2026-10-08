@@ -97,34 +97,36 @@ export default async function StickerCollectionPage({
   };
 
   return (
-    <main className="min-h-dvh bg-background text-foreground">
+    <>
       <SiteHeader />
-      <section className="mx-auto w-full max-w-[1440px] px-5 py-10 md:px-8 md:py-16">
-        <p className="font-mono text-xs tracking-[0.22em] text-brand uppercase">
-          {t("eyebrow")}
-        </p>
-        <div className="mt-3 mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
-          <div>
-            <h1 className="text-balance text-4xl font-semibold tracking-tight md:text-6xl">
-              {t("title", { collection: collection.title })}
-            </h1>
-            <p className="mt-3 max-w-2xl text-base leading-7 text-muted-1 md:text-lg">
-              {t("description")}
+      <main id="main" className="min-h-dvh bg-background text-foreground">
+        <section className="mx-auto w-full max-w-[1440px] px-5 py-10 md:px-8 md:py-16">
+          <p className="font-mono text-xs tracking-[0.22em] text-brand uppercase">
+            {t("eyebrow")}
+          </p>
+          <div className="mt-3 mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
+            <div>
+              <h1 className="text-balance text-4xl font-semibold tracking-tight md:text-6xl">
+                {t("title", { collection: collection.title })}
+              </h1>
+              <p className="mt-3 max-w-2xl text-base leading-7 text-muted-1 md:text-lg">
+                {t("description")}
+              </p>
+            </div>
+            <p className="font-mono text-xs text-muted-2">
+              {t("count", { count: collection.pets.length })}
             </p>
           </div>
-          <p className="font-mono text-xs text-muted-2">
-            {t("count", { count: collection.pets.length })}
-          </p>
-        </div>
-        <StickerExplorer
-          collection={collection}
-          initialQuery={initialQuery}
-          labels={labels}
-          demo={demo}
-        />
-      </section>
-      <SiteFooter />
-    </main>
+          <StickerExplorer
+            collection={collection}
+            initialQuery={initialQuery}
+            labels={labels}
+            demo={demo}
+          />
+        </section>
+        <SiteFooter />
+      </main>
+    </>
   );
 }
 

@@ -6,7 +6,8 @@
     "browseGallery": "Browse gallery",
     "github": "GitHub",
     "petdexHome": "Petdex home",
-    "close": "Close"
+    "close": "Close",
+    "skipToContent": "Skip to content"
   },
   "metadata": {
     "root": {
@@ -925,7 +926,12 @@
         "failed": "The edit could not be saved: {code}",
         "unknown": "The edit could not be saved."
       },
-      "spritePreviewAlt": "Sprite preview"
+      "spritePreviewAlt": "Sprite preview",
+      "a11y": {
+        "close": "Close",
+        "removeSprite": "Remove the selected spritesheet",
+        "removeMeta": "Remove the selected pet.json"
+      }
     },
     "eyebrow": "Dashboard",
     "submissionCount": "{count, plural, =0 {no submissions} =1 {1 submission} other {# submissions}}",
@@ -2151,6 +2157,9 @@
       "petNotOwned": "One of the pinned pets is not yours or is not approved.",
       "nothingToUpdate": "Nothing changed.",
       "failed": "Your profile could not be saved: {code}"
+    },
+    "a11y": {
+      "close": "Close"
     }
   },
   "notifications": {
@@ -2173,7 +2182,8 @@
     "fallbackYourPet": "Your pet",
     "fallbackYourSubmission": "Your submission",
     "fallbackARequest": "a request",
-    "fallbackEllipsis": "..."
+    "fallbackEllipsis": "...",
+    "unreadLabel": "Unread"
   },
   "feedbackThread": {
     "kindFallback": "Feedback",

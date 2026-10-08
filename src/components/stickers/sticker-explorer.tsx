@@ -198,7 +198,7 @@ export function StickerExplorer({
           <button
             type="button"
             onClick={copySticker}
-            className="inline-flex h-11 items-center gap-2 rounded-full bg-brand px-5 text-sm font-semibold text-white transition hover:brightness-110"
+            className="inline-flex h-11 items-center gap-2 rounded-full bg-brand px-5 text-sm font-semibold text-on-inverse transition hover:brightness-110"
           >
             <Copy className="size-4" />
             {labels.copy}

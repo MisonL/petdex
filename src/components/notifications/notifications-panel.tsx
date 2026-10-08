@@ -142,7 +142,9 @@ export function NotificationsPanel({
                         {title}
                       </p>
                       {isUnread ? (
-                        <span className="size-1.5 shrink-0 rounded-full bg-brand" />
+                        <span className="size-1.5 shrink-0 rounded-full bg-brand">
+                          <span className="sr-only">{t("unreadLabel")}</span>
+                        </span>
                       ) : null}
                       <span className="ml-auto shrink-0 font-mono text-[10px] tracking-[0.12em] text-muted-4 uppercase">
                         {relativeTime(n.createdAt, t, locale)}

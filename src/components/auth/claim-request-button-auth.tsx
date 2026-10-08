@@ -178,6 +178,7 @@ export function ClaimRequestButton({
                         <button
                           type="button"
                           onClick={() => setSelected(pet.id)}
+                          aria-pressed={active}
                           className={`flex w-full items-center gap-3 rounded-xl border p-2 text-left transition ${
                             active
                               ? "border-brand bg-brand-tint dark:bg-brand-tint-dark"

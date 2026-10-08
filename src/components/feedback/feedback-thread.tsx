@@ -171,7 +171,7 @@ export function FeedbackThread({
                   className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm leading-6 ring-1 ${
                     fromAdmin
                       ? "bg-surface-elev text-foreground ring-border-base"
-                      : "bg-brand text-white ring-brand/30"
+                      : "bg-brand text-on-inverse ring-brand/30"
                   }`}
                 >
                   <div

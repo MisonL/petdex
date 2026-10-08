@@ -67,7 +67,7 @@ export async function FacetPage({
   const cmd = `npx petdex install ${exampleSlug ?? pets[0]?.slug ?? "boba"}`;
 
   return (
-    <main className="min-h-dvh bg-background text-foreground">
+    <main id="main" className="min-h-dvh bg-background text-foreground">
       <section className="petdex-hero relative overflow-hidden">
         <div className="relative mx-auto flex w-full max-w-7xl flex-col px-5 pt-5 pb-10 md:px-8">
           <SiteHeader />

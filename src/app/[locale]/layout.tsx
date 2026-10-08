@@ -105,6 +105,7 @@ export default async function LocaleLayout({ children, params }: Props) {
   setRequestLocale(locale);
   const messages = await getMessages();
   const clientMessages = pickClientMessages(messages);
+  const t = await getTranslations({ locale, namespace: "common" });
 
   const isZh = locale === "zh";
 
@@ -115,6 +116,15 @@ export default async function LocaleLayout({ children, params }: Props) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
+        {/* First focusable element on the page: the header is tall and every
+            route repeats it, so keyboard users otherwise Tab through the whole
+            nav to reach the content. Every page's <main> carries id="main". */}
+        <a
+          href="#main"
+          className="sr-only focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-[200] focus:rounded-full focus:bg-surface focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-foreground focus:shadow-lg focus:ring-2 focus:ring-brand focus:outline-none"
+        >
+          {t("skipToContent")}
+        </a>
         <NextIntlClientProvider messages={clientMessages}>
           <AppProviders>
             <ConditionalAuthProviders>

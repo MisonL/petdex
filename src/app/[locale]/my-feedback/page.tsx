@@ -177,8 +177,8 @@ export default async function MyFeedbackPage({
 
   return (
     <FullAuthProviders>
-      <main className="min-h-dvh bg-background text-foreground">
-        <SiteHeader />
+      <SiteHeader />
+      <main id="main" className="min-h-dvh bg-background text-foreground">
         <section className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-5 pt-8 pb-20 md:px-8">
           <header className="space-y-3">
             <p className="font-mono text-xs tracking-[0.22em] text-brand uppercase">
@@ -242,7 +242,7 @@ export default async function MyFeedbackPage({
                               {kindLabel}
                             </span>
                             {unread ? (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-brand px-2 py-0.5 font-mono text-[10px] tracking-[0.12em] text-white uppercase">
+                              <span className="inline-flex items-center gap-1 rounded-full bg-brand px-2 py-0.5 font-mono text-[10px] tracking-[0.12em] text-on-inverse uppercase">
                                 {t("badges.newReply")}
                               </span>
                             ) : replied ? (
@@ -276,7 +276,10 @@ export default async function MyFeedbackPage({
                                       ·{" "}
                                       {new Date(lastAdminAt).toLocaleDateString(
                                         undefined,
-                                        { month: "short", day: "numeric" },
+                                        {
+                                          month: "short",
+                                          day: "numeric",
+                                        },
                                       )}
                                     </span>
                                   ) : null}
