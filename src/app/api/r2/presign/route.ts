@@ -65,6 +65,12 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   for (const f of files) {
+    // The cast above is compile-time only: `[null,null,null]` passes the
+    // length check and `f.contentType` on null throws. Refuse non-objects
+    // as a 400 instead of 500ing on the property access.
+    if (f === null || typeof f !== "object") {
+      return NextResponse.json({ error: "invalid_files" }, { status: 400 });
+    }
     if (!ALLOWED_CT.has(f.contentType)) {
       return NextResponse.json(
         { error: "unsupported_content_type", got: f.contentType },
@@ -98,7 +104,9 @@ export async function POST(req: Request): Promise<Response> {
   // Random short upload id for this batch — DB will keep the canonical slug
   // separately (server resolves uniqueness in /api/submit).
   const uploadId = crypto.randomUUID().replace(/-/g, "").slice(0, 12);
-  const slugHint = (body.slugHint ?? "pet")
+  // `slugHint` is an unchecked cast too: a number/array reached `.toLowerCase`
+  // and 500'd. Coerce, then let the slug filter normalize it.
+  const slugHint = String(body.slugHint ?? "pet")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")

@@ -30,6 +30,7 @@ import {
 import { editRatelimit } from "@/lib/ratelimit";
 import { refreshSimilarityFor } from "@/lib/similarity";
 import { normalizeSpriteVersionNumber } from "@/lib/sprite-version";
+import { MIN_SPRITE_DIM } from "@/lib/submissions-validation";
 import { containsUrl, URL_BLOCKED_REASON } from "@/lib/url-blocklist";
 
 export type PatchBody = {
@@ -185,12 +186,21 @@ function applyAssetFields(
     );
     if (error) return error;
     if (patch.pendingSpritesheetUrl !== null) {
-      if (typeof body.spritesheetWidth === "number") {
+      // `typeof === "number"` alone let 1536.5, Infinity and 1e21 through to
+      // an `integer` column, where Postgres rejects them and the whole edit
+      // 500s instead of 400ing. The submit path validates the same fields
+      // with Number.isSafeInteger plus a floor (submissions-validation.ts);
+      // match it, and treat a bad value the same as a missing one.
+      const validDim = (value: unknown): value is number =>
+        typeof value === "number" &&
+        Number.isSafeInteger(value) &&
+        value >= MIN_SPRITE_DIM;
+      if (validDim(body.spritesheetWidth)) {
         patch.pendingSpritesheetWidth = body.spritesheetWidth;
       } else if (previousUrl !== patch.pendingSpritesheetUrl) {
         patch.pendingSpritesheetWidth = null;
       }
-      if (typeof body.spritesheetHeight === "number") {
+      if (validDim(body.spritesheetHeight)) {
         patch.pendingSpritesheetHeight = body.spritesheetHeight;
       } else if (previousUrl !== patch.pendingSpritesheetUrl) {
         patch.pendingSpritesheetHeight = null;

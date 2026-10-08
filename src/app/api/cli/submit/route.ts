@@ -63,10 +63,13 @@ export async function POST(req: Request): Promise<Response> {
     return NextResponse.json({ error: "invalid_json" }, { status: 400 });
   }
 
+  // Both fields are unchecked casts: a number reached `.toLowerCase` inside
+  // sanitizeSlug/deriveSlug and 500'd. Coerce at the boundary; the slug
+  // filters then normalize whatever survives.
+  const slugHintSource =
+    String(body.slugHint ?? "") || String(body.petId ?? "");
   const slugHint =
-    sanitizeSlug(body.slugHint || body.petId || "") ||
-    deriveSlug(body.petId || body.slugHint || "") ||
-    "pet";
+    sanitizeSlug(slugHintSource) || deriveSlug(slugHintSource) || "pet";
   const ext: "webp" | "png" = body.spritesheetExt === "png" ? "png" : "webp";
   const spriteCT = ext === "png" ? "image/png" : "image/webp";
 

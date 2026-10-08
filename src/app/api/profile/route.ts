@@ -153,6 +153,18 @@ export async function PATCH(req: Request): Promise<Response> {
   }
 
   if (body.pin || body.unpin) {
+    // `pin`/`unpin` are typed as `{ slug: string }` but the body is an
+    // unchecked cast: `{pin:{slug:5}}` made `.trim` throw and 500 the route.
+    // The sibling fields above validate their shape; do the same here.
+    const slugOf = (value: unknown): string | null =>
+      typeof (value as { slug?: unknown })?.slug === "string"
+        ? (value as { slug: string }).slug.trim().toLowerCase()
+        : null;
+    const pinSlug = slugOf(body.pin);
+    const unpinSlug = slugOf(body.unpin);
+    if ((body.pin && pinSlug === null) || (body.unpin && unpinSlug === null)) {
+      return NextResponse.json({ error: "invalid_featured" }, { status: 400 });
+    }
     // Read current set if the caller didn't override via featuredPetSlugs.
     if (nextSlugs === null) {
       const current = await db.query.userProfiles.findFirst({
@@ -160,8 +172,8 @@ export async function PATCH(req: Request): Promise<Response> {
       });
       nextSlugs = (current?.featuredPetSlugs as string[] | undefined) ?? [];
     }
-    if (body.pin?.slug) {
-      const slug = body.pin.slug.trim().toLowerCase();
+    if (pinSlug) {
+      const slug = pinSlug;
       if (!nextSlugs.includes(slug)) {
         if (nextSlugs.length >= MAX_PINNED_PETS) {
           return NextResponse.json(
@@ -172,8 +184,8 @@ export async function PATCH(req: Request): Promise<Response> {
         nextSlugs = [...nextSlugs, slug];
       }
     }
-    if (body.unpin?.slug) {
-      const slug = body.unpin.slug.trim().toLowerCase();
+    if (unpinSlug) {
+      const slug = unpinSlug;
       nextSlugs = nextSlugs.filter((s) => s !== slug);
     }
   }

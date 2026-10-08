@@ -52,8 +52,14 @@ export async function POST(req: Request): Promise<Response> {
     ? (body.kind as "suggestion" | "bug" | "praise" | "other")
     : "suggestion";
   const message = String(body.message ?? "").trim();
-  const email = body.email?.trim() || null;
-  const pageUrl = body.pageUrl?.trim().slice(0, 500) || null;
+  // `?.` only guards null/undefined; a number or object here threw
+  // `.trim is not a function` and 500'd this anonymous endpoint. Coerce
+  // like `message`/`kind` above, then validate the coerced string.
+  const email = String(body.email ?? "").trim() || null;
+  const pageUrl =
+    String(body.pageUrl ?? "")
+      .trim()
+      .slice(0, 500) || null;
   const userAgent = req.headers.get("user-agent")?.slice(0, 500) ?? null;
 
   if (message.length < 4) {

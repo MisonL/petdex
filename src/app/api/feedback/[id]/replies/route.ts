@@ -104,8 +104,14 @@ export async function POST(
   } catch {
     return NextResponse.json({ error: "invalid_json" }, { status: 400 });
   }
+  // `req.json()` resolves `null` for a literal `null` body, and reading
+  // `.body` off it throws — the sibling `/api/feedback` route coerces its
+  // fields for the same reason. Refuse non-objects as a 400.
+  if (body === null || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "invalid_body" }, { status: 400 });
+  }
 
-  const text = (body.body ?? "").trim();
+  const text = String(body.body ?? "").trim();
   if (!text || text.length > 2000) {
     return NextResponse.json({ error: "invalid_body" }, { status: 400 });
   }
