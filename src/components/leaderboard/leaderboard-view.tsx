@@ -10,6 +10,8 @@ import { useLocale, useTranslations } from "next-intl";
 import { formatLocalizedNumber } from "@/lib/format-number";
 import type { LeaderboardMetric, LeaderboardRow } from "@/lib/leaderboard";
 
+import { onTablistKeyDown } from "@/components/ui/roving-tablist";
+
 type CreditMap = Record<
   string,
   {
@@ -163,6 +165,7 @@ function LeaderboardTable({
       <div
         role="tablist"
         aria-label={t("categoryAria")}
+        onKeyDown={onTablistKeyDown}
         className="flex flex-wrap items-center gap-1.5"
       >
         {TABS.map((tab) => {
@@ -174,6 +177,7 @@ function LeaderboardTable({
               type="button"
               role="tab"
               aria-selected={isActive}
+              tabIndex={isActive ? 0 : -1}
               onClick={() => onSelect(tab.id)}
               className={`inline-flex h-9 items-center gap-1.5 rounded-full border px-3 text-xs font-medium backdrop-blur transition ${
                 isActive

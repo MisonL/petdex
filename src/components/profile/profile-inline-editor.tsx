@@ -145,6 +145,10 @@ export function ProfileInlineEditor({
       } else {
         startTransition(() => router.refresh());
       }
+    } catch {
+      // A network failure rejects here; without this the handler rejected
+      // unhandled and the dialog sat with no message at all.
+      setError("network");
     } finally {
       setBusy(false);
     }

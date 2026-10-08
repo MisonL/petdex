@@ -148,6 +148,10 @@ function CollectionCard({
         return;
       }
       startTransition(() => router.refresh());
+    } catch {
+      // Network failure: without this the click produced only an unhandled
+      // rejection and the card looked untouched.
+      alert(t("deleteFailed", { code: "network" }));
     } finally {
       setDeleting(false);
     }
@@ -311,6 +315,10 @@ function CollectionForm({
       }
       onSaved();
       startTransition(() => router.refresh());
+    } catch {
+      // Network failure — keep the form open with a message instead of
+      // rejecting unhandled while the button quietly resets.
+      setError(t("saveFailed", { code: "network" }));
     } finally {
       setSaving(false);
     }

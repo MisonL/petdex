@@ -109,6 +109,7 @@
     "copy": "Copy sticker",
     "openExplorer": "Reactions",
     "copied": "Sticker copied",
+    "copyFailed": "Couldn't copy — please copy it manually.",
     "download": "Download WebP",
     "downloadWhatsApp": "WhatsApp WebP · 512px",
     "whatsappNote": "Animated WebP prepared to WhatsApp's media limits. This downloads one reaction, not an installable pack.",

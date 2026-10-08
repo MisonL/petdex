@@ -6,6 +6,7 @@ import { MousePointerClick, Package, Terminal } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { CommandLine } from "@/components/download/command-line";
+import { onTablistKeyDown } from "@/components/ui/roving-tablist";
 
 type InstallCommandProps = {
   slug: string;
@@ -106,6 +107,7 @@ export function InstallCommand({ slug, displayName }: InstallCommandProps) {
       <div
         role="tablist"
         aria-label={t("methodAria")}
+        onKeyDown={onTablistKeyDown}
         className="mt-3 flex items-center gap-0.5 rounded-full border border-border-base bg-surface/70 p-0.5 self-start w-fit"
       >
         <TabButton
@@ -200,6 +202,7 @@ function PlatformToggle({
     <div
       role="tablist"
       aria-label={t("platformAria")}
+      onKeyDown={onTablistKeyDown}
       className="inline-flex shrink-0 items-center gap-0.5 rounded-full border border-border-base bg-surface/70 p-0.5"
     >
       <PlatformBtn
@@ -241,6 +244,7 @@ function PlatformBtn({
       role="tab"
       aria-selected={active}
       aria-label={label}
+      tabIndex={active ? 0 : -1}
       onClick={onClick}
       title={label}
       className={`inline-flex size-7 items-center justify-center rounded-full transition ${
@@ -270,6 +274,7 @@ function TabButton({
       type="button"
       role="tab"
       aria-selected={selected}
+      tabIndex={selected ? 0 : -1}
       onClick={onClick}
       className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition ${
         selected

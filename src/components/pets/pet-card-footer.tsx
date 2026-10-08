@@ -32,6 +32,7 @@ function PetCardFooterImpl({
   soundUrl,
   installCount,
   likeCount,
+  initialLiked,
 }: PetCardFooterProps) {
   const { authActive, requestAuth } = useAuthIntent();
   const locale = useLocale();
@@ -45,9 +46,14 @@ function PetCardFooterImpl({
   useEffect(() => {
     if (!authActive || AuthPetCardFooter) return;
     let cancelled = false;
-    void import("@/components/pets/pet-card-footer-auth").then((mod) => {
-      if (!cancelled) setAuthPetCardFooter(() => mod.PetCardFooter);
-    });
+    void import("@/components/pets/pet-card-footer-auth")
+      .then((mod) => {
+        if (!cancelled) setAuthPetCardFooter(() => mod.PetCardFooter);
+      })
+      .catch(() => {
+        // Chunk load failed — keep the anonymous footer instead of letting
+        // the rejection escape the effect.
+      });
     return () => {
       cancelled = true;
     };
@@ -113,6 +119,7 @@ function PetCardFooterImpl({
         soundUrl={soundUrl}
         installCount={installCount}
         likeCount={likeCount}
+        initialLiked={initialLiked}
       />
     );
   }

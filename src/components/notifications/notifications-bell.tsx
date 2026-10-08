@@ -26,7 +26,6 @@ export function NotificationsBell({ compact = false }: { compact?: boolean }) {
   const { state, refresh, setUnreadCount } = useHeaderState();
   const unread = state.notifications.unreadCount;
   const [items, setItems] = useState<NotificationItem[]>([]);
-  const [itemsLoaded, setItemsLoaded] = useState(false);
   const [open, setOpen] = useState(false);
 
   const setUnread = useCallback(
@@ -42,23 +41,24 @@ export function NotificationsBell({ compact = false }: { compact?: boolean }) {
       if (!res.ok) return;
       const j = (await res.json()) as { items?: NotificationItem[] };
       setItems(j.items ?? []);
-      setItemsLoaded(true);
     } catch {
       /* silent */
     }
   }, []);
 
+  // Re-read on every open. The old one-shot gate (`!itemsLoaded`) fetched the
+  // list at most once per page session: a notification arriving after the
+  // first open bumped the polled badge but never appeared as a row, so the
+  // panel showed an unread count with nothing unread in it.
   useEffect(() => {
-    if (open && !itemsLoaded) void loadItems();
-  }, [open, itemsLoaded, loadItems]);
+    if (open) void loadItems();
+  }, [open, loadItems]);
 
   // Both writers below are optimistic, and `fetch` only rejects on a network
   // failure — a 401/403/500 resolves normally. Without the `res.ok` check the
-  // panel kept the optimistic "read" forever: `refresh` reconciles the badge
-  // count from the server but never the list, and `itemsLoaded` gates the
-  // only re-fetch, so it stayed true and the list was never re-read. The user
-  // saw a badge reading 3 above a list with nothing unread, and clicking an
-  // item could not retry the write because `isUnread` was already false.
+  // panel kept the optimistic "read" forever, because nothing re-read the
+  // list on its own. Rolling back on failure and refetching the badge keeps
+  // the panel and the count from disagreeing.
   async function markAll() {
     const previousItems = items;
     const previousUnread = unread;
@@ -78,8 +78,6 @@ export function NotificationsBell({ compact = false }: { compact?: boolean }) {
     } catch {
       setItems(previousItems);
       setUnread(previousUnread);
-      // Let the next open re-read the truth instead of trusting this list.
-      setItemsLoaded(false);
     } finally {
       void refresh({ force: true });
     }
@@ -106,7 +104,6 @@ export function NotificationsBell({ compact = false }: { compact?: boolean }) {
     } catch {
       setItems(previousItems);
       setUnread(previousUnread);
-      setItemsLoaded(false);
     } finally {
       void refresh({ force: true });
     }

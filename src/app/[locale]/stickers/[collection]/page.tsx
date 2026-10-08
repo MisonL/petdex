@@ -78,6 +78,7 @@ export default async function StickerCollectionPage({
     outline: t("outline"),
     copy: t("copy"),
     copied: t("copied"),
+    copyFailed: t("copyFailed"),
     download: t("download"),
     downloadWhatsApp: t("downloadWhatsApp"),
     whatsappNote: t("whatsappNote"),

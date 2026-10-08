@@ -6,6 +6,7 @@ import {
   memo,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -32,6 +33,7 @@ import { PET_KINDS, PET_VIBES, type PetKind, type PetVibe } from "@/lib/types";
 import { isAllowedAvatarUrl } from "@/lib/url-allowlist";
 import { cn } from "@/lib/utils";
 
+import { useHeaderState } from "@/components/layout/header-state-provider";
 import { PetActionMenu } from "@/components/pets/pet-action-menu";
 import { PetCardFooter } from "@/components/pets/pet-card-footer";
 import { PetSprite } from "@/components/pets/pet-sprite";
@@ -155,7 +157,6 @@ export function PetGallery({
   const [sort, setSort] = useState<SortKey>("installed");
   const [sortTouched, setSortTouched] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const caughtSet = new Set(caughtSlugs ?? []);
 
   const [pets, setPets] = useState<SearchPet[]>(initial.pets);
   const [total, setTotal] = useState<number>(initial.total);
@@ -168,6 +169,16 @@ export function PetGallery({
   );
   const [loadingPage, setLoadingPage] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+
+  // Which pets the viewer has already liked. The set is polled into the
+  // header state; the `caughtSlugs` prop stays as a server-supplied override
+  // (no caller passes it today, so without the state the set was always
+  // empty and every heart rendered unfilled).
+  const { state } = useHeaderState();
+  const caughtSet = useMemo(
+    () => new Set(caughtSlugs ?? state.caught),
+    [caughtSlugs, state.caught],
+  );
 
   const requestSeq = useRef(0);
   const hasMountedSearchEffect = useRef(false);

@@ -353,13 +353,24 @@ export function OwnerEditPanel({
       return;
     }
     setBusy(true);
+    setError(null);
     try {
       const res = await fetch(`/api/my-pets/${petId}/edit`, {
         method: "DELETE",
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        // This used to `return` silently, so a refused withdraw looked
+        // identical to a successful one until the next refresh.
+        const j = (await res.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        setError(j?.error ?? `http_${res.status}`);
+        return;
+      }
       setPending(null);
       startTransition(() => router.refresh());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "unknown");
     } finally {
       setBusy(false);
     }

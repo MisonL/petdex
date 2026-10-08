@@ -38,6 +38,7 @@ type Labels = {
   outline: string;
   copy: string;
   copied: string;
+  copyFailed: string;
   download: string;
   downloadWhatsApp: string;
   whatsappNote: string;
@@ -116,10 +117,18 @@ export function StickerExplorer({
       ]);
       showNotice(labels.copied);
     } catch {
-      await navigator.clipboard.writeText(
-        new URL(previewUrl, window.location.origin).toString(),
-      );
-      showNotice(labels.copied);
+      // Fall back to the link. The clipboard call can reject too (denied
+      // permission, insecure context), and the click handler awaits this
+      // function — an unhandled rejection here reached the console with no
+      // notice shown at all, so both outcomes are handled.
+      try {
+        await navigator.clipboard.writeText(
+          new URL(previewUrl, window.location.origin).toString(),
+        );
+        showNotice(labels.copied);
+      } catch {
+        showNotice(labels.copyFailed);
+      }
     }
   }
 
@@ -139,10 +148,14 @@ export function StickerExplorer({
       selection,
       [],
     );
-    await navigator.clipboard.writeText(
-      `${window.location.origin}${pathname}?${params.toString()}`,
-    );
-    showNotice(labels.reactionShared);
+    try {
+      await navigator.clipboard.writeText(
+        `${window.location.origin}${pathname}?${params.toString()}`,
+      );
+      showNotice(labels.reactionShared);
+    } catch {
+      showNotice(labels.copyFailed);
+    }
   }
 
   async function shareDeck() {
@@ -151,10 +164,14 @@ export function StickerExplorer({
       selection,
       deck,
     );
-    await navigator.clipboard.writeText(
-      `${window.location.origin}${pathname}?${params.toString()}`,
-    );
-    showNotice(labels.shared);
+    try {
+      await navigator.clipboard.writeText(
+        `${window.location.origin}${pathname}?${params.toString()}`,
+      );
+      showNotice(labels.shared);
+    } catch {
+      showNotice(labels.copyFailed);
+    }
   }
 
   function showNotice(value: string) {
