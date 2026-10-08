@@ -17,6 +17,7 @@ const ALLOWED_CT = new Set([
   "image/png",
   "application/json",
 ]);
+const ALLOWED_ROLES = new Set(["zip", "sprite", "petjson"]);
 
 type AskedFile = {
   // Logical role helps us scope the key path: pets/<random>/<role>.<ext>
@@ -55,6 +56,9 @@ export async function POST(req: Request): Promise<Response> {
   } catch {
     return NextResponse.json({ error: "invalid_json" }, { status: 400 });
   }
+  if (body === null || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
+  }
 
   const files = body.files ?? [];
   if (files.length !== 3) {
@@ -71,13 +75,22 @@ export async function POST(req: Request): Promise<Response> {
     if (f === null || typeof f !== "object") {
       return NextResponse.json({ error: "invalid_files" }, { status: 400 });
     }
+    // `role` is a compile-time union only: whatever string arrives is
+    // interpolated into the R2 key, so an unchecked value let an
+    // authenticated caller name the object themselves.
+    if (!ALLOWED_ROLES.has(f.role)) {
+      return NextResponse.json(
+        { error: "invalid_role", got: f.role },
+        { status: 400 },
+      );
+    }
     if (!ALLOWED_CT.has(f.contentType)) {
       return NextResponse.json(
         { error: "unsupported_content_type", got: f.contentType },
         { status: 400 },
       );
     }
-    if (typeof f.size !== "number" || f.size <= 0 || f.size > MAX_BYTES) {
+    if (!Number.isFinite(f.size) || f.size <= 0 || f.size > MAX_BYTES) {
       // Name the file and both numbers. The bare code sent someone to
       // #594 with a 1536x2288 sprite, the canonical size, and no way to
       // tell which of the three uploads was over or by how much — the

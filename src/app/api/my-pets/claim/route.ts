@@ -107,7 +107,12 @@ export async function POST(req: Request): Promise<Response> {
   } catch {
     return NextResponse.json({ error: "invalid_json" }, { status: 400 });
   }
-  const id = body.id?.trim();
+  // A literal `null` body parses fine and then `.id` throws; `{ id: 5 }`
+  // reaches `.trim` on a number. Require an object with a string id.
+  if (body === null || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
+  }
+  const id = typeof body.id === "string" ? body.id.trim() : "";
   if (!id) {
     return NextResponse.json({ error: "missing_id" }, { status: 400 });
   }

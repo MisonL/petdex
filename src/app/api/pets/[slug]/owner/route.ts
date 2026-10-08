@@ -60,7 +60,14 @@ export async function DELETE(
   } catch {
     body = {};
   }
-  const reason = body.reason?.trim() || null;
+  // DELETE is valid without a body, so a non-object (a literal `null`, an
+  // array) is treated as no body rather than refused. `reason` must be a
+  // string: `{ reason: 5 }` reached `.trim` on a number and 500'd.
+  if (body === null || typeof body !== "object" || Array.isArray(body)) {
+    body = {};
+  }
+  const reason =
+    typeof body.reason === "string" ? body.reason.trim() || null : null;
 
   const pet = await db.query.submittedPets.findFirst({
     where: eq(schema.submittedPets.slug, slug),

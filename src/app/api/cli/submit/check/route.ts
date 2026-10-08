@@ -42,6 +42,11 @@ export async function POST(req: Request): Promise<Response> {
   } catch {
     return NextResponse.json({ error: "invalid_json" }, { status: 400 });
   }
+  // `req.json()` resolves `null` without throwing; the property reads below
+  // would TypeError on it. Refuse non-objects as a 400.
+  if (body === null || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
+  }
 
   const candidates = Array.isArray(body.candidates) ? body.candidates : [];
   if (candidates.length === 0) {

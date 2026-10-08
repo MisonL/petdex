@@ -51,6 +51,9 @@ export async function PATCH(req: Request): Promise<Response> {
   } catch {
     return NextResponse.json({ error: "invalid_json" }, { status: 400 });
   }
+  if (body === null || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
+  }
 
   const limiter = isPinOnlyProfilePatch(body)
     ? profilePinRatelimit

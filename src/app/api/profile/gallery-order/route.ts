@@ -40,6 +40,11 @@ export async function PATCH(req: Request): Promise<Response> {
   } catch {
     return NextResponse.json({ error: "invalid_json" }, { status: 400 });
   }
+  // A literal `null`/array body parses fine and the `.order` read below
+  // throws on it. Refuse non-objects as a 400.
+  if (body === null || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
+  }
 
   if (!Array.isArray(body.order)) {
     return NextResponse.json({ error: "invalid_order" }, { status: 400 });
