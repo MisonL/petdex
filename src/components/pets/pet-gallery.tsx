@@ -216,6 +216,43 @@ export function PetGallery({
     setSort(trimmedQuery ? "curated" : "installed");
   }, [sortTouched, trimmedQuery]);
 
+  // Re-seed from the server payload when it changes. The initial state above
+  // is only read on mount, so a router.refresh() — which the per-card action
+  // menu fires after deleting a pet — re-rendered the page around a gallery
+  // that kept its old rows: the deleted card stayed in the grid (and 404'd
+  // when opened) while the header and counters around it updated. Skipped
+  // when the viewer has a query or filters applied, because those results
+  // are client-side and the server payload does not reflect them.
+  const initialRef = useRef(initial);
+  useEffect(() => {
+    if (initialRef.current === initial) return;
+    initialRef.current = initial;
+    if (
+      trimmedQuery ||
+      activeKinds.size > 0 ||
+      activeVibes.size > 0 ||
+      activeColors.size > 0 ||
+      activeBatches.size > 0 ||
+      activeSpriteVersions.size > 0
+    ) {
+      return;
+    }
+    setPets(initial.pets);
+    setTotal(initial.total);
+    setNextCursor(initial.nextCursor);
+    setFacets(initial.facets);
+    setSearchMode(initial.searchMode ?? "all");
+    if (initial.shuffleSeed) shuffleSeedRef.current = initial.shuffleSeed;
+  }, [
+    initial,
+    trimmedQuery,
+    activeKinds,
+    activeVibes,
+    activeColors,
+    activeBatches,
+    activeSpriteVersions,
+  ]);
+
   // Re-fetch on filter / sort / query changes (debounced for the query).
   useEffect(() => {
     if (!hasMountedSearchEffect.current) {

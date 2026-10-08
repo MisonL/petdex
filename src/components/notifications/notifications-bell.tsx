@@ -52,7 +52,16 @@ export function NotificationsBell({ compact = false }: { compact?: boolean }) {
     if (open && !itemsLoaded) void loadItems();
   }, [open, itemsLoaded, loadItems]);
 
+  // Both writers below are optimistic, and `fetch` only rejects on a network
+  // failure — a 401/403/500 resolves normally. Without the `res.ok` check the
+  // panel kept the optimistic "read" forever: `refresh` reconciles the badge
+  // count from the server but never the list, and `itemsLoaded` gates the
+  // only re-fetch, so it stayed true and the list was never re-read. The user
+  // saw a badge reading 3 above a list with nothing unread, and clicking an
+  // item could not retry the write because `isUnread` was already false.
   async function markAll() {
+    const previousItems = items;
+    const previousUnread = unread;
     setUnread(0);
     setItems((prev) =>
       prev.map((n) =>
@@ -60,19 +69,25 @@ export function NotificationsBell({ compact = false }: { compact?: boolean }) {
       ),
     );
     try {
-      await fetch("/api/notifications/read", {
+      const res = await fetch("/api/notifications/read", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ all: true }),
       });
+      if (!res.ok) throw new Error(`http_${res.status}`);
     } catch {
-      /* silent — next poll will reconcile */
+      setItems(previousItems);
+      setUnread(previousUnread);
+      // Let the next open re-read the truth instead of trusting this list.
+      setItemsLoaded(false);
     } finally {
       void refresh({ force: true });
     }
   }
 
   async function markOne(id: string) {
+    const previousItems = items;
+    const previousUnread = unread;
     setItems((prev) =>
       prev.map((n) =>
         n.id === id && !n.readAt
@@ -82,13 +97,16 @@ export function NotificationsBell({ compact = false }: { compact?: boolean }) {
     );
     setUnread((n) => Math.max(0, n - 1));
     try {
-      await fetch("/api/notifications/read", {
+      const res = await fetch("/api/notifications/read", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ ids: [id] }),
       });
+      if (!res.ok) throw new Error(`http_${res.status}`);
     } catch {
-      /* silent */
+      setItems(previousItems);
+      setUnread(previousUnread);
+      setItemsLoaded(false);
     } finally {
       void refresh({ force: true });
     }

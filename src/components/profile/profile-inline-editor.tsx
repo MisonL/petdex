@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 
 import { Loader2, Pencil, Pin, X } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -48,6 +48,23 @@ export function ProfileInlineEditor({
   const [error, setError] = useState<string | null>(null);
   const { refresh: refreshHeaderState } = useHeaderState();
   const [, startTransition] = useTransition();
+
+  // Re-seed from the server whenever the dialog is closed. Without this the
+  // component keeps whatever it mounted with: the page is force-dynamic and
+  // the pin button beside it calls router.refresh(), which re-renders the
+  // RSC payload but preserves this component's state — so a pin made after
+  // mount is invisible here, and saving an unrelated field (the bio) sends
+  // the stale `featuredPetSlugs` back and silently un-pins it. The sibling
+  // ProfileCard resets the same way for the same reason. Skipped while open
+  // so a refresh landing mid-edit cannot overwrite what the user is typing.
+  useEffect(() => {
+    if (open) return;
+    setDisplayName(initialDisplayName ?? "");
+    setProfileHandle(handle);
+    setBio(initialBio ?? "");
+    setPinned(initialFeaturedSlugs);
+    setError(null);
+  }, [open, initialDisplayName, initialBio, initialFeaturedSlugs, handle]);
 
   // The route answers with an internal code, and this panel used to render it
   // through `error.replace(/_/g, " ")` — which turns `handle_taken` into
