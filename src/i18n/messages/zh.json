@@ -2355,7 +2355,7 @@
       },
       "agents": {
         "title": "适用于 Agent 的用法（Skill）",
-        "intro": "Petdex 提供兼容 Claude Code / Codex / Cursor 的 <strong>skill</strong>：<code>.claude/skills/petdex/SKILL.md</code>。兼容的 Agent 会自动加载它，并学会在什么场景、用什么方式替你调用 CLI。",
+        "intro": "Petdex 提供兼容 Claude Code / Codex / Cursor 的 <strong>skill</strong>：<code>.claude/skills/petdex/SKILL.md</code>。兼容的 Agent 会自动加载它，并学会<em>在什么场景</em>、<em>用什么方式</em>替你调用 CLI。",
         "enablesTitle": "它能做什么",
         "enableCozy": "在任意智能体工具里说<em>“给我的智能体装个舒适系的”</em>。它会运行 <code>petdex list</code>，推荐 Boba/Boxcat，安装你选的那只，并提醒你通过 <strong>Settings → Appearance → Pets</strong> 激活。",
         "enableCozy__fixme": true,

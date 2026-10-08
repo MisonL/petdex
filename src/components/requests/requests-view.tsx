@@ -393,6 +393,11 @@ export function RequestsView({ initial }: { initial: RequestRow[] }) {
                   ? t("form.placeholderCollection")
                   : t("form.placeholderPet")
               }
+              aria-label={
+                requestKind === "collection"
+                  ? t("form.titleCollection")
+                  : t("form.titlePet")
+              }
               maxLength={MAX_LEN}
               className="h-11 w-full rounded-full border border-border-base bg-background px-4 text-sm text-foreground outline-none transition placeholder:text-muted-4 focus:border-brand/60 focus:ring-2 focus:ring-brand/15"
             />
@@ -493,6 +498,7 @@ export function RequestsView({ initial }: { initial: RequestRow[] }) {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={t("sort.searchPlaceholder")}
+              aria-label={t("sort.searchPlaceholder")}
               className="h-9 w-full rounded-full border border-border-base bg-surface pr-3 pl-8 text-xs text-foreground outline-none placeholder:text-muted-4 focus:border-brand/60"
             />
           </label>

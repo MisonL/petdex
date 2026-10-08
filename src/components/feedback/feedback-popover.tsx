@@ -145,6 +145,17 @@ export function FeedbackPopover({
     [state.tag, message, email, kind, t, setState],
   );
 
+  // The textarea has no visible label; the kind-specific prompt doubles as
+  // its accessible name so screen readers announce the same guidance.
+  const messagePrompt =
+    kind === "bug"
+      ? t("placeholders.bug")
+      : kind === "suggestion"
+        ? t("placeholders.suggestion")
+        : kind === "praise"
+          ? t("placeholders.praise")
+          : t("placeholders.other");
+
   return (
     <div
       ref={popoverRef}
@@ -210,15 +221,8 @@ export function FeedbackPopover({
               setMessage(e.target.value);
               if (state.tag === "error") setState({ tag: "idle" });
             }}
-            placeholder={
-              kind === "bug"
-                ? t("placeholders.bug")
-                : kind === "suggestion"
-                  ? t("placeholders.suggestion")
-                  : kind === "praise"
-                    ? t("placeholders.praise")
-                    : t("placeholders.other")
-            }
+            aria-label={messagePrompt}
+            placeholder={messagePrompt}
             rows={4}
             maxLength={4000}
             className="w-full resize-none rounded-2xl border border-border-base bg-surface px-3 py-2.5 text-sm text-foreground outline-none transition placeholder:text-muted-4 focus:border-border-strong"
@@ -228,6 +232,7 @@ export function FeedbackPopover({
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            aria-label={t("emailPlaceholder")}
             placeholder={t("emailPlaceholder")}
             className="h-10 w-full rounded-full border border-border-base bg-surface px-3.5 text-sm text-foreground outline-none transition placeholder:text-muted-4 focus:border-border-strong"
           />
