@@ -136,6 +136,16 @@ export const submittedPets = pgTable(
   (table) => ({
     statusIdx: index("submitted_pets_status_idx").on(table.status),
     ownerIdx: index("submitted_pets_owner_idx").on(table.ownerId),
+    // drizzle/0012_gallery_position.sql and scripts/apply-gallery-position.ts
+    // created this index, but it was never declared here — and `drizzle-kit
+    // push`, the only automated schema path this repo runs, drops indexes it
+    // does not recognize. A database that ran the migration lost the index on
+    // its next push; a fresh one never got it at all. Declared with the same
+    // shape the migration spelled out (`created_at DESC NULLS LAST` is what
+    // this drizzle version emits for `.desc()`).
+    ownerGalleryIdx: index("submitted_pets_owner_gallery_idx")
+      .on(table.ownerId, table.galleryPosition, table.createdAt.desc())
+      .where(sql`${table.status} = 'approved'`),
     licenseIdx: index("submitted_pets_license_idx").on(table.license),
     slugUnique: uniqueIndex("submitted_pets_slug_unique").on(table.slug),
     reviewDhashIdx: index("submitted_pets_review_dhash_idx")
