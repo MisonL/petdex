@@ -30,13 +30,14 @@ import { validateSubmission } from "@/lib/submissions-validation";
 import {
   isAllowedAssetUrl,
   isAllowedAvatarUrl,
+  isAllowedSubmissionAssetUrl,
   isSafeExternalUrl,
 } from "@/lib/url-allowlist";
 
 const BASE_INPUT = {
-  zipUrl: "https://assets.petdex.dev/community/x/x.zip",
-  spritesheetUrl: "https://assets.petdex.dev/community/x/spritesheet.webp",
-  petJsonUrl: "https://assets.petdex.dev/community/x/pet.json",
+  zipUrl: "https://assets.petdex.dev/pets/x-a1b2c3d4e5f6/zip.zip",
+  spritesheetUrl: "https://assets.petdex.dev/pets/x-a1b2c3d4e5f6/sprite.webp",
+  petJsonUrl: "https://assets.petdex.dev/pets/x-a1b2c3d4e5f6/petjson.json",
   displayName: "Test Pet",
   description: "A test pet.",
   petId: "test-pet",
@@ -96,6 +97,60 @@ describe("isAllowedAssetUrl", () => {
     expect(isAllowedAssetUrl("")).toBe(false);
     expect(isAllowedAssetUrl(null)).toBe(false);
     expect(isAllowedAssetUrl(undefined)).toBe(false);
+  });
+});
+
+describe("isAllowedSubmissionAssetUrl", () => {
+  // Host alone is not enough for new submissions: the same bucket holds every
+  // user's reference uploads under requests/, and pointing an asset field at
+  // one would dress another user's upload up as this submission's asset.
+  it("accepts the namespaces submissions are written into", () => {
+    expect(
+      isAllowedSubmissionAssetUrl(
+        "https://assets.petdex.dev/pets/boba-a1b2c3d4/sprite.webp",
+      ),
+    ).toBe(true);
+    expect(
+      isAllowedSubmissionAssetUrl(
+        "https://assets.petdex.dev/curated/cash-cuy/spritesheet.webp",
+      ),
+    ).toBe(true);
+    expect(
+      isAllowedSubmissionAssetUrl(
+        "https://assets.petdex.dev/community/boba/zip.zip",
+      ),
+    ).toBe(true);
+  });
+
+  it("refuses another user's request-reference upload", () => {
+    expect(
+      isAllowedSubmissionAssetUrl(
+        "https://assets.petdex.dev/requests/someone-else1-a1b2c3/reference.webp",
+      ),
+    ).toBe(false);
+  });
+
+  it("refuses unknown namespaces on the trusted host", () => {
+    expect(
+      isAllowedSubmissionAssetUrl("https://assets.petdex.dev/avatars/me.png"),
+    ).toBe(false);
+    expect(isAllowedSubmissionAssetUrl("https://assets.petdex.dev/")).toBe(
+      false,
+    );
+  });
+
+  it("still enforces the host rules underneath", () => {
+    expect(
+      isAllowedSubmissionAssetUrl(
+        "http://assets.petdex.dev/pets/boba-a1b2c3d4/sprite.webp",
+      ),
+    ).toBe(false);
+    expect(
+      isAllowedSubmissionAssetUrl(
+        "https://evil.com/pets/boba-a1b2c3d4/sprite.webp",
+      ),
+    ).toBe(false);
+    expect(isAllowedSubmissionAssetUrl(null)).toBe(false);
   });
 });
 

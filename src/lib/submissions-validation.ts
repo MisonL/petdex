@@ -4,7 +4,7 @@ import {
 } from "@/lib/keyword-blocklist";
 import { detectSpriteAtlas } from "@/lib/sprite-atlas";
 import { normalizeSpriteVersionNumber } from "@/lib/sprite-version";
-import { isAllowedAssetUrl } from "@/lib/url-allowlist";
+import { isAllowedSubmissionAssetUrl } from "@/lib/url-allowlist";
 import { containsUrl, URL_BLOCKED_REASON } from "@/lib/url-blocklist";
 
 export type SubmissionInput = {
@@ -188,9 +188,11 @@ export function validateSubmission(
   // Reject any URL outside the allowlist. Without this, a malicious
   // submission could land javascript:, attacker.com, or LAN IPs into the
   // pet detail page (XSS) and the install script (RCE on every viewer who
-  // pipes it through sh).
+  // pipes it through sh). The submission boundary additionally pins the path
+  // namespace: host alone let an asset field point at `requests/<other>/...`,
+  // another user's reference upload.
   for (const field of ASSET_URL_FIELDS) {
-    if (!isAllowedAssetUrl(body[field])) {
+    if (!isAllowedSubmissionAssetUrl(body[field])) {
       return {
         ok: false,
         status: 400,
