@@ -3,8 +3,11 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
+import JSZip from "jszip";
+
 import {
   inspectSpriteBuffer,
+  MAX_EDIT_ASSET_BYTES,
   parseMetadataBuffer,
   readEditSpriteAsset,
   validateZipBuffer,
@@ -84,6 +87,31 @@ describe("CLI edit asset validation", () => {
     await expect(validateZipBuffer(Buffer.from("not a zip"))).rejects.toThrow(
       "valid archive",
     );
+  });
+
+  it("accepts a well-formed ZIP bundle", async () => {
+    const zip = new JSZip();
+    zip.file("pet.json", "{}");
+    zip.file("spritesheet.webp", WEBP_FIXTURE);
+    const buffer = await zip.generateAsync({
+      type: "nodebuffer",
+      compression: "DEFLATE",
+    });
+    await expect(validateZipBuffer(buffer)).resolves.toBeUndefined();
+  });
+
+  it("rejects a zip bomb before inflating it", async () => {
+    // 40 MB of zeros compresses to a few KB, so the compressed file is well
+    // under the 8 MB asset cap — only the declared-size check can stop it
+    // before the CLI tries to hold 40 MB in memory.
+    const zip = new JSZip();
+    zip.file("bomb.bin", Buffer.alloc(40 * 1024 * 1024));
+    const buffer = await zip.generateAsync({
+      type: "nodebuffer",
+      compression: "DEFLATE",
+    });
+    expect(buffer.length).toBeLessThan(MAX_EDIT_ASSET_BYTES);
+    await expect(validateZipBuffer(buffer)).rejects.toThrow("maximum is");
   });
 
   it("derives the sprite MIME type from a complete PNG", () => {

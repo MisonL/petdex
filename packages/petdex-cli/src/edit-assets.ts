@@ -3,6 +3,8 @@ import { inflateSync } from "node:zlib";
 
 import JSZip from "jszip";
 
+import { assertZipEntriesWithinLimits } from "./zip-guard.js";
+
 export const MAX_EDIT_ASSET_BYTES = 8 * 1024 * 1024;
 
 export type SpriteFormat = "png" | "webp";
@@ -338,12 +340,19 @@ export function parseMetadataBuffer(buffer: Buffer): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+// `checkCRC32: true` decompresses every entry to verify it — which turns an
+// 8 MB compressed cap into an unbounded inflate (a ~1000:1 zip bomb reaches
+// gigabytes) and hangs the CLI. The declared sizes are checked first, and the
+// archive's own structure is validated by `loadAsync` alone; the server
+// re-verifies the real bytes when it reviews the upload.
 export async function validateZipBuffer(buffer: Buffer): Promise<void> {
+  let zip: JSZip;
   try {
-    await JSZip.loadAsync(buffer, { checkCRC32: true });
+    zip = await JSZip.loadAsync(buffer);
   } catch {
     throw new Error("zip is not a valid archive");
   }
+  assertZipEntriesWithinLimits(zip);
 }
 
 export async function readEditAsset(filePath: string): Promise<Buffer> {

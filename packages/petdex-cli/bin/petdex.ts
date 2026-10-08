@@ -21,11 +21,13 @@ import {
   readCollectionList,
 } from "../src/collections.js";
 import {
+  MAX_EDIT_ASSET_BYTES,
   parseImageDims,
   readEditMetadataAsset,
   readEditSpriteAsset,
   readEditZipAsset,
 } from "../src/edit-assets.js";
+import { fetchCapped } from "../src/fetch-capped.js";
 import {
   fetchManifest as fetchCatalogManifest,
   isInstallSlug,
@@ -37,6 +39,10 @@ import {
   maybeShowFirstRunNotice,
   setEnabled,
 } from "../src/telemetry.js";
+import {
+  assertZipEntriesWithinLimits,
+  readZipEntryBuffer,
+} from "../src/zip-guard.js";
 
 // ─── config ────────────────────────────────────────────────────────────────
 const PETDEX_URL = process.env.PETDEX_URL ?? "https://petdex.dev";
@@ -502,35 +508,35 @@ async function installOne(pet: ManifestPet): Promise<void> {
     /* leave the webp default */
   }
   // Validate response status before reading the body so a 404/500
-  // doesn't silently land HTML inside pet.json or spritesheet.*.
-  const fetchOrThrow = async (url: string): Promise<ArrayBuffer> => {
-    const res = await fetch(url, { headers: { Referer: PETDEX_REFERER } });
-    if (!res.ok) {
-      throw new Error(`download ${url} -> ${res.status} ${res.statusText}`);
-    }
-    return res.arrayBuffer();
+  // doesn't silently land HTML inside pet.json or spritesheet.*. Both files
+  // are capped at the same 8 MB the server uploads them under, and both have
+  // a timeout, so a hostile or hung CDN cannot stream into unbounded memory.
+  const fetchOrThrow = async (url: string): Promise<Buffer> => {
+    const { body } = await fetchCapped(url, {
+      init: { headers: { Referer: PETDEX_REFERER } },
+      maxBytes: MAX_EDIT_ASSET_BYTES,
+      timeoutMs: 30_000,
+      throwOnNotOk: true,
+    });
+    return body;
   };
   const [petJson, spritesheet] = await Promise.all([
     fetchOrThrow(pet.petJsonUrl),
     fetchOrThrow(pet.spritesheetUrl),
   ]);
   await Promise.all([
-    writeFile(path.join(petdexDir, "pet.json"), Buffer.from(petJson)),
-    writeFile(
-      path.join(petdexDir, `spritesheet.${ext}`),
-      Buffer.from(spritesheet),
-    ),
-    writeFile(path.join(codexDir, "pet.json"), Buffer.from(petJson)),
-    writeFile(
-      path.join(codexDir, `spritesheet.${ext}`),
-      Buffer.from(spritesheet),
-    ),
+    writeFile(path.join(petdexDir, "pet.json"), petJson),
+    writeFile(path.join(petdexDir, `spritesheet.${ext}`), spritesheet),
+    writeFile(path.join(codexDir, "pet.json"), petJson),
+    writeFile(path.join(codexDir, `spritesheet.${ext}`), spritesheet),
   ]);
 
-  // Fire-and-forget install metric so the gallery counter ticks up.
-  void fetch(`${PETDEX_URL}/install/${slug}`, { method: "GET" }).catch(
-    () => {},
-  );
+  // Fire-and-forget install metric so the gallery counter ticks up. The
+  // timeout keeps a hung endpoint from holding the process open at exit.
+  void fetch(`${PETDEX_URL}/install/${slug}`, {
+    method: "GET",
+    signal: AbortSignal.timeout(3000),
+  }).catch(() => {});
 }
 
 async function cmdInstall(args: string[]) {
@@ -1159,8 +1165,21 @@ async function readFolderCandidate(folder: string): Promise<Candidate | null> {
 }
 
 async function readZipCandidate(zipPath: string): Promise<Candidate | null> {
+  const file = await stat(zipPath);
+  if (!file.isFile()) throw new Error(`not a file: ${zipPath}`);
+  if (file.size <= 0 || file.size > MAX_EDIT_ASSET_BYTES) {
+    throw new Error(
+      `zip is ${(file.size / (1024 * 1024)).toFixed(1)} MB; maximum is 8 MB`,
+    );
+  }
   const buf = await readFile(zipPath);
+  if (buf.length > MAX_EDIT_ASSET_BYTES) {
+    throw new Error("zip changed while it was being read");
+  }
   const zip = await JSZip.loadAsync(buf);
+  // Reject an archive that declares more than we will inflate before touching
+  // any entry, then read the two entries we need through a byte ceiling.
+  assertZipEntriesWithinLimits(zip);
   const petJsonEntry = zip.file("pet.json");
   const webpEntry = zip.file("spritesheet.webp");
   const pngEntry = zip.file("spritesheet.png");
@@ -1173,14 +1192,20 @@ async function readZipCandidate(zipPath: string): Promise<Candidate | null> {
     );
   }
 
-  const petJson = await petJsonEntry.async("string");
+  const petJson = (
+    await readZipEntryBuffer(petJsonEntry, MAX_EDIT_ASSET_BYTES, "zip pet.json")
+  ).toString("utf8");
   let petJsonObj: Record<string, unknown> = {};
   try {
     petJsonObj = JSON.parse(petJson);
   } catch {
     throw new Error(`pet.json in zip is not valid JSON`);
   }
-  const spritesheetBuffer = Buffer.from(await spriteEntry.async("uint8array"));
+  const spritesheetBuffer = await readZipEntryBuffer(
+    spriteEntry,
+    MAX_EDIT_ASSET_BYTES,
+    `zip spritesheet.${spritesheetExt}`,
+  );
 
   const baseName = path.basename(zipPath, ".zip");
   return {
@@ -1330,6 +1355,8 @@ async function putR2(
     method: "PUT",
     headers: { "Content-Type": contentType },
     body,
+    // A presigned PUT that never answers must not hang the CLI forever.
+    signal: AbortSignal.timeout(120_000),
   });
   if (!res.ok) {
     throw new Error(`R2 PUT ${res.status}`);

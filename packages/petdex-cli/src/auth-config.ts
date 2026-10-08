@@ -16,6 +16,26 @@ export const FALLBACK_ISSUER = "https://clerk.petdex.dev";
 export const FALLBACK_CLIENT_ID = "LcThwEayl6KAA1Qm";
 export const DEFAULT_SCOPES = ["profile", "email", "openid", "offline_access"];
 
+// The issuer is where access/refresh tokens get exchanged and refreshed, so a
+// server (or env) that answers with `http://` or a non-URL would send refresh
+// tokens to a network attacker. Accept https, or http only on loopback where a
+// local dev issuer legitimately has no TLS. Exported so the validation is
+// directly testable and reused at the CLI-auth boundary.
+export function isAllowedIssuer(raw: unknown): raw is string {
+  if (typeof raw !== "string") return false;
+  let url: URL;
+  try {
+    url = new URL(raw.trim());
+  } catch {
+    return false;
+  }
+  if (url.protocol === "https:") return true;
+  return (
+    url.protocol === "http:" &&
+    ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)
+  );
+}
+
 export const AUTH_CONFIG_FALLBACK_WARNING =
   "petdex: unable to refresh auth configuration; using fallback authentication values.";
 
@@ -38,7 +58,10 @@ export async function resolveAuthConfig({
   const envIssuer = env.CLERK_ISSUER;
   const envClientId = env.CLERK_OAUTH_CLIENT_ID;
 
-  if (envIssuer && envClientId) {
+  // An env issuer still has to pass the same scheme check as the server one:
+  // a misconfigured `CLERK_ISSUER=http://…` must not become the token
+  // destination just because it came from the environment.
+  if (envIssuer && envClientId && isAllowedIssuer(envIssuer)) {
     return {
       issuer: envIssuer,
       clientId: envClientId,
@@ -57,8 +80,11 @@ export async function resolveAuthConfig({
         clientId?: unknown;
         scopes?: unknown;
       };
-      const issuer = typeof data.issuer === "string" ? data.issuer : null;
-      const clientId = typeof data.clientId === "string" ? data.clientId : null;
+      const issuer = isAllowedIssuer(data.issuer) ? data.issuer.trim() : null;
+      const clientId =
+        typeof data.clientId === "string" && data.clientId.length > 0
+          ? data.clientId
+          : null;
       const scopes = Array.isArray(data.scopes)
         ? data.scopes.filter(
             (scope): scope is string => typeof scope === "string",
@@ -67,7 +93,7 @@ export async function resolveAuthConfig({
 
       if (issuer && clientId) {
         return {
-          issuer: envIssuer ?? issuer,
+          issuer: envIssuer && isAllowedIssuer(envIssuer) ? envIssuer : issuer,
           clientId: envClientId ?? clientId,
           scopes: scopes && scopes.length > 0 ? scopes : DEFAULT_SCOPES,
         };
@@ -79,7 +105,8 @@ export async function resolveAuthConfig({
 
   if (warnOnFallback) console.error(AUTH_CONFIG_FALLBACK_WARNING);
   return {
-    issuer: envIssuer ?? FALLBACK_ISSUER,
+    issuer:
+      envIssuer && isAllowedIssuer(envIssuer) ? envIssuer : FALLBACK_ISSUER,
     clientId: envClientId ?? FALLBACK_CLIENT_ID,
     scopes: DEFAULT_SCOPES,
   };
