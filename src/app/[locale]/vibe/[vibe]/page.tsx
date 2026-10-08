@@ -50,17 +50,18 @@ export async function generateMetadata({ params }: Props) {
   });
   const vibe = resolveVibe(raw);
   if (!vibe) return { title: t("notFound.vibe"), robots: { index: false } };
+  const alternates = buildLocaleAlternates(
+    `/vibe/${vibe}`,
+    hasLocale(locale) ? locale : undefined,
+  );
   return {
     title: t(`vibes.${vibe}.title`),
     description: t(`vibes.${vibe}.metaDescription`),
-    alternates: buildLocaleAlternates(
-      `/vibe/${vibe}`,
-      hasLocale(locale) ? locale : undefined,
-    ),
+    alternates,
     openGraph: {
       title: t(`vibes.${vibe}.title`),
       description: t(`vibes.${vibe}.metaDescription`),
-      url: `${SITE_URL}/vibe/${vibe}`,
+      url: alternates.canonical,
       type: "website",
     },
     twitter: {

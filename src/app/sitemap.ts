@@ -14,7 +14,11 @@ export const revalidate = 86400;
 
 type EntryInput = {
   pathname: string;
-  lastModified: Date;
+  // Optional on purpose: a static page's lastModified used to be `now`,
+  // so every revalidate rewrote the whole line and "changed recently"
+  // stopped meaning anything. Static entries omit it; dynamic entries
+  // (pets/collections) pass their real timestamps.
+  lastModified?: Date;
   changeFrequency: NonNullable<
     MetadataRoute.Sitemap[number]["changeFrequency"]
   >;
@@ -58,43 +62,36 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticEntries: EntryInput[] = [
     {
       pathname: "/",
-      lastModified: now,
       changeFrequency: "daily",
       priority: 1,
     },
     {
       pathname: "/about",
-      lastModified: now,
       changeFrequency: "monthly",
       priority: 0.8,
     },
     {
       pathname: "/docs",
-      lastModified: now,
       changeFrequency: "weekly",
       priority: 0.7,
     },
     {
       pathname: "/brand",
-      lastModified: now,
       changeFrequency: "monthly",
       priority: 0.5,
     },
     {
       pathname: "/leaderboard",
-      lastModified: now,
       changeFrequency: "daily",
       priority: 0.7,
     },
     {
       pathname: "/collections",
-      lastModified: now,
       changeFrequency: "weekly",
       priority: 0.7,
     },
     {
       pathname: "/requests",
-      lastModified: now,
       changeFrequency: "daily",
       priority: 0.6,
     },
@@ -102,7 +99,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // entry for a disallowed URL is a Search Console error, not a hint.
     {
       pathname: "/legal/takedown",
-      lastModified: now,
       changeFrequency: "yearly",
       priority: 0.2,
     },
@@ -113,19 +109,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // exactly the case a sitemap exists to cover.
     {
       pathname: "/download",
-      lastModified: now,
       changeFrequency: "weekly",
       priority: 0.7,
     },
     {
       pathname: "/built-with",
-      lastModified: now,
       changeFrequency: "weekly",
       priority: 0.5,
     },
     {
       pathname: "/legal/telemetry",
-      lastModified: now,
       changeFrequency: "yearly",
       priority: 0.2,
     },
@@ -143,7 +136,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   if (process.env.NEXT_PUBLIC_DISCORD_INVITE_URL) {
     staticEntries.push({
       pathname: "/community",
-      lastModified: now,
       changeFrequency: "monthly",
       priority: 0.5,
     });
@@ -169,7 +161,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     populated(facets.vibes, vibe),
   ).map((vibe) => ({
     pathname: `/vibe/${vibe}`,
-    lastModified: now,
     changeFrequency: "weekly",
     priority: 0.7,
   }));
@@ -178,7 +169,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     populated(facets.kinds, kind),
   ).map((kind) => ({
     pathname: `/kind/${kind}`,
-    lastModified: now,
     changeFrequency: "weekly",
     priority: 0.7,
   }));

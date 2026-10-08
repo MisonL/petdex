@@ -56,17 +56,18 @@ export async function generateMetadata({ params }: PageProps) {
     namespace: "collectionDetail.metadata",
   });
   const ogTitle = tMeta("ogTitle", { title: collection.title });
+  const alternates = buildLocaleAlternates(
+    `/collections/${collection.slug}`,
+    hasLocale(locale) ? locale : undefined,
+  );
   return {
     title: tMeta("title", { title: collection.title }),
     description: collection.description,
-    alternates: buildLocaleAlternates(
-      `/collections/${collection.slug}`,
-      hasLocale(locale) ? locale : undefined,
-    ),
+    alternates,
     openGraph: {
       title: ogTitle,
       description: collection.description,
-      url: `${SITE_URL}/collections/${collection.slug}`,
+      url: alternates.canonical,
       images: [{ url: ogImage, width: 1200, height: 630 }],
     },
     twitter: {

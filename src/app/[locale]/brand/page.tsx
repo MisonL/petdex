@@ -10,7 +10,6 @@ import { SiteHeader } from "@/components/site-header";
 
 import { hasLocale } from "@/i18n/config";
 
-const SITE_URL = "https://petdex.dev";
 const PREVIEW_BACKGROUND = {
   light: "bg-[#f7f8ff]",
   dark: "bg-[#12141f]",
@@ -75,18 +74,19 @@ export async function generateMetadata({
 }) {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "brand.metadata" });
+  const alternates = buildLocaleAlternates(
+    "/brand",
+    hasLocale(locale) ? locale : undefined,
+  );
 
   return {
     title: t("title"),
     description: t("description"),
-    alternates: buildLocaleAlternates(
-      "/brand",
-      hasLocale(locale) ? locale : undefined,
-    ),
+    alternates,
     openGraph: {
       title: t("ogTitle"),
       description: t("description"),
-      url: `${SITE_URL}/brand`,
+      url: alternates.canonical,
       type: "website",
     },
   };

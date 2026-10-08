@@ -78,7 +78,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     openGraph: {
       title: t("ogTitle"),
       description: t("description"),
-      url: SITE_URL,
+      // No `url` here: this layout is the metadata *base* for every route
+      // under it, and a hardcoded `SITE_URL` overrode each page's own og:url
+      // (a /zh page shared as the site root). Next omits og:url when unset,
+      // so scrapers fall back to the real page URL; pages that can set their
+      // locale-prefixed URL do so individually.
       siteName: "Petdex",
       type: "website",
       images: [

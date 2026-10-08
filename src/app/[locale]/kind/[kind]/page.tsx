@@ -50,17 +50,18 @@ export async function generateMetadata({ params }: Props) {
   });
   const kind = resolveKind(raw);
   if (!kind) return { title: t("notFound.kind"), robots: { index: false } };
+  const alternates = buildLocaleAlternates(
+    `/kind/${kind}`,
+    hasLocale(locale) ? locale : undefined,
+  );
   return {
     title: t(`kinds.${kind}.title`),
     description: t(`kinds.${kind}.metaDescription`),
-    alternates: buildLocaleAlternates(
-      `/kind/${kind}`,
-      hasLocale(locale) ? locale : undefined,
-    ),
+    alternates,
     openGraph: {
       title: t(`kinds.${kind}.title`),
       description: t(`kinds.${kind}.metaDescription`),
-      url: `${SITE_URL}/kind/${kind}`,
+      url: alternates.canonical,
       type: "website",
     },
     twitter: {

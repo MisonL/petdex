@@ -34,18 +34,19 @@ export async function generateMetadata({
 }) {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "about.metadata" });
+  const alternates = buildLocaleAlternates(
+    "/about",
+    hasLocale(locale) ? locale : undefined,
+  );
 
   return {
     title: t("title"),
     description: t("description"),
-    alternates: buildLocaleAlternates(
-      "/about",
-      hasLocale(locale) ? locale : undefined,
-    ),
+    alternates,
     openGraph: {
       title: t("ogTitle"),
       description: t("ogDescription"),
-      url: `${SITE_URL}/about`,
+      url: alternates.canonical,
       type: "website",
     },
   };

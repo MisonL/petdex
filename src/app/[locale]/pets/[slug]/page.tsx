@@ -91,15 +91,17 @@ export async function generateMetadata({ params }: PageProps) {
     description: pet.description,
     tags: pet.tags.slice(0, 3).join(" + ") || tMeta("tagsFallback"),
   });
-  const url = `${SITE_URL}/pets/${pet.slug}`;
+  // og:url must match the locale-prefixed canonical: a /zh pet page used to
+  // advertise the English path, so scrapers merged the two locales' shares.
+  const alternates = buildLocaleAlternates(
+    `/pets/${pet.slug}`,
+    hasLocale(locale) ? locale : undefined,
+  );
 
   return {
     title,
     description,
-    alternates: buildLocaleAlternates(
-      `/pets/${pet.slug}`,
-      hasLocale(locale) ? locale : undefined,
-    ),
+    alternates,
     keywords: [
       pet.displayName,
       tMeta("keywordCodexPet", { name: pet.displayName }),
@@ -111,7 +113,7 @@ export async function generateMetadata({ params }: PageProps) {
     openGraph: {
       title,
       description,
-      url,
+      url: alternates.canonical,
       type: "article",
       // Pin to the locale-stripped path. The auto-detected URL from
       // opengraph-image.tsx includes the [locale] segment, which

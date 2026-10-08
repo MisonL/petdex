@@ -32,7 +32,9 @@ export async function generateMetadata({
   return {
     title: t("title"),
     description: t("description"),
-    alternates: { canonical: "/my-feedback" },
+    // No canonical: this page is noindex, and the previous self-canonical
+    // pointed at the unprefixed path, so a /zh visitor's page declared the
+    // English URL as its canonical.
     robots: { index: false, follow: false },
   };
 }

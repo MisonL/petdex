@@ -105,17 +105,18 @@ export async function generateMetadata({
   const total = builtWithData.projects.length;
   const title = t("titleTemplate", { total });
   const description = t("description", { total });
+  const alternates = buildLocaleAlternates(
+    "/built-with",
+    hasLocale(locale) ? locale : undefined,
+  );
   return {
     title,
     description,
-    alternates: buildLocaleAlternates(
-      "/built-with",
-      hasLocale(locale) ? locale : undefined,
-    ),
+    alternates,
     openGraph: {
       title,
       description,
-      url: `${SITE_URL}/built-with`,
+      url: alternates.canonical,
       type: "website",
     },
   };

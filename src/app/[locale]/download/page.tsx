@@ -39,17 +39,18 @@ export async function generateMetadata({
   // /zh/download served English titles and social cards while the page under
   // them was translated.
   const t = await getTranslations({ locale, namespace: "download.metadata" });
+  const alternates = buildLocaleAlternates(
+    "/download",
+    hasLocale(locale) ? locale : undefined,
+  );
   return {
     title: t("title"),
     description: t("description"),
-    alternates: buildLocaleAlternates(
-      "/download",
-      hasLocale(locale) ? locale : undefined,
-    ),
+    alternates,
     openGraph: {
       title: t("ogTitle"),
       description: t("ogDescription"),
-      url: `${SITE_URL}/download`,
+      url: alternates.canonical,
       images: [{ url: OG_IMAGE, width: 1200, height: 630 }],
     },
     twitter: {

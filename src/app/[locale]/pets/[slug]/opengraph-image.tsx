@@ -211,7 +211,11 @@ export default async function Image({
               marginBottom: 20,
             }}
           >
-            {pet.displayName}
+            {/* displayName is capped at 60 chars at submit time, which at
+                this font size wraps to 4+ lines and pushes the card past the
+                630px canvas. Bound it the way the sibling u/[handle] route
+                bounds its name. */}
+            {clip(pet.displayName, 24)}
           </div>
           <div
             style={{

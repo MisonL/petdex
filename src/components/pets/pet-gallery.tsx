@@ -216,6 +216,17 @@ export function PetGallery({
     setSort(trimmedQuery ? "curated" : "installed");
   }, [sortTouched, trimmedQuery]);
 
+  // The homepage advertises a SearchAction (`/?q={search_term_string}#gallery`)
+  // to search engines, and nothing read that parameter: a visitor arriving
+  // through the sitelink landed on an unfiltered grid. Read it once after
+  // mount rather than in the initial state — the first render must stay
+  // empty so it matches the server HTML, and the search effect above then
+  // picks the query up on its next pass.
+  useEffect(() => {
+    const fromUrl = new URLSearchParams(window.location.search).get("q");
+    if (fromUrl?.trim()) setQuery(fromUrl);
+  }, []);
+
   // Re-seed from the server payload when it changes. The initial state above
   // is only read on mount, so a router.refresh() — which the per-card action
   // menu fires after deleting a pet — re-rendered the page around a gallery

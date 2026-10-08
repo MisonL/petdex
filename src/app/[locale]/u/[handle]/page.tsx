@@ -82,17 +82,18 @@ export async function generateMetadata({ params }: PageProps) {
   });
   const title = tMeta("title", { name: displayName });
   const ogDescription = tMeta("ogDescription", { name: displayName });
+  const alternates = buildLocaleAlternates(
+    `/u/${publicHandle}`,
+    hasLocale(locale) ? locale : undefined,
+  );
   return {
     title,
     description: tMeta("description", { name: displayName }),
-    alternates: buildLocaleAlternates(
-      `/u/${publicHandle}`,
-      hasLocale(locale) ? locale : undefined,
-    ),
+    alternates,
     openGraph: {
       title,
       description: ogDescription,
-      url: `${SITE_URL}/u/${publicHandle}`,
+      url: alternates.canonical,
       images: [{ url: ogImage, width: 1200, height: 630 }],
     },
     twitter: {
