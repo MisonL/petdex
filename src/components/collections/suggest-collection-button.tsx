@@ -65,7 +65,11 @@ export function SuggestCollectionButton({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ petSlug, note: note || undefined }),
         });
-        if (!res.ok && res.status !== 409) {
+        // A 409 here means already_in_collection (the route answers the
+        // idempotent already-pending case with a 200). The old condition
+        // treated every 409 as success, so a pet already in the collection
+        // got marked "pending" instead of surfacing the real reason.
+        if (!res.ok) {
           const body = (await res.json().catch(() => ({}))) as {
             error?: string;
           };

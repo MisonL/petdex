@@ -43,6 +43,7 @@ export function FeedbackThread({
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [notify, setNotify] = useState(feedback.notifyEmail);
+  const notifyVersionRef = useRef(0);
   const [, startTransition] = useTransition();
   const endRef = useRef<HTMLDivElement | null>(null);
   const { refresh } = useHeaderState();
@@ -83,6 +84,11 @@ export function FeedbackThread({
       setReplies((prev) => [...prev, data.reply]);
       setDraft("");
       void refresh({ force: true });
+    } catch {
+      // A dropped connection rejects before `res.ok` exists, so the branch
+      // above never runs and the rejection used to escape unhandled — the
+      // button re-enabled and the user saw nothing. The draft stays put.
+      alert(t("sendFailed", { code: "network" }));
     } finally {
       setBusy(false);
     }
@@ -91,17 +97,25 @@ export function FeedbackThread({
   async function toggleNotify() {
     if (viewerKind !== "user") return;
     const next = !notify;
+    // Rapid clicks fire overlapping PATCHes; without a version guard a
+    // late failure from an earlier click rolls the switch back past the
+    // newest intent, leaving the UI the opposite of what the user last
+    // chose. Only the latest click may roll back.
+    const version = notifyVersionRef.current + 1;
+    notifyVersionRef.current = version;
     setNotify(next);
+    let failed = false;
     try {
       const res = await fetch(`/api/feedback/${feedbackId}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ notifyEmail: next }),
       });
-      if (!res.ok) {
-        setNotify(!next);
-      }
+      failed = !res.ok;
     } catch {
+      failed = true;
+    }
+    if (failed && notifyVersionRef.current === version) {
       setNotify(!next);
     }
   }

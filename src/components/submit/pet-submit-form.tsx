@@ -421,10 +421,23 @@ export function PetSubmitForm() {
     const zip = new JSZip();
     zip.file("pet.json", petJsonString);
     zip.file(`spritesheet.${parsed.spritesheetExt}`, parsed.spritesheetBlob);
-    const zipBlob = await zip.generateAsync({
-      type: "blob",
-      compression: "DEFLATE",
-    });
+    // generateAsync can reject (compression worker / memory), and it sits
+    // before every other try/catch in this handler. Unhandled, the state
+    // stays on "uploading" with the button spinning and no error card.
+    let zipBlob: Blob;
+    try {
+      zipBlob = await zip.generateAsync({
+        type: "blob",
+        compression: "DEFLATE",
+      });
+    } catch (err) {
+      const reason = (err as Error).message || "zip";
+      setSubmission({
+        kind: "error",
+        message: t("errors.uploadFailed", { reason }),
+      });
+      return;
+    }
 
     const zipFile = new File([zipBlob], parsed.zipFileName, {
       type: "application/zip",
