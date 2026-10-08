@@ -866,7 +866,10 @@ export function PetSubmitForm() {
             />
 
             {submission.kind === "error" ? (
-              <div className="space-y-2 rounded-2xl bg-chip-danger-bg p-3 text-sm text-chip-danger-fg">
+              <div
+                role="alert"
+                className="space-y-2 rounded-2xl bg-chip-danger-bg p-3 text-sm text-chip-danger-fg"
+              >
                 <p>{submission.message}</p>
                 <p className="text-xs leading-5 text-rose-800/80">
                   {t("fallback.beforeLink")}{" "}
@@ -927,7 +930,7 @@ function SubmissionSuccessMessage({
         : "bg-chip-warning-bg text-chip-warning-fg";
 
   return (
-    <div className={`rounded-2xl p-3 text-sm ${tone}`}>
+    <div role="status" className={`rounded-2xl p-3 text-sm ${tone}`}>
       <p>{t(submission.review.decision, { name: submission.displayName })}</p>
       {explanation ? (
         <p className="mt-2 text-xs leading-5">{explanation}</p>

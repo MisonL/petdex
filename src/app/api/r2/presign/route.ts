@@ -67,7 +67,10 @@ export async function POST(req: Request): Promise<Response> {
       { status: 400 },
     );
   }
-
+  // Each role must appear exactly once: the three keys are derived from the
+  // role, so a duplicate would sign the same object twice and a missing one
+  // would leave the caller without a slot it was promised.
+  const roles = new Set<string>();
   for (const f of files) {
     // The cast above is compile-time only: `[null,null,null]` passes the
     // length check and `f.contentType` on null throws. Refuse non-objects
@@ -84,6 +87,7 @@ export async function POST(req: Request): Promise<Response> {
         { status: 400 },
       );
     }
+    roles.add(f.role);
     if (!ALLOWED_CT.has(f.contentType)) {
       return NextResponse.json(
         { error: "unsupported_content_type", got: f.contentType },
@@ -112,6 +116,15 @@ export async function POST(req: Request): Promise<Response> {
         { status: 400 },
       );
     }
+  }
+  if (roles.size !== 3) {
+    return NextResponse.json(
+      {
+        error: "duplicate_role",
+        message: "Need one zip, one sprite, one petjson.",
+      },
+      { status: 400 },
+    );
   }
 
   // Random short upload id for this batch — DB will keep the canonical slug

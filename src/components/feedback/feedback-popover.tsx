@@ -181,7 +181,10 @@ export function FeedbackPopover({
       </div>
 
       {state.tag === "ok" ? (
-        <div className="flex flex-col items-center gap-3 px-6 py-10 text-center">
+        <div
+          role="status"
+          className="flex flex-col items-center gap-3 px-6 py-10 text-center"
+        >
           <span className="grid size-12 place-items-center rounded-full bg-chip-success-bg text-chip-success-fg ring-1 ring-chip-success-fg/20">
             <Check className="size-5" />
           </span>
@@ -238,7 +241,9 @@ export function FeedbackPopover({
           />
 
           {state.tag === "error" ? (
-            <p className="text-xs text-chip-danger-fg">{state.reason}</p>
+            <p role="alert" className="text-xs text-chip-danger-fg">
+              {state.reason}
+            </p>
           ) : null}
 
           <div className="flex items-center justify-between gap-2">

@@ -207,7 +207,10 @@ export function ClaimRequestButton({
             </div>
 
             {error ? (
-              <p className="rounded-lg bg-chip-danger-bg p-2 font-mono text-[10px] text-chip-danger-fg">
+              <p
+                role="alert"
+                className="rounded-lg bg-chip-danger-bg p-2 font-mono text-[10px] text-chip-danger-fg"
+              >
                 {CLAIM_ERROR_KEYS[error]
                   ? t(`errors.${CLAIM_ERROR_KEYS[error]}`)
                   : error.startsWith("http_")

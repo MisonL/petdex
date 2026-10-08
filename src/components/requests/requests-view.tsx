@@ -451,12 +451,18 @@ export function RequestsView({ initial }: { initial: RequestRow[] }) {
           ) : null}
         </div>
         {formError ? (
-          <p className="rounded-xl border border-chip-danger-fg/25 bg-chip-danger-bg px-3 py-2 text-xs font-medium text-chip-danger-fg">
+          <p
+            role="alert"
+            className="rounded-xl border border-chip-danger-fg/25 bg-chip-danger-bg px-3 py-2 text-xs font-medium text-chip-danger-fg"
+          >
             {formError}
           </p>
         ) : null}
         {lastResult ? (
-          <p className="rounded-xl border border-emerald-200 bg-chip-success-bg px-3 py-2 text-xs font-medium text-chip-success-fg dark:border-emerald-800/60">
+          <p
+            role="status"
+            className="rounded-xl border border-emerald-200 bg-chip-success-bg px-3 py-2 text-xs font-medium text-chip-success-fg dark:border-emerald-800/60"
+          >
             <Check className="-mt-0.5 mr-1 inline-block size-3.5" />
             {lastResult.mode === "created"
               ? t("success.created", { query: lastResult.query })
@@ -507,7 +513,10 @@ export function RequestsView({ initial }: { initial: RequestRow[] }) {
 
       {/* List */}
       {error ? (
-        <p className="rounded-xl border border-chip-danger-fg/25 bg-chip-danger-bg px-3 py-2 text-xs font-medium text-chip-danger-fg">
+        <p
+          role="alert"
+          className="rounded-xl border border-chip-danger-fg/25 bg-chip-danger-bg px-3 py-2 text-xs font-medium text-chip-danger-fg"
+        >
           {error}
         </p>
       ) : null}

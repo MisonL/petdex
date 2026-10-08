@@ -51,6 +51,7 @@ export async function POST(req: Request): Promise<Response> {
   }
   if (
     typeof body.size !== "number" ||
+    !Number.isFinite(body.size) ||
     body.size <= 0 ||
     body.size > MAX_BYTES
   ) {
