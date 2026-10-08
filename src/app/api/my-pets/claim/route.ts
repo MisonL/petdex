@@ -152,6 +152,16 @@ export async function POST(req: Request): Promise<Response> {
   const update: Partial<typeof schema.submittedPets.$inferInsert> = {
     ownerId: userId,
   };
+  // 'discover' means an admin catalogued this pet on the author's behalf, and
+  // every reader filters those out — no dex number, no month-batch facet, no
+  // random pool, no leaderboard credit, and a permanent "Discovered" badge.
+  // Claiming is what promotes the row, but nothing ever wrote the 'claimed'
+  // state the enum and the dex filter are built around, so a claimed pet kept
+  // behaving like an unclaimed one. The update above is already the claim;
+  // this is the same write, so it cannot drift out of step with it.
+  if (row.source === "discover") {
+    update.source = "claimed";
+  }
   if (githubMatch && !emailMatch && ident.email) {
     update.ownerEmail = ident.email;
   }

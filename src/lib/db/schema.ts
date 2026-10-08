@@ -548,13 +548,14 @@ export const petCollectionRequests = pgTable(
       table.requestedBy,
     ),
     // Prevents the same owner from spamming the same pet/collection pair
-    // before admins decide. They can resubmit once a decision is made
-    // (the status flips, freeing the unique).
-    pendingPair: uniqueIndex("pet_collection_requests_pending_pair").on(
-      table.collectionId,
-      table.petSlug,
-      table.status,
-    ),
+    // before admins decide. The partial predicate is what frees the pair
+    // after a decision: with `status` as an index column instead, the slot
+    // freed by a 'pending' row is replaced by a 'rejected' one, so a
+    // resubmission that is rejected a second time collides with the first
+    // rejection and the UPDATE raises a duplicate-key error.
+    pendingPair: uniqueIndex("pet_collection_requests_pending_pair")
+      .on(table.collectionId, table.petSlug)
+      .where(sql`${table.status} = 'pending'`),
   }),
 );
 
