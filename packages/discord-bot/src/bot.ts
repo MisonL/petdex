@@ -57,9 +57,20 @@ await client.login(token);
 // Webhook server runs in the same process so we share the client. It
 // only listens locally — the petdex.dev side fires through a
 // Cloudflare tunnel or fly.io edge, never directly to the bot host.
+// Bind loopback explicitly: relying on the platform's default bind made
+// the "only listens locally" comment a hope rather than a guarantee.
 const PORT = Number(process.env.PORT ?? 8086);
 createServer((req, res) => {
-  void handleWebhook(req, res, client);
-}).listen(PORT, () => {
-  console.log(`[bot] webhook listening on :${PORT}`);
+  // Belt and suspenders: handleWebhook is written not to reject, but an
+  // unhandled rejection from this callback kills the whole process.
+  void handleWebhook(req, res, client).catch((err) => {
+    console.error("[webhook] handler error", err);
+    try {
+      res.writeHead(500).end("internal error");
+    } catch {
+      /* socket already gone */
+    }
+  });
+}).listen(PORT, "127.0.0.1", () => {
+  console.log(`[bot] webhook listening on 127.0.0.1:${PORT}`);
 });

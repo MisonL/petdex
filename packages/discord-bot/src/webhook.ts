@@ -5,10 +5,24 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 
-import { type Client, EmbedBuilder, type TextChannel } from "discord.js";
+import {
+  type Client,
+  EmbedBuilder,
+  escapeMarkdown,
+  type TextChannel,
+} from "discord.js";
 
 const SECRET = process.env.PETDEX_WEBHOOK_SECRET;
 const PETDEX_API_BASE = process.env.PETDEX_API_BASE ?? "https://petdex.dev";
+// Runtime guild scope. Without it, channel lookup walks every guild the bot
+// is in and posts to whichever one holds the first channel named `showcase`;
+// with it, an invite to a second guild cannot redirect announcements.
+const GUILD_ID = process.env.DISCORD_GUILD_ID;
+
+// Resend-sized events are a few KB. The signature covers the raw body, so the
+// body is read before the caller is trusted; without a ceiling an anonymous
+// request decides how much this process buffers.
+const MAX_BODY_BYTES = 64 * 1024;
 
 type PetApprovedEvent = {
   event: "pet_approved";
@@ -29,9 +43,17 @@ type CollectionFeaturedEvent = {
 
 type Event = PetApprovedEvent | CollectionFeaturedEvent;
 
-async function readBody(req: IncomingMessage): Promise<string> {
+class PayloadTooLargeError extends Error {}
+
+async function readBody(
+  req: IncomingMessage,
+  maxBytes: number,
+): Promise<string> {
   const chunks: Buffer[] = [];
+  let total = 0;
   for await (const chunk of req) {
+    total += (chunk as Buffer).byteLength;
+    if (total > maxBytes) throw new PayloadTooLargeError();
     chunks.push(chunk as Buffer);
   }
   return Buffer.concat(chunks).toString("utf8");
@@ -49,11 +71,12 @@ function verify(
   return timingSafeEqual(a, b);
 }
 
-async function findChannel(
+export async function findChannel(
   client: Client,
   name: string,
 ): Promise<TextChannel | null> {
   for (const guild of client.guilds.cache.values()) {
+    if (GUILD_ID && guild.id !== GUILD_ID) continue;
     const channel = guild.channels.cache.find(
       (c) => c.isTextBased() && c.name === name,
     );
@@ -75,9 +98,11 @@ async function postPetApproved(
     ? `<@${ev.pet.discordUserId}>`
     : "a creator";
   const embed = new EmbedBuilder()
-    .setTitle(ev.pet.displayName)
+    .setTitle(escapeMarkdown(ev.pet.displayName))
     .setURL(`${PETDEX_API_BASE}/pets/${ev.pet.slug}`)
-    .setDescription(ev.pet.description.slice(0, 200))
+    // Creator-supplied markdown would render as links in a message that
+    // carries the official bot's name — neutralize it before it goes out.
+    .setDescription(escapeMarkdown(ev.pet.description.slice(0, 200)))
     .setColor(0x5266ea)
     .setImage(`${PETDEX_API_BASE}/pets/${ev.pet.slug}/opengraph-image`)
     .addFields(
@@ -90,7 +115,7 @@ async function postPetApproved(
       { name: "install", value: `\`npx petdex install ${ev.pet.slug}\`` },
     );
   await channel.send({
-    content: `🎉 **${ev.pet.displayName}** just landed on Petdex — submitted by ${mention}.`,
+    content: `🎉 **${escapeMarkdown(ev.pet.displayName)}** just landed on Petdex — submitted by ${mention}.`,
     embeds: [embed],
     // Pet names are user-supplied, and mention parsing in regular messages
     // defaults to all types — a name containing `<@&role-id>` or
@@ -124,45 +149,76 @@ async function postCollectionFeatured(
   });
 }
 
+// A response is best-effort: the client may already be gone (aborted upload,
+// closed socket), and writing to a dead socket throws. Never let that — or
+// anything else in this handler — surface as a rejected promise, because the
+// server callback in bot.ts awaits this without a catch and Bun terminates the
+// whole process on an unhandled rejection.
+function safeEnd(res: ServerResponse, status: number, body?: string): void {
+  try {
+    res.writeHead(status).end(body);
+  } catch {
+    /* socket already gone */
+  }
+}
+
 export async function handleWebhook(
   req: IncomingMessage,
   res: ServerResponse,
   client: Client,
 ): Promise<void> {
-  if (req.method !== "POST" || req.url !== "/webhook") {
-    res.writeHead(404).end();
-    return;
-  }
-
-  const raw = await readBody(req);
-  if (!verify(raw, req.headers["x-petdex-signature"])) {
-    res.writeHead(401).end("invalid signature");
-    return;
-  }
-
-  let payload: Event;
   try {
-    payload = JSON.parse(raw) as Event;
-  } catch {
-    res.writeHead(400).end("invalid json");
-    return;
-  }
-
-  // Acknowledge fast (Discord and our own retry policy alike prefer a
-  // sub-second 2xx) and process the event in the background.
-  res.writeHead(202).end();
-
-  void (async () => {
-    try {
-      if (payload.event === "pet_approved") {
-        await postPetApproved(client, payload);
-      } else if (payload.event === "collection_featured") {
-        await postCollectionFeatured(client, payload);
-      } else {
-        console.warn("[webhook] unknown event", payload);
-      }
-    } catch (err) {
-      console.error("[webhook] handler error", err);
+    if (req.method !== "POST" || req.url !== "/webhook") {
+      safeEnd(res, 404);
+      return;
     }
-  })();
+
+    let raw: string;
+    try {
+      raw = await readBody(req, MAX_BODY_BYTES);
+    } catch (err) {
+      if (err instanceof PayloadTooLargeError) {
+        safeEnd(res, 413, "payload too large");
+        return;
+      }
+      // The upload aborted mid-body (ECONNRESET). The socket is unusable, so
+      // there is nobody to answer — swallow it rather than reject.
+      safeEnd(res, 400, "bad request");
+      return;
+    }
+
+    if (!verify(raw, req.headers["x-petdex-signature"])) {
+      safeEnd(res, 401, "invalid signature");
+      return;
+    }
+
+    let payload: Event;
+    try {
+      payload = JSON.parse(raw) as Event;
+    } catch {
+      safeEnd(res, 400, "invalid json");
+      return;
+    }
+
+    // Acknowledge fast (Discord and our own retry policy alike prefer a
+    // sub-second 2xx) and process the event in the background.
+    safeEnd(res, 202);
+
+    void (async () => {
+      try {
+        if (payload.event === "pet_approved") {
+          await postPetApproved(client, payload);
+        } else if (payload.event === "collection_featured") {
+          await postCollectionFeatured(client, payload);
+        } else {
+          console.warn("[webhook] unknown event", payload);
+        }
+      } catch (err) {
+        console.error("[webhook] handler error", err);
+      }
+    })();
+  } catch (err) {
+    console.error("[webhook] unexpected error", err);
+    safeEnd(res, 500, "internal error");
+  }
 }
