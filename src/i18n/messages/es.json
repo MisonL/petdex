@@ -2032,7 +2032,7 @@
           "presign429": {
             "cause": "Se alcanzó el límite de 10/24 h",
             "fixBefore": "Espera 24 h o abre una",
-            "fixLink": "submit-fallback issue"
+            "fixLink": "incidencia con la etiqueta submit-fallback"
           },
           "invalidSpritesheet": {
             "cause": "Sprite < 256×256",

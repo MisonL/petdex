@@ -21,7 +21,7 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { useAuthIntent } from "@/components/auth/auth-intent";
 import { ClaimRequestButton } from "@/components/auth/claim-request-button";
@@ -618,6 +618,7 @@ function RequestCard({
   t: ReturnType<typeof useTranslations>;
   itemRef: (node: HTMLLIElement | null) => void;
 }) {
+  const locale = useLocale();
   const fulfilled = request.status === "fulfilled";
   const top3 = request.voters.slice(0, 3);
   const moreVoters = Math.max(0, request.upvoteCount - top3.length);
@@ -688,7 +689,7 @@ function RequestCard({
               </span>
             ) : null}
             <span className="ml-auto font-mono text-[10px] tracking-[0.12em] text-muted-4 uppercase">
-              {new Date(request.createdAt).toLocaleDateString(undefined, {
+              {new Date(request.createdAt).toLocaleDateString(locale, {
                 month: "short",
                 day: "numeric",
               })}

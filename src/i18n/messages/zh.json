@@ -225,7 +225,7 @@
       },
       "channels": {
         "title": "围绕创作和发布交流",
-        "body": "可以分享进行中的精灵图Sprite、反馈 CLI 问题、提出新想法，也可以参与周末的 Ship or Sink 创作活动。"
+        "body": "可以分享进行中的精灵图、反馈 CLI 问题、提出新想法，也可以参与周末的 Ship or Sink 创作活动。"
       },
       "roles": {
         "title": "积极参与，赢得荣誉头衔",
@@ -386,7 +386,7 @@
       "drop": {
         "title": "上传宠物包",
         "instructions": "拖入包含 <petJson>pet.json</petJson> 和 <spritesheet>精灵图集文件 spritesheet.webp</spritesheet>（或 .png）的文件夹或 ZIP。支持 {classicWidth}×{classicHeight}（8×9）或 {v2Width}×{v2Height}（v2 8×11）帧网格。",
-        "short": "拖入包含 pet.json 和精灵图集 Spritesheet 的文件夹或 ZIP。",
+        "short": "拖入包含 pet.json 和精灵图集的文件夹或 ZIP。",
         "ariaLabel": "宠物包拖放区域",
         "pickFolder": "选择文件夹",
         "pickZip": "选择 .zip",
@@ -399,7 +399,7 @@
         "title": "提交检查",
         "reading": "正在读取包...",
         "ready": "可以提交了。",
-        "empty": "在你确认前，包会一直保留在本地。Petdex 会在上传前检查 manifest 和精灵图Sprite 尺寸。"
+        "empty": "在你确认前，包会一直保留在本地。Petdex 会在上传前检查 manifest 和精灵图尺寸。"
       },
       "edit": {
         "displayNameLabel": "宠物名称",
@@ -447,7 +447,7 @@
           "duplicate": "原因：它似乎与现有宠物重复。{summary}",
           "duplicateFallback": "提交的资源与现有宠物包匹配。",
           "policy": "原因：自动审核发现可能的政策问题，需要管理员审核后才能上线。",
-          "assets": "原因：自动审核发现包文件或精灵图集 Spritesheet 存在问题。",
+          "assets": "原因：自动审核发现包文件或精灵图集存在问题。",
           "timeout": "原因：自动审核耗时过长，所以我们改为人工审核，避免做出有风险的决定。",
           "reviewFailed": "原因：自动审核失败，所以我们改为人工审核，避免做出有风险的决定。",
           "rejectedGeneric": "原因：自动审核发现这个提交存在高置信度问题。",
@@ -471,7 +471,7 @@
         "submissionFailedWithCode": "提交失败：{code}",
         "rateLimited": "已达到限制：每 24 小时最多提交 10 次。请明天再试。",
         "missingField": "这个包缺少提交所需的数据。",
-        "invalidSpritesheet": "精灵图集 Spritesheet 太小，或尺寸无效。",
+        "invalidSpritesheet": "精灵图集太小，或尺寸无效。",
         "invalidAssetUrl": "上传的资源没有通过托管检查。",
         "invalidSlug": "宠物 id 无法转换成有效的 URL slug。",
         "unauthorized": "请先登录再提交。",
@@ -487,9 +487,9 @@
         "zipMissingSpritesheet": "zip 根目录缺少精灵图集文件 spritesheet.webp（或 .png）。找到的文件：{present}",
         "invalidJson": "pet.json 不是有效的 JSON。",
         "invalidSpriteVersion": "pet.json 中的 spriteVersionNumber 不受支持：{value}。请使用 1、2，或省略该字段。",
-        "unreadableSpritesheet": "无法读取精灵图集 Spritesheet 图片。",
-        "tooSmall": "精灵图集 Spritesheet 看起来太小（{width}×{height}）。请使用 {classicWidth}×{classicHeight}（8×9）或 {v2Width}×{v2Height}（v2 8×11）。",
-        "badGrid": "精灵图集 Spritesheet 网格为 {width}×{height}，不符合 8×9（1536×1872）或 v2 8×11（1536×2288）帧网格，帧会错位显示。",
+        "unreadableSpritesheet": "无法读取精灵图集图片。",
+        "tooSmall": "精灵图集看起来太小（{width}×{height}）。请使用 {classicWidth}×{classicHeight}（8×9）或 {v2Width}×{v2Height}（v2 8×11）。",
+        "badGrid": "精灵图集网格为 {width}×{height}，不符合 8×9（1536×1872）或 v2 8×11（1536×2288）帧网格，帧会错位显示。",
         "spriteVersionMismatch": "精灵图集尺寸使用 v{detected}，但 pet.json 声明为 v{declared}。请先更新 spriteVersionNumber 再提交。",
         "spritesheetMissingPetInfo": "此精灵图集旁未找到 pet.json，已生成占位名称/描述。请在下方填写宠物名称和描述后再提交。"
       }
@@ -628,7 +628,7 @@
         "title__fixme": true,
         "beforeCommand": "在聊天框中输入",
         "beforeCommand__fixme": true,
-        "afterCommand": "。描述你想要的宠物（一种想法、一种氛围、桌上的某个东西）。技能会自动生成精灵图集 Spritesheet 和动画。",
+        "afterCommand": "。描述你想要的宠物（一种想法、一种氛围、桌上的某个东西）。技能会自动生成精灵图集和动画。",
         "afterCommand__fixme": true,
         "tip": "提示：越具体越好。“有绿色眼睛的小袜子精灵”比“一只动物”更有效。",
         "tip__fixme": true
@@ -996,7 +996,7 @@
         "submit": {
           "q": "我可以提交自己的宠物吗？",
           "q__fixme": true,
-          "a": "可以。先用 petdex CLI 登录（`npx petdex login`），再运行 `npx petdex submit ./my-pet/`，CLI 会把资源上传到 R2，并把提交加入审核队列。你也可以通过网站的 /submit 页面提交。你只需要一个 pet.json 文件和一张 9 状态精灵图集 Spritesheet。",
+          "a": "可以。先用 petdex CLI 登录（`npx petdex login`），再运行 `npx petdex submit ./my-pet/`，CLI 会把资源上传到 R2，并把提交加入审核队列。你也可以通过网站的 /submit 页面提交。你只需要一个 pet.json 文件和一张 9 状态精灵图集。",
           "a__fixme": true
         },
         "openSource": {
@@ -1055,7 +1055,7 @@
       "open": "编辑宠物",
       "open__fixme": true,
       "modalTitle": "编辑宠物",
-      "modalBody": "文字修改如符合所有标准可自动批准。精灵图Sprite 与元数据变更须人工审核。",
+      "modalBody": "文字修改如符合所有标准可自动批准。精灵图与元数据变更须人工审核。",
       "modalBody__fixme": true,
       "fields": {
         "displayName": "显示名称",
@@ -1069,8 +1069,8 @@
         "cancel": "取消",
         "submit": "提交编辑以供审核"
       },
-      "spritesheetLabel": "精灵图集 Spritesheet",
-      "spritesheetHelp": "替换当前精灵图集 Spritesheet。需要人工审核。",
+      "spritesheetLabel": "精灵图集",
+      "spritesheetHelp": "替换当前精灵图集。需要人工审核。",
       "metaLabel": "元数据 pet.json",
       "metaHelp": "替换当前元数据。需要人工审核。",
       "fileTooBig": "文件超过 8 MB",
@@ -1324,7 +1324,7 @@
       "step2": "告诉我们是哪只宠物，以及你与相关 IP 的关系。",
       "step3": "我们会人工审核。通常 48 小时内响应。为保持透明，提交内容会公开保留在 GitHub。",
       "step4": "审核通过后，宠物会从图库和安装接口中移除。",
-      "nonIp": "非 IP 问题，例如精灵图Sprite 损坏或描述错误，请改用普通 issue。",
+      "nonIp": "非 IP 问题，例如精灵图损坏或描述错误，请改用普通 issue。",
       "prefillLabel": "本次请求会自动带上：",
       "confirmation": "向 Petdex 提交内容即表示你确认自己拥有相关作品权利，或正在创作同人内容。Petdex 会处理善意下架请求。",
       "cancel": "取消",
@@ -1440,7 +1440,7 @@
     },
     "variants": {
       "title": "该角色的变体",
-      "description": "其他已审核且精灵图Sprite 形状非常接近的宠物。"
+      "description": "其他已审核且精灵图形状非常接近的宠物。"
     },
     "metadata": {
       "title": "{name}：Codex 动画宠物",
@@ -1940,7 +1940,7 @@
       "review": "我们会人工审核，通常会在 48 小时内响应。为保持透明，请求内容会保留在 GitHub 上。",
       "remove": "审核通过后，宠物会从图库和安装接口中移除。"
     },
-    "nonIpBefore": "如果不是 IP 权利问题，比如精灵图Sprite 损坏、描述有误，请提交普通 issue，或通过",
+    "nonIpBefore": "如果不是 IP 权利问题，比如精灵图损坏、描述有误，请提交普通 issue，或通过",
     "emailLink": "邮件",
     "nonIpAfter": "联系我们。",
     "openRequest": "打开下架请求",
@@ -2313,7 +2313,7 @@
         "title": "校验规则",
         "intro": "服务器会强制执行这些规则；CLI 也会在本地提前检查。",
         "files": "<code>pet.json</code> 和精灵图集文件 <code>spritesheet.webp</code>（或 <code>.png</code>）必须位于文件夹或 zip 根目录。",
-        "spritesheet": "精灵图集 Spritesheet 至少 256×256。推荐尺寸是 <strong>1536×1872</strong>（8×9 帧网格）。",
+        "spritesheet": "精灵图集至少 256×256。推荐尺寸是 <strong>1536×1872</strong>（8×9 帧网格）。",
         "rateLimit": "频率限制：<strong>每个用户 24 小时最多提交 10 次</strong>。管理员不受此限制。",
         "slugs": "宠物名会自动去重（<code>boba</code> → <code>boba-2</code> → <code>boba-3</code> → …）。成功提交后一定会得到可用名称。",
         "identity": "身份信息（userId、email、credit）来自经过验证的 OAuth token，永远不信任请求体。"
@@ -2337,14 +2337,14 @@
           "presign429": {
             "cause": "触发 24 小时 10 次提交限制",
             "fixBefore": "等待 24 小时，或创建",
-            "fixLink": "submit-fallback issue"
+            "fixLink": "带 submit-fallback 标签的 issue"
           },
           "invalidSpritesheet": {
-            "cause": "精灵图Sprite 小于 256×256",
+            "cause": "精灵图小于 256×256",
             "fix": "按 1536×1872 重新生成"
           },
           "missingField": {
-            "cause": "文件夹缺少 pet.json 或精灵图集 Spritesheet",
+            "cause": "文件夹缺少 pet.json 或精灵图集",
             "fix": "检查文件夹内容"
           },
           "r2Put403": {

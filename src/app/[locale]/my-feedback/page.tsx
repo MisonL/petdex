@@ -275,7 +275,7 @@ export default async function MyFeedbackPage({
                                     <span>
                                       ·{" "}
                                       {new Date(lastAdminAt).toLocaleDateString(
-                                        undefined,
+                                        locale,
                                         {
                                           month: "short",
                                           day: "numeric",
