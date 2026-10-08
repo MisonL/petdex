@@ -115,23 +115,16 @@ describe("POST /api/notifications/read", () => {
     expect(unread).toEqual(["n2"]);
   });
 
-  it("caps the id list so it cannot exceed Postgres' parameter ceiling", async () => {
-    // 1000 ids: below the cap every one is named, above it the tail is
-    // dropped. Both requests still answer ok — the cap is a bound on the
-    // statement, not a rejection — so the assertion is on which rows were
-    // read, not on the status.
+  it("refuses an id list past the parameter ceiling instead of truncating it", async () => {
+    // Each id is one bind parameter for `inArray`. The route used to mark the
+    // first 200 and answer `ok`, which reads as success while the tail was
+    // never touched. It now refuses the whole request, so nothing is read.
     const ids = Array.from({ length: 1000 }, (_, i) => `n${i}`);
     await seed(ids);
 
     const res = await post(JSON.stringify({ ids }));
-    expect(res.status).toBe(200);
-
-    // MAX_MARK_IDS is 200, so n0..n199 are read and n200..n999 are not.
-    const rows = (await testDb.execute(
-      sql`SELECT count(*)::int AS "unread" FROM "notifications" WHERE "read_at" IS NULL`,
-    )) as unknown as { rows?: { unread: number }[] };
-    const unread = ((rows.rows ?? rows) as { unread: number }[])[0]?.unread;
-    expect(unread).toBe(800);
+    expect(res.status).toBe(400);
+    expect(await unreadCount()).toBe(1000);
   });
 
   it("rejects an ids array with nothing usable in it", async () => {

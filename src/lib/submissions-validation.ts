@@ -79,6 +79,12 @@ const ASSET_URL_FIELDS: ReadonlyArray<
 export function validateSubmission(
   body: Partial<SubmissionInput>,
 ): SubmissionResult | null {
+  // `req.json()` resolves `null` for a literal `null` body without throwing,
+  // and the field reads below would TypeError on it — a 500 on both submit
+  // endpoints. Refuse non-objects as a 400, the way the sibling routes do.
+  if (body === null || typeof body !== "object" || Array.isArray(body)) {
+    return { ok: false, status: 400, error: "invalid_body" };
+  }
   for (const field of REQUIRED_FIELDS) {
     if (!body[field]) {
       return {
@@ -86,6 +92,30 @@ export function validateSubmission(
         status: 400,
         error: "missing_field",
         field,
+      };
+    }
+  }
+  // The truthiness check above accepts any truthy value, so `{ displayName:
+  // 5 }` walked on and threw inside containsUrl/findBlockedKeyword or the
+  // `.trim()` at persist time — a 500 for a malformed body. Require the
+  // string fields to actually be strings.
+  const STRING_FIELDS = [
+    "zipUrl",
+    "spritesheetUrl",
+    "petJsonUrl",
+    "displayName",
+    "description",
+    "petId",
+  ] as const;
+  for (const field of STRING_FIELDS) {
+    if (typeof body[field] !== "string") {
+      return {
+        ok: false,
+        status: 400,
+        error: "invalid_field",
+        field,
+        message: `${field} must be a string.`,
+        got: body[field],
       };
     }
   }

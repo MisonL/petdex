@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { auth } from "@clerk/nextjs/server";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 
 import { db, schema } from "@/lib/db/client";
 
@@ -32,8 +32,11 @@ export async function GET() {
     .orderBy(desc(schema.notifications.createdAt))
     .limit(20);
 
+  // Count in the database rather than fetching every unread id: this is a
+  // polled endpoint, and a user with hundreds of unread rows had all of them
+  // loaded into memory (and sent back) just to take `.length`.
   const unreadRows = await db
-    .select({ id: schema.notifications.id })
+    .select({ count: sql<number>`count(*)::int` })
     .from(schema.notifications)
     .where(
       and(
@@ -52,7 +55,7 @@ export async function GET() {
         readAt: n.readAt?.toISOString() ?? null,
         createdAt: n.createdAt.toISOString(),
       })),
-      unreadCount: unreadRows.length,
+      unreadCount: unreadRows[0]?.count ?? 0,
     },
     { headers: PRIVATE_HEADERS },
   );

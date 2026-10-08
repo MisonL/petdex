@@ -56,14 +56,19 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   if ("ids" in body && Array.isArray(body.ids) && body.ids.length > 0) {
-    // Cap the list: it goes straight into `inArray`, and each element is a
-    // bind parameter, so an unbounded array reaches Postgres' parameter
-    // ceiling. The sibling routes cap their lists the same way.
-    const ids = body.ids
-      .filter((v) => typeof v === "string")
-      .slice(0, MAX_MARK_IDS);
+    // Each id is a bind parameter for `inArray`, so a long list reaches
+    // Postgres' parameter ceiling. Refuse an oversized list rather than
+    // silently marking only its first N — a partial success that answers
+    // `ok` is a lie the caller cannot see.
+    const ids = body.ids.filter((v) => typeof v === "string");
     if (ids.length === 0) {
       return NextResponse.json({ error: "invalid_ids" }, { status: 400 });
+    }
+    if (ids.length > MAX_MARK_IDS) {
+      return NextResponse.json(
+        { error: "too_many_ids", max: MAX_MARK_IDS },
+        { status: 400 },
+      );
     }
     await db
       .update(schema.notifications)
