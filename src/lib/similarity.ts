@@ -7,7 +7,6 @@
 //   - scripts/compute-similarity.ts for bulk backfill
 
 import { eq } from "drizzle-orm";
-import sharp from "sharp";
 
 import {
   AGGREGATE_KEYS,
@@ -23,10 +22,13 @@ import {
 } from "@/lib/embeddings";
 import { fetchR2AssetBuffer } from "@/lib/r2-fetch";
 import { toCurrentR2PublicUrl } from "@/lib/r2-public-url";
+import { dhashFromSpriteBuffer } from "@/lib/sprite-dhash";
 import { isAllowedAssetUrl } from "@/lib/url-allowlist";
 
-const FRAME_W = 192;
-const FRAME_H = 208;
+// The pixel hashing lives in its own module so the review path can hash a
+// sheet without importing this module's DB client; re-exported here so the
+// existing `@/lib/similarity` importers keep working.
+export { dhashFromSpriteBuffer };
 
 export async function dhashFromSpriteUrl(
   spriteUrl: string,
@@ -38,30 +40,6 @@ export async function dhashFromSpriteUrl(
     const buf = await fetchR2AssetBuffer(spriteUrl);
     if (!buf) return null;
     return dhashFromSpriteBuffer(buf);
-  } catch {
-    return null;
-  }
-}
-
-export async function dhashFromSpriteBuffer(
-  buf: Buffer,
-): Promise<string | null> {
-  try {
-    const frame = await sharp(buf)
-      .extract({ left: 0, top: 0, width: FRAME_W, height: FRAME_H })
-      .resize(9, 8, { fit: "fill" })
-      .grayscale()
-      .raw()
-      .toBuffer();
-    let bits = "";
-    for (let row = 0; row < 8; row++) {
-      for (let col = 0; col < 8; col++) {
-        const left = frame[row * 9 + col];
-        const right = frame[row * 9 + col + 1];
-        bits += left < right ? "1" : "0";
-      }
-    }
-    return BigInt(`0b${bits}`).toString(16).padStart(16, "0");
   } catch {
     return null;
   }

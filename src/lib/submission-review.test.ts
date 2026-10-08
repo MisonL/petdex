@@ -159,6 +159,21 @@ describe("decideAutomatedReview", () => {
     expect(result.reasonCode).toBe("clean_unique_submission");
   });
 
+  it("holds when a duplicate check did not complete (no false clean pass)", () => {
+    // A degraded subsystem reports no matches. That must not read as
+    // "no duplicates found" — the review holds instead of auto-approving.
+    const checks = cleanChecks();
+    checks.duplicates.decision = "hold";
+    checks.duplicates.incomplete = true;
+    checks.duplicates.reasons.push(
+      "Semantic duplicate check did not complete.",
+    );
+    const result = decideAutomatedReview(checks);
+    expect(result.decision).toBe("hold");
+    expect(result.reasonCode).toBe("duplicate_check_incomplete");
+    expect(result.canApply).toBe(false);
+  });
+
   it("auto-rejects 100% visual sprite duplicates", () => {
     const checks = cleanChecks();
     checks.duplicates.decision = "fail";

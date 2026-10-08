@@ -71,18 +71,24 @@ export async function publishPetPublicArtifacts(input: {
     { key: petPreviewKey(input.slug), kind: "preview" as const },
     { key: petStickerKey(input.slug), kind: "sticker" as const },
   ];
+
+  // Fetch the source first: whether an existing artifact can be skipped
+  // depends on WHICH spritesheet it was rendered from, not just that it
+  // exists. Approving new art under an unchanged slug used to leave the old
+  // preview/thumb/sticker live forever (#590) because existence was the only
+  // check — republish planned by `planPublicArtifacts` then no-opped here.
+  const source = await getR2ObjectBuffer(sourceKey);
+  const sourceSha256 = createHash("sha256").update(source).digest("hex");
+
   const pending = [];
   for (const ref of refs) {
-    if (await r2ObjectExists(ref.key)) {
+    if (await r2ObjectMatchesSource(ref.key, sourceSha256)) {
       result.skipped.push(ref.key);
     } else {
       pending.push(ref);
     }
   }
   if (pending.length === 0) return result;
-
-  const source = await getR2ObjectBuffer(sourceKey);
-  const sourceSha256 = createHash("sha256").update(source).digest("hex");
 
   for (const ref of pending) {
     try {
@@ -240,10 +246,21 @@ async function getR2ObjectBuffer(key: string): Promise<Buffer> {
   return Buffer.from(await response.Body.transformToByteArray());
 }
 
-async function r2ObjectExists(key: string): Promise<boolean> {
+/**
+ * Whether an existing artifact was rendered from the current spritesheet.
+ * The `petdex-source-sha256` metadata is stamped on every publish below; a
+ * HEAD tells us if the object exists AND still matches, so approving new art
+ * under an unchanged slug republishes instead of leaving stale bytes live.
+ */
+async function r2ObjectMatchesSource(
+  key: string,
+  sourceSha256: string,
+): Promise<boolean> {
   try {
-    await r2.send(new HeadObjectCommand({ Bucket: R2_BUCKET, Key: key }));
-    return true;
+    const head = await r2.send(
+      new HeadObjectCommand({ Bucket: R2_BUCKET, Key: key }),
+    );
+    return head.Metadata?.["petdex-source-sha256"] === sourceSha256;
   } catch (error) {
     if (isMissingObjectError(error)) return false;
     throw error;

@@ -20,6 +20,7 @@ import {
 } from "@/lib/pet-security";
 import { readResponseBodyBounded } from "@/lib/response-body";
 import { detectSpriteAtlas } from "@/lib/sprite-atlas";
+import { dhashFromSpriteBuffer } from "@/lib/sprite-dhash";
 import { decideAutomatedReview } from "@/lib/submission-review-decision";
 import { preparePolicyReviewImage } from "@/lib/submission-review-image";
 import {
@@ -49,11 +50,13 @@ const MAX_ZIP_ENTRIES = 80;
 const MAX_ZIP_PET_JSON_SCAN_ENTRIES = 16;
 const MAX_ZIP_PET_JSON_TOTAL_BYTES = MAX_ASSET_BYTES;
 const MIN_SPRITE_DIM = 256;
-const FRAME_W = 192;
-const FRAME_H = 208;
 const REVIEW_MODEL = "openai/gpt-5-mini";
 const VISUAL_MATCH_CHUNK_SIZE = 250;
 const VISUAL_MATCH_SCAN_LIMIT = 2000;
+// Same window as the visual scan: metadata is only used to corroborate a
+// visual/semantic match, and those are drawn from the newest rows too, so the
+// two must agree on which pets they consider.
+const METADATA_MATCH_SCAN_LIMIT = 2000;
 const REVIEW_FETCH_TIMEOUT_MS = 10_000;
 const POLICY_MODEL_TIMEOUT_MS = 15_000;
 const POLICY_PET_JSON_TEXT_LIMIT = 240;
@@ -575,6 +578,13 @@ async function analyzeDuplicates(
   assets: AssetAnalysis,
 ): Promise<ReviewChecks["duplicates"]> {
   const reasons: string[] = [];
+  // Track whether every duplicate sub-check actually produced a verdict. The
+  // decision layer must hold when one did not: a check that errored or hit
+  // its scan cap reports no matches, and "no matches" from a check that never
+  // ran is not the same as "no duplicates". The comment on the hash columns
+  // below already promises review "holds instead of auto-approving"; this is
+  // what makes that true for the duplicate checks too.
+  let incomplete = false;
   const hashValues = assets.check.hashes;
   const exactMatchResult = hashValues
     ? await findExactHashMatches(row, hashValues)
@@ -582,6 +592,7 @@ async function analyzeDuplicates(
   const exactMatches = exactMatchResult ?? [];
   if (exactMatchResult === null) {
     reasons.push("Exact hash duplicate check did not complete.");
+    incomplete = true;
   }
 
   const [visualScan, metadataMatches] = await Promise.all([
@@ -595,6 +606,7 @@ async function analyzeDuplicates(
     reasons.push(
       `Visual duplicate check scanned ${visualScan.scanned} candidates and needs manual review.`,
     );
+    incomplete = true;
   }
 
   const embedding = await embedTextValue(
@@ -615,11 +627,13 @@ async function analyzeDuplicates(
   const semanticMatches = embedding
     ? await findSemanticMatches(row.id).catch(() => {
         reasons.push("Semantic duplicate check failed.");
+        incomplete = true;
         return [] as ReviewEvidenceMatch[];
       })
     : [];
   if (!embedding) {
     reasons.push("Semantic duplicate check did not complete.");
+    incomplete = true;
   }
 
   const metadataById = new Map(
@@ -643,6 +657,7 @@ async function analyzeDuplicates(
   return {
     decision: duplicateDecision,
     reasons,
+    incomplete,
     exactMatches,
     visualMatches,
     semanticMatches,
@@ -812,6 +827,9 @@ async function findMetadataMatches(
   row: SubmittedPet,
 ): Promise<ReviewEvidenceMatch[]> {
   const { db, schema } = await getDbModule();
+  // Bounded like the visual scan: without a limit this pulled every approved
+  // pet into memory on every submission, so the cost grew with the catalog.
+  // The newest rows are the likeliest duplicates of a fresh submission.
   const rows = await db
     .select({
       id: schema.submittedPets.id,
@@ -831,7 +849,9 @@ async function findMetadataMatches(
         ne(schema.submittedPets.id, row.id),
         eq(schema.submittedPets.status, "approved"),
       ),
-    );
+    )
+    .orderBy(desc(schema.submittedPets.createdAt))
+    .limit(METADATA_MATCH_SCAN_LIMIT);
 
   const rowName = normalizeText(row.displayName);
   const rowCreditName = normalizeText(row.creditName ?? "");
@@ -1265,28 +1285,6 @@ function emptyChecks(dryRun: boolean): ReviewChecks {
     },
     autopilot: { applied: false, dryRun, reason: null },
   };
-}
-
-async function dhashFromSpriteBuffer(buf: Buffer): Promise<string | null> {
-  try {
-    const frame = await sharp(buf)
-      .extract({ left: 0, top: 0, width: FRAME_W, height: FRAME_H })
-      .resize(9, 8, { fit: "fill" })
-      .grayscale()
-      .raw()
-      .toBuffer();
-    let bits = "";
-    for (let row = 0; row < 8; row++) {
-      for (let col = 0; col < 8; col++) {
-        const left = frame[row * 9 + col];
-        const right = frame[row * 9 + col + 1];
-        bits += left < right ? "1" : "0";
-      }
-    }
-    return BigInt(`0b${bits}`).toString(16).padStart(16, "0");
-  } catch {
-    return null;
-  }
 }
 
 async function persistPetEmbedding(

@@ -20,7 +20,12 @@ name: petdex-deploy
 
 services:
   postgres:
-    image: postgres:16-alpine
+    # pgvector/pgvector:pg16 is postgres:16-alpine plus the `vector` extension.
+    # The stock image has no pgvector, so `bootstrap-pgvector.ts` had nothing
+    # to create and semantic search / exact-hash dedup were silently absent
+    # from this stack. The app's push-built schema cannot carry the vector
+    # columns on its own (see that script's header).
+    image: pgvector/pgvector:pg16
     restart: unless-stopped
     environment:
       POSTGRES_USER: petdex
@@ -86,6 +91,7 @@ services:
       - -c
       - |
         bun x drizzle-kit push --force &&
+        bun --conditions react-server scripts/bootstrap-pgvector.ts &&
         bun --conditions react-server scripts/seed-dev.ts
     environment:
       DATABASE_URL: postgresql://petdex:petdex@postgres:5432/petdex

@@ -62,5 +62,25 @@ export async function POST(
     sql`DELETE FROM "submitted_pets" WHERE "id" = ${id} AND "owner_id" = ${userId}`,
   ]);
 
+  // The row is gone, so nothing will ever reference these uploads again — but
+  // the objects still sit in R2 and the submit-shaped keys (pets/<slug>-<id>/)
+  // were not part of the pending-asset GC's net. Delete them best-effort: a
+  // failed cleanup is a cost problem, not a correctness one, so it must not
+  // turn a successful withdraw into an error.
+  void (async () => {
+    try {
+      const [{ deleteR2Objects }, { keyFromR2PublicUrl }] = await Promise.all([
+        import("@/lib/r2"),
+        import("@/lib/r2-public-url"),
+      ]);
+      const keys = [row.spritesheetUrl, row.petJsonUrl, row.zipUrl]
+        .map((url) => keyFromR2PublicUrl(url))
+        .filter((key): key is string => Boolean(key));
+      await deleteR2Objects(keys);
+    } catch (error) {
+      console.error("[withdraw] asset cleanup failed", { id, error });
+    }
+  })();
+
   return NextResponse.json({ ok: true });
 }

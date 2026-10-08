@@ -89,7 +89,6 @@ export async function persistSubmission(
     return { ok: false, status: 400, error: "invalid_slug" };
   }
 
-  const slug = await resolveUniqueSlug(requestedSlug);
   const profileHandlePromise = handleForUser(principal.userId).catch(() =>
     fallbackHandle(principal.userId),
   );
@@ -98,26 +97,28 @@ export async function persistSubmission(
   const credit = creditFromPrincipal(principal);
   const spriteVersion = normalizeSpriteVersionNumber(body.spriteVersionNumber);
 
-  await db.insert(schema.submittedPets).values({
+  const slug = await insertSubmissionWithUniqueSlug({
     id,
-    slug,
-    displayName: body.displayName.trim().slice(0, 60),
-    description: body.description.trim().slice(0, 280),
-    spritesheetUrl: body.spritesheetUrl,
-    petJsonUrl: body.petJsonUrl,
-    zipUrl: body.zipUrl,
-    spriteVersionNumber: spriteVersion.ok ? spriteVersion.version : 1,
-    kind: "creature",
-    vibes: [],
-    tags: [],
-    status: "pending",
-    ownerId: principal.userId,
-    ownerEmail: principal.email,
-    creditName: credit.name,
-    creditUrl: credit.url,
-    creditImage: credit.imageUrl,
-    license: body.license ?? "unspecified",
-    licenseDeclaredAt: body.license ? new Date() : null,
+    requestedSlug,
+    values: {
+      displayName: body.displayName.trim().slice(0, 60),
+      description: body.description.trim().slice(0, 280),
+      spritesheetUrl: body.spritesheetUrl,
+      petJsonUrl: body.petJsonUrl,
+      zipUrl: body.zipUrl,
+      spriteVersionNumber: spriteVersion.ok ? spriteVersion.version : 1,
+      kind: "creature",
+      vibes: [],
+      tags: [],
+      status: "pending",
+      ownerId: principal.userId,
+      ownerEmail: principal.email,
+      creditName: credit.name,
+      creditUrl: credit.url,
+      creditImage: credit.imageUrl,
+      license: body.license ?? "unspecified",
+      licenseDeclaredAt: body.license ? new Date() : null,
+    },
   });
 
   // Fire-and-forget admin notification.
@@ -209,6 +210,47 @@ export async function resolveUniqueSlug(base: string): Promise<string> {
     if (!(await isTaken(candidate))) return candidate;
   }
   return `${base.slice(0, 32)}-${crypto.randomUUID().slice(0, 6)}`;
+}
+
+/**
+ * Whether an insert error is the slug unique-constraint violation.
+ *
+ * The check-then-insert in `resolveUniqueSlug` is a TOCTOU: two concurrent
+ * submissions can derive the same slug and both pass `isTaken`, and the
+ * later INSERT then died as an uncaught 23505 — a 500 for the user, after the
+ * request had already consumed a rate-limit slot. `submitted_pets_slug_unique`
+ * is the only unique index the insert can hit, so any 23505 here is the slug.
+ */
+function isSlugUniqueViolation(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const code = (error as { code?: unknown }).code;
+  return code === "23505";
+}
+
+/**
+ * Insert the row, re-resolving the slug on a concurrent collision. Bounded:
+ * after a few losses to other submissions the random-suffix fallback in
+ * `resolveUniqueSlug` makes another collision vanishingly unlikely.
+ */
+async function insertSubmissionWithUniqueSlug(input: {
+  id: string;
+  requestedSlug: string;
+  values: Omit<typeof schema.submittedPets.$inferInsert, "id" | "slug">;
+}): Promise<string> {
+  let slug = await resolveUniqueSlug(input.requestedSlug);
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await db.insert(schema.submittedPets).values({
+        ...input.values,
+        id: input.id,
+        slug,
+      });
+      return slug;
+    } catch (error) {
+      if (!isSlugUniqueViolation(error) || attempt >= 4) throw error;
+      slug = await resolveUniqueSlug(input.requestedSlug);
+    }
+  }
 }
 
 async function reviewNewSubmission(

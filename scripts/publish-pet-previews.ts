@@ -141,9 +141,10 @@ if (mode === "apply") {
     console.log(`failed ${result.slug} ${result.reason}`);
   }
 
-  await purgeCdnUrls(uploaded.map((result) => petPreviewUrl(result.slug)));
-
-  if (failed.length > 0) process.exit(1);
+  const purged = await purgeCdnUrls(
+    uploaded.map((result) => petPreviewUrl(result.slug)),
+  );
+  if (failed.length > 0 || !purged) process.exit(1);
 }
 
 // Thumbs and stickers are emitted at approval time by
@@ -195,9 +196,11 @@ if (mode === "apply" && missingArtifacts.length > 0) {
     );
   }
 
-  await purgeCdnUrls(publishedKeys.map((key) => `${R2_PUBLIC_BASE}/${key}`));
+  const artifactsPurged = await purgeCdnUrls(
+    publishedKeys.map((key) => `${R2_PUBLIC_BASE}/${key}`),
+  );
 
-  if (artifactFailures.length > 0) process.exit(1);
+  if (artifactFailures.length > 0 || !artifactsPurged) process.exit(1);
 }
 
 // The upload above writes straight to R2 over the S3 API, which does NOT
@@ -206,13 +209,18 @@ if (mode === "apply" && missingArtifacts.length > 0) {
 // URL with a one year TTL, and R2 custom domains do not auto-purge on
 // overwrite, so a freshly backfilled preview stays invisible forever
 // unless we purge its URL explicitly (issue #553).
-async function purgeCdnUrls(urls: string[]): Promise<void> {
-  if (urls.length === 0) return;
+//
+// Returns false when a purge did not actually happen — a missing credential
+// or a failed request. The caller turns that into a non-zero exit: a silent
+// skip is how the last run uploaded everything and still left the gallery
+// showing stale 404s.
+async function purgeCdnUrls(urls: string[]): Promise<boolean> {
+  if (urls.length === 0) return true;
   const zoneId = process.env.CLOUDFLARE_ZONE_ID;
   const token = process.env.CLOUDFLARE_PURGE_TOKEN;
   if (!zoneId || !token) {
     console.log(`cloudflare purge skipped (no creds) for ${urls.length} urls`);
-    return;
+    return false;
   }
   let purged = 0;
   // The purge endpoint accepts up to 30 files per call.
@@ -232,11 +240,12 @@ async function purgeCdnUrls(urls: string[]): Promise<void> {
     );
     if (!res.ok) {
       console.log(`cloudflare purge failed ${res.status}`);
-      return;
+      return false;
     }
     purged += batch.length;
   }
   console.log(`cloudflare purged ${purged}`);
+  return true;
 }
 
 async function publishPreview(task: PreviewTask): Promise<PublishResult> {

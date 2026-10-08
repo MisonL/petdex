@@ -3,6 +3,10 @@
 // reason — the gallery is fine with similar pets — so we revive them
 // all to approved, refresh embeddings, and email the owners with an
 // apology + the same launch checklist as a fresh approval.
+//
+// Dry run by default (prints what it would do), like the other maintenance
+// scripts: this flips every rejected row to approved and emails real people,
+// so the destructive pass has to be asked for explicitly with --apply.
 
 import { neon } from "@neondatabase/serverless";
 import { Resend } from "resend";
@@ -20,7 +24,7 @@ const resend = process.env.RESEND_API_KEY
   : null;
 const from = process.env.RESEND_FROM ?? "Petdex <petdex@updates.railly.dev>";
 
-const dryRun = process.argv.includes("--dry");
+const dryRun = !process.argv.includes("--apply");
 
 async function main() {
   const rows = (await sql`

@@ -189,6 +189,20 @@ function firstHoldReason(
     };
   }
 
+  // A duplicate sub-check that did not complete reports no matches, but "no
+  // matches" from a check that never ran is not a clean pass. This has to
+  // come before the hard-signal gate below, which only fires when a match is
+  // actually in hand — the exact fail-open this closes.
+  if (checks.duplicates.incomplete) {
+    return {
+      code: "duplicate_check_incomplete",
+      summary:
+        checks.duplicates.reasons[0] ??
+        "Duplicate checks did not complete; manual review required.",
+      confidence: 0.75,
+    };
+  }
+
   if (checks.duplicates.decision !== "pass" && hasHardDuplicateSignal(checks)) {
     return {
       code: "duplicate_review_hold",
