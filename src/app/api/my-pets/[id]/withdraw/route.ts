@@ -55,9 +55,11 @@ export async function POST(
   // itself — a plain DELETE left review rows pointing at a pet that no longer
   // existed. Written as its own statement, not a CTE, because a CTE's DELETE
   // cannot see its sibling's snapshot anyway; see executeAtomicReturning.
+  // The pet delete repeats the owner condition the read above checked: a
+  // concurrent claim can move ownerId between that read and this write.
   await executeAtomicReturning([
     sql`DELETE FROM "submission_reviews" WHERE "submitted_pet_id" = ${id}`,
-    sql`DELETE FROM "submitted_pets" WHERE "id" = ${id}`,
+    sql`DELETE FROM "submitted_pets" WHERE "id" = ${id} AND "owner_id" = ${userId}`,
   ]);
 
   return NextResponse.json({ ok: true });

@@ -60,6 +60,9 @@ export async function DELETE(
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
 
+  // The owner check above reads outside this write: a concurrent claim can
+  // move ownerId in between (claim rewrites ownership), so the WHERE repeats
+  // the owner condition instead of trusting the earlier read.
   await db
     .update(schema.submittedPets)
     .set({
@@ -77,7 +80,12 @@ export async function DELETE(
       pendingDhash: null,
       pendingReviewId: null,
     })
-    .where(eq(schema.submittedPets.id, id));
+    .where(
+      and(
+        eq(schema.submittedPets.id, id),
+        eq(schema.submittedPets.ownerId, userId),
+      ),
+    );
 
   return NextResponse.json({ ok: true });
 }

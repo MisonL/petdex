@@ -23,8 +23,11 @@ const testDb = drizzle(client, { schema });
 const actualNeon = await import("@neondatabase/serverless");
 
 mock.module("server-only", () => ({}));
+// Mutable so a test can act as a second signed-in user. The factory closes
+// over the binding, so each call reads the current value.
+let currentUserId = "user_1";
 mock.module("@clerk/nextjs/server", () => ({
-  auth: async () => ({ userId: "user_1" }),
+  auth: async () => ({ userId: currentUserId }),
   clerkClient: {},
 }));
 // The route reads `db.query.petRequests` for dedup and `executeAtomicReturning`
@@ -135,6 +138,36 @@ async function setVoteTrigger(enabled: boolean): Promise<void> {
 afterAll(async () => {
   await client.close();
 });
+
+function postWithImage(query: string, imageUrl: string): Promise<Response> {
+  return POST(
+    new Request("https://petdex.dev/api/pet-requests", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ query, imageUrl }),
+    }),
+  );
+}
+
+async function imageState(): Promise<{
+  url: string | null;
+  status: string;
+  upvotes: number;
+}> {
+  const result = (await testDb.execute(
+    sql`SELECT "image_url" AS "url", "image_review_status" AS "status",
+               "upvote_count" AS "upvotes"
+        FROM "pet_requests" LIMIT 1`,
+  )) as unknown as {
+    rows?: Array<{ url: string | null; status: string; upvotes: number }>;
+  };
+  const rows = (result.rows ?? (result as unknown as never[])) as Array<{
+    url: string | null;
+    status: string;
+    upvotes: number;
+  }>;
+  return rows[0] as { url: string | null; status: string; upvotes: number };
+}
 
 function post(query: string): Promise<Response> {
   return POST(
@@ -335,5 +368,59 @@ describe("POST /api/pet-requests", () => {
     expect(new Set(bodies.map((body) => body.id)).size).toBe(1);
     expect(bodies.filter((body) => body.mode === "created").length).toBe(1);
     expect(bodies.filter((body) => body.mode === "upvoted").length).toBe(1);
+  });
+});
+
+describe("POST /api/pet-requests image ownership", () => {
+  // Upvoting an existing request is allowed for anyone, and the body may
+  // carry an image. The image used to move for any voter — a second caller's
+  // URL replaced the author's pending reference image, which is the author's
+  // contribution and not the voter's to change. The image fields are now
+  // gated on the caller being the request's author.
+  const authorImage =
+    "https://assets.petdex.dev/requests/u_author-a1b2c3d4/reference.webp";
+  const voterImage =
+    "https://assets.petdex.dev/requests/u_voter-e5f6a7b8/reference.webp";
+
+  it("keeps the author's pending image when a different user upvotes with their own", async () => {
+    await testDb.execute(sql`DELETE FROM "pet_request_votes"`);
+    await testDb.execute(sql`DELETE FROM "pet_requests"`);
+
+    const text = "a heron that writes changelogs";
+    currentUserId = "user_author";
+    const created = await postWithImage(text, authorImage);
+    expect(created.status).toBe(200);
+    expect((await imageState()).url).toBe(authorImage);
+    expect((await imageState()).status).toBe("pending");
+
+    // A second, unrelated signed-in user repeats the text with their own
+    // image. The vote lands; the image must not.
+    currentUserId = "user_voter";
+    const upvoted = await postWithImage(text, voterImage);
+    expect(upvoted.status).toBe(200);
+    expect(((await upvoted.json()) as { mode: string }).mode).toBe("upvoted");
+
+    const after = await imageState();
+    expect(after.url).toBe(authorImage);
+    expect(after.status).toBe("pending");
+    expect(after.upvotes).toBe(2);
+
+    currentUserId = "user_1";
+  });
+
+  it("still lets the author replace their own not-yet-approved image", async () => {
+    await testDb.execute(sql`DELETE FROM "pet_request_votes"`);
+    await testDb.execute(sql`DELETE FROM "pet_requests"`);
+
+    const text = "a stoat that debugs flaky tests";
+    currentUserId = "user_author";
+    await postWithImage(text, authorImage);
+
+    const replacement =
+      "https://assets.petdex.dev/requests/u_author-9999aaaa/reference.webp";
+    await postWithImage(text, replacement);
+    expect((await imageState()).url).toBe(replacement);
+
+    currentUserId = "user_1";
   });
 });

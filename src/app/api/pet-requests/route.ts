@@ -425,8 +425,10 @@ export async function POST(req: Request): Promise<Response> {
     `,
     // Recount from the votes table rather than incrementing, which keeps the
     // column correct after a duplicate vote was swallowed above. The image
-    // fields move only while the image is not already approved, matching what
-    // the previous upvote branch did.
+    // fields move only while the image is not already approved AND the call
+    // comes from the request's own author: any voter may upvote with the same
+    // text, and without the author gate a voter's `imageUrl` replaced the
+    // author's reference image (the UI only lets the author attach one).
     sql`
       UPDATE "pet_requests" AS p
       SET "upvote_count" = (
@@ -435,13 +437,19 @@ export async function POST(req: Request): Promise<Response> {
           ),
           "updated_at" = now(),
           "image_url" = CASE
-            WHEN ${imageUrl}::text IS NOT NULL AND p."image_review_status" <> 'approved'
+            WHEN ${userId}::text = p."requested_by"
+              AND ${imageUrl}::text IS NOT NULL
+              AND p."image_review_status" <> 'approved'
             THEN ${imageUrl}::text ELSE p."image_url" END,
           "image_review_status" = CASE
-            WHEN ${imageUrl}::text IS NOT NULL AND p."image_review_status" <> 'approved'
+            WHEN ${userId}::text = p."requested_by"
+              AND ${imageUrl}::text IS NOT NULL
+              AND p."image_review_status" <> 'approved'
             THEN 'pending' ELSE p."image_review_status" END,
           "image_rejection_reason" = CASE
-            WHEN ${imageUrl}::text IS NOT NULL AND p."image_review_status" <> 'approved'
+            WHEN ${userId}::text = p."requested_by"
+              AND ${imageUrl}::text IS NOT NULL
+              AND p."image_review_status" <> 'approved'
             THEN NULL ELSE p."image_rejection_reason" END
       WHERE p."id" = (
         SELECT "id" FROM "pet_requests"
