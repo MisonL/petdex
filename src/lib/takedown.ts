@@ -14,6 +14,7 @@ import {
   revalidateCollectionTags,
 } from "@/lib/db/cached-aggregates";
 import { db, type schema } from "@/lib/db/client";
+import { sendEmail } from "@/lib/email-send";
 import { renderSubmissionTakedownEmail } from "@/lib/email-templates/submission-takedown";
 import { createNotification } from "@/lib/notifications";
 import { petPublicArtifactKeys } from "@/lib/pet-public-artifact-keys";
@@ -245,15 +246,22 @@ export async function takedownPet(
           petName: pet.displayName,
           reason: reason ?? null,
         });
-        await resend.emails.send({
-          from,
-          to: pet.ownerEmail,
-          subject: email.subject,
-          html: email.html,
-          text: email.text,
-        });
-      } catch {
-        /* silent */
+        await sendEmail(
+          resend,
+          {
+            from,
+            to: pet.ownerEmail,
+            subject: email.subject,
+            html: email.html,
+            text: email.text,
+          },
+          "takedown notice",
+        );
+      } catch (error) {
+        console.error(
+          "[takedown] owner notification failed:",
+          error instanceof Error ? error.message : String(error),
+        );
       }
     }
   }

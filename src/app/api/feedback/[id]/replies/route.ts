@@ -6,6 +6,7 @@ import { Resend } from "resend";
 
 import { isAdmin } from "@/lib/admin";
 import { db, schema } from "@/lib/db/client";
+import { sendEmail } from "@/lib/email-send";
 import { renderFeedbackAdminReplyEmail } from "@/lib/email-templates/feedback-admin-reply";
 import { renderFeedbackFollowUpEmail } from "@/lib/email-templates/feedback-follow-up";
 import { createNotification } from "@/lib/notifications";
@@ -221,13 +222,17 @@ export async function POST(
               replyBody: text,
               excerpt: `${excerpt}${row.message.length > 80 ? "…" : ""}`,
             });
-            await resend.emails.send({
-              from,
-              to: toEmail,
-              subject: email.subject,
-              html: email.html,
-              text: email.text,
-            });
+            await sendEmail(
+              resend,
+              {
+                from,
+                to: toEmail,
+                subject: email.subject,
+                html: email.html,
+                text: email.text,
+              },
+              "feedback admin reply",
+            );
           }
         }
       } else {
@@ -243,16 +248,23 @@ export async function POST(
           threadUrl: `https://admin.petdex.dev/feedback?status=all&focus=${id}`,
           excerpt: `${excerpt}${row.message.length > 80 ? "…" : ""}`,
         });
-        await resend.emails.send({
-          from,
-          to: adminEmail,
-          subject: email.subject,
-          html: email.html,
-          text: email.text,
-        });
+        await sendEmail(
+          resend,
+          {
+            from,
+            to: adminEmail,
+            subject: email.subject,
+            html: email.html,
+            text: email.text,
+          },
+          "feedback follow-up to admin",
+        );
       }
-    } catch {
-      /* email is best-effort; silent fail */
+    } catch (error) {
+      console.error(
+        "[feedback] notification email failed:",
+        error instanceof Error ? error.message : String(error),
+      );
     }
   }
 

@@ -158,7 +158,10 @@ export function CodexThemeDialog({
             {t("loading")}
           </div>
         ) : loadFailed && error ? (
-          <p className="rounded-2xl bg-chip-danger-bg px-3 py-2 text-sm text-chip-danger-fg">
+          <p
+            role="alert"
+            className="rounded-2xl bg-chip-danger-bg px-3 py-2 text-sm text-chip-danger-fg"
+          >
             {errorCode
               ? t("errors.loadFailedWithCode", { code: errorCode })
               : t(`errors.${error}`)}

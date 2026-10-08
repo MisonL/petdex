@@ -12,6 +12,7 @@ import { Resend } from "resend";
 import { findOversizedAsset } from "@/lib/asset-size-guard";
 import { db, schema } from "@/lib/db/client";
 import type { SubmissionReview, SubmittedPet } from "@/lib/db/schema";
+import { sendEmail } from "@/lib/email-send";
 import { renderNewSubmissionEmail } from "@/lib/email-templates/new-submission";
 import { fallbackHandle, handleForUser } from "@/lib/handles";
 import { normalizeSpriteVersionNumber } from "@/lib/sprite-version";
@@ -197,15 +198,26 @@ export async function persistSubmission(
         // here — `subject.replace(displayName, safeName)` — was bypassable,
         // because a replacement string expands `$&` and a name containing it
         // re-inserted the matched CRLF.
-        await resend.emails.send({
-          from: "Petdex <petdex@notifications.crafter.run>",
-          to: ownerNotify,
-          subject: email.subject,
-          html: email.html,
-          text: email.text,
-        });
-      } catch {
-        /* silent */
+        //
+        // `from` goes through RESEND_FROM like the other three senders; this
+        // one hardcoded a third domain that no env could override.
+        await sendEmail(
+          resend,
+          {
+            from:
+              process.env.RESEND_FROM ?? "Petdex <petdex@updates.railly.dev>",
+            to: ownerNotify,
+            subject: email.subject,
+            html: email.html,
+            text: email.text,
+          },
+          "new-submission admin notice",
+        );
+      } catch (error) {
+        console.error(
+          "[submission] admin notice failed:",
+          error instanceof Error ? error.message : String(error),
+        );
       }
     })();
   }

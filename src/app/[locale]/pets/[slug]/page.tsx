@@ -406,7 +406,6 @@ export default async function PetPage({ params }: PageProps) {
                       <PetSoundButton
                         soundUrl={pet.soundUrl}
                         displayName={pet.displayName}
-                        labelPrefix="Play signature sound for"
                       />
                     ) : null}
                     <PetActionMenu

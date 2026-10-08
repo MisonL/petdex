@@ -421,6 +421,7 @@ function CollectionForm({
               <button
                 key={pet.slug}
                 type="button"
+                aria-pressed={checked}
                 onClick={() => togglePet(pet.slug)}
                 disabled={selectionFull}
                 className={`relative flex flex-col items-center gap-1 rounded-xl border p-2 text-xs transition disabled:cursor-not-allowed disabled:opacity-45 ${

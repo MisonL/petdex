@@ -11,20 +11,16 @@ let activeToken: string | null = null;
 export function PetSoundButton({
   soundUrl,
   displayName,
-  labelPrefix,
 }: {
   soundUrl: string;
   displayName: string;
-  /**
-   * Overrides the accessible name. Callers that need a different phrase (the
-   * pet page says "signature sound") pass a translated one; the default comes
-   * from the `gallery` messages so it is localized rather than the English
-   * literal this used to fall back to on /es and /zh.
-   */
-  labelPrefix?: string;
 }) {
   const t = useTranslations("gallery");
-  const label = labelPrefix ?? t("playSoundFor", { name: displayName });
+  // Always the localized default. A `labelPrefix` prop used to let a caller
+  // override this, and `pets/[slug]` passed a hardcoded English string — so
+  // the aria-label and title announced English on /zh and /es. No caller may
+  // inject an untranslated phrase now.
+  const label = t("playSoundFor", { name: displayName });
   const [playing, setPlaying] = useState(false);
   const [busy, setBusy] = useState(false);
   const token = soundUrl;

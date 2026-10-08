@@ -124,6 +124,7 @@ export function SuggestCollectionButton({
                   key={c.slug}
                   type="button"
                   disabled={requested}
+                  aria-pressed={isTarget}
                   onClick={() => setTarget(isTarget ? null : c.slug)}
                   className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
                     requested

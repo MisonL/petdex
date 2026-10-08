@@ -8,6 +8,7 @@ import {
 } from "@/lib/db/cached-aggregates";
 import type { SubmittedPet } from "@/lib/db/schema";
 import * as schema from "@/lib/db/schema";
+import { sendEmail } from "@/lib/email-send";
 import { renderSubmissionApprovedEmail } from "@/lib/email-templates/submission-approved";
 import { renderSubmissionRejectedEmail } from "@/lib/email-templates/submission-rejected";
 
@@ -366,28 +367,39 @@ async function notifySubmissionOwner(row: SubmittedPet): Promise<void> {
         petName: row.displayName,
         petSlug: row.slug,
       });
-      await resend.emails.send({
-        from,
-        to: row.ownerEmail,
-        subject: email.subject,
-        html: email.html,
-        text: email.text,
-      });
+      await sendEmail(
+        resend,
+        {
+          from,
+          to: row.ownerEmail,
+          subject: email.subject,
+          html: email.html,
+          text: email.text,
+        },
+        `submission ${row.status} notice`,
+      );
     } else if (row.status === "rejected") {
       const email = renderSubmissionRejectedEmail(locale, {
         petName: row.displayName,
         reason: row.rejectionReason,
       });
-      await resend.emails.send({
-        from,
-        to: row.ownerEmail,
-        subject: email.subject,
-        html: email.html,
-        text: email.text,
-      });
+      await sendEmail(
+        resend,
+        {
+          from,
+          to: row.ownerEmail,
+          subject: email.subject,
+          html: email.html,
+          text: email.text,
+        },
+        "submission rejected notice",
+      );
     }
-  } catch {
-    /* silent */
+  } catch (error) {
+    console.error(
+      "[submission-decision] owner notification failed:",
+      error instanceof Error ? error.message : String(error),
+    );
   }
 }
 

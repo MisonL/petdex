@@ -6,6 +6,7 @@ import Link from "next/link";
 
 import { getLocale, getTranslations } from "next-intl/server";
 
+import { formatLocalizedNumber } from "@/lib/format-number";
 import type { SearchPet } from "@/lib/pet-search";
 import { PET_KINDS, PET_VIBES } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -120,7 +121,9 @@ export async function FacetPage({
                   className="inline-flex h-9 items-center gap-2 rounded-full border border-border-base bg-surface px-3 font-mono text-[11px] tracking-[0.08em] capitalize text-muted-2 transition hover:border-border-strong"
                 >
                   <span>{r.label}</span>
-                  <span className="text-[10px] text-muted-4">{r.count}</span>
+                  <span className="text-[10px] text-muted-4">
+                    {formatLocalizedNumber(r.count, locale)}
+                  </span>
                 </Link>
               ))}
             </div>

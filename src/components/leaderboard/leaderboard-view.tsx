@@ -257,7 +257,9 @@ function LeaderboardRowItem({
   thumbs: LeaderboardPetThumb[];
 }) {
   const t = useTranslations("leaderboard");
-  const name = credit?.name ?? "anonymous";
+  // The fallback used to be the English literal, so a pet with no credit
+  // metadata showed "anonymous" on /zh and /es too.
+  const name = credit?.name ?? t("anonymousCreator");
   const handle = credit?.handle ?? row.ownerId.slice(-8).toLowerCase();
   const avatar = credit?.imageUrl ?? null;
   // Prefer Clerk username, then GitHub username from the linked OAuth
