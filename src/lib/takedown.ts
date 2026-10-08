@@ -119,6 +119,16 @@ export async function takedownPet(
       WHERE "pet_slug" = ${slug}
         AND ${oldPetExists}
     `,
+    // Reviews hang off the pet by id, not slug, so they cannot ride the slug-
+    // keyed cleanups above. The FK that used to cascade them was dropped from
+    // live databases when `push` met a migration-only constraint (see the
+    // schema declaration), and this path is also the reason withdraw is not
+    // the only delete: nothing may delete a pet without taking the reviews.
+    sql`
+      DELETE FROM "submission_reviews"
+      WHERE "submitted_pet_id" = ${pet.id}
+        AND ${oldPetExists}
+    `,
     sql`
       UPDATE "pet_collections"
       SET "cover_pet_slug" = NULL

@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 
 import { auth } from "@clerk/nextjs/server";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
-import { db, schema } from "@/lib/db/client";
+import { db, executeAtomicReturning, schema } from "@/lib/db/client";
 import { withdrawRatelimit } from "@/lib/ratelimit";
 import { requireSameOrigin } from "@/lib/same-origin";
 
@@ -49,7 +49,16 @@ export async function POST(
     );
   }
 
-  await db.delete(schema.submittedPets).where(eq(schema.submittedPets.id, id));
+  // Two statements, kept separate on purpose (executeAtomicReturning):
+  // reviews used to vanish via an ON DELETE cascade that `drizzle-kit push`
+  // has since dropped from the live database, so the delete has to take them
+  // itself — a plain DELETE left review rows pointing at a pet that no longer
+  // existed. Written as its own statement, not a CTE, because a CTE's DELETE
+  // cannot see its sibling's snapshot anyway; see executeAtomicReturning.
+  await executeAtomicReturning([
+    sql`DELETE FROM "submission_reviews" WHERE "submitted_pet_id" = ${id}`,
+    sql`DELETE FROM "submitted_pets" WHERE "id" = ${id}`,
+  ]);
 
   return NextResponse.json({ ok: true });
 }

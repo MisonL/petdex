@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   bigint,
   boolean,
+  check,
   index,
   integer,
   jsonb,
@@ -177,6 +178,18 @@ export const submittedPets = pgTable(
       table.vibes,
     ),
     tagsGinIdx: index("submitted_pets_tags_gin_idx").using("gin", table.tags),
+    // drizzle/0018 added both checks; like the submission_reviews FK above,
+    // they only survive if schema.ts declares them, because push drops
+    // constraints the schema does not recognize. Measured: a push-built DB
+    // carried neither.
+    spriteVersionCheck: check(
+      "submitted_pets_sprite_version_number_check",
+      sql`${table.spriteVersionNumber} in (1, 2)`,
+    ),
+    pendingSpriteVersionCheck: check(
+      "submitted_pets_pending_sprite_version_number_check",
+      sql`${table.pendingSpriteVersionNumber} is null or ${table.pendingSpriteVersionNumber} in (1, 2)`,
+    ),
   }),
 );
 
@@ -199,7 +212,15 @@ export const submissionReviews = pgTable(
   "submission_reviews",
   {
     id: text("id").primaryKey(),
-    submittedPetId: text("submitted_pet_id").notNull(),
+    // drizzle/0004_submission_reviews.sql declared this FK ON DELETE cascade
+    // but schema.ts never did — `drizzle-kit push`, the only automated schema
+    // path this repo runs, does not recognize the migration's constraint and
+    // drops it (measured: push --force removed it from a DB that had it, and
+    // a push-built DB never gets it). Without the FK, deleting a pet orphans
+    // every review row. Declare the same relationship the migration spelled.
+    submittedPetId: text("submitted_pet_id")
+      .notNull()
+      .references(() => submittedPets.id, { onDelete: "cascade" }),
     status: text("status").$type<SubmissionReviewStatus>().notNull(),
     decision: text("decision").$type<SubmissionReviewDecision>().notNull(),
     reasonCode: text("reason_code"),

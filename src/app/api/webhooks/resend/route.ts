@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { Webhook } from "svix";
 
 import { db, schema } from "@/lib/db/client";
@@ -11,6 +11,18 @@ import {
 } from "@/lib/request-body";
 
 export const runtime = "nodejs";
+
+// Delivery progresses queued → sent → delivered → opened; the terminal
+// states sit above all of them so nothing regresses out of one either.
+const STATUS_RANK: Record<string, number> = {
+  queued: 0,
+  sent: 1,
+  delivered: 2,
+  opened: 3,
+  bounced: 4,
+  complained: 4,
+  failed: 4,
+};
 
 // Resend event payloads are a few KB; the signature is verified against the
 // raw body, so the body has to be read before the caller is authenticated.
@@ -115,10 +127,28 @@ export async function POST(req: Request): Promise<Response> {
       return NextResponse.json({ ok: true });
   }
 
+  const target = updates.status;
+  if (!target) {
+    return NextResponse.json({ ok: true });
+  }
+
+  // Resend retries, and its events can arrive out of order — an `email.sent`
+  // landing after `email.opened` used to overwrite the status and blank the
+  // openedAt the earlier event had set. Only move the row forward: the CASE
+  // ranks what is stored, and `< ` admits every real transition while
+  // rejecting a repeat of the same event (so retries are idempotent without a
+  // processed-ids table) and any walk backwards.
   await db
     .update(schema.emailSends)
     .set(updates)
-    .where(eq(schema.emailSends.resendId, resendId));
+    .where(
+      and(
+        eq(schema.emailSends.resendId, resendId),
+        sql`case ${schema.emailSends.status}
+              when 'queued' then 0 when 'sent' then 1 when 'delivered' then 2
+              when 'opened' then 3 else 4 end < ${STATUS_RANK[target]}`,
+      ),
+    );
 
   return NextResponse.json({ ok: true });
 }
