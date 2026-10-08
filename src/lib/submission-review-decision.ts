@@ -38,6 +38,26 @@ export function decideAutomatedReview(
     });
   }
 
+  // A duplicate sub-check that never ran reports no matches, and those empty
+  // arrays can only be trusted when the check actually completed. Gate every
+  // duplicate-based reject on that: the semantic scan is capped at its newest
+  // rows, so a stale duplicate older than the window leaves `semanticMatches`
+  // empty while the visual/hash/metadata scans still carry it — the exact
+  // combination that promoted a match to auto_reject before, now on evidence
+  // one of the checks never produced. Holds instead of rejecting on it.
+  if (checks.duplicates.incomplete) {
+    return {
+      decision: "hold",
+      reasonCode: "duplicate_check_incomplete",
+      summary:
+        checks.duplicates.reasons[0] ??
+        "Duplicate checks did not complete; manual review required.",
+      confidence: 0.75,
+      canApply: false,
+      applyReason: "held_for_manual_review",
+    };
+  }
+
   const exactMatch = checks.duplicates.exactMatches[0];
   if (exactMatch) {
     return applyDecision({
