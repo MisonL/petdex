@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 
 import { and, eq, sql } from "drizzle-orm";
 
+import { findOversizedAsset } from "@/lib/asset-size-guard";
 import {
   AGGREGATE_KEYS,
   invalidateAggregates,
@@ -297,6 +298,48 @@ function hasAssetEdit(patch: PendingPatch): boolean {
   );
 }
 
+/**
+ * Reject an edit whose newly uploaded assets are larger than the presign
+ * allowed.
+ *
+ * Same gap as the submission path — a presigned PUT does not bind the body to
+ * the declared size — but the stake is higher here: an oversized pending asset
+ * is promoted to the live row on approval, and the pending key is not what the
+ * public page serves until then, so a reviewer may never see the bytes that
+ * will actually ship. Runs before any row write, so a refused edit leaves the
+ * pet untouched rather than half-updated.
+ */
+async function assertPendingAssetsWithinLimit(
+  patch: PendingPatch,
+): Promise<Response | null> {
+  const assets = [
+    {
+      field: "spritesheetUrl",
+      label: "sprite",
+      url: patch.pendingSpritesheetUrl,
+    },
+    { field: "petJsonUrl", label: "petjson", url: patch.pendingPetJsonUrl },
+    { field: "zipUrl", label: "zip", url: patch.pendingZipUrl },
+  ].filter(
+    (asset): asset is { field: string; label: string; url: string } =>
+      asset.url !== null,
+  );
+  if (assets.length === 0) return null;
+
+  const violation = await findOversizedAsset(assets);
+  if (!violation) return null;
+  return NextResponse.json(
+    {
+      error: "asset_too_large",
+      field: violation.field,
+      maxBytes: violation.maxBytes,
+      size: violation.bytes,
+      message: violation.message,
+    },
+    { status: 400 },
+  );
+}
+
 async function persistAutoAcceptedEdit(
   id: string,
   row: SubmittedPet,
@@ -562,6 +605,8 @@ export async function applyPetEdit(input: {
   if (assetError) return assetError;
   const contentError = validatePatchContent(patch);
   if (contentError) return contentError;
+  const sizeError = await assertPendingAssetsWithinLimit(patch);
+  if (sizeError) return sizeError;
   if (pendingEditIsNoOp(row, patch)) {
     return NextResponse.json({ error: "nothing_changed" }, { status: 400 });
   }

@@ -9,6 +9,7 @@ import "server-only";
 import { eq } from "drizzle-orm";
 import { Resend } from "resend";
 
+import { findOversizedAsset } from "@/lib/asset-size-guard";
 import { db, schema } from "@/lib/db/client";
 import type { SubmissionReview, SubmittedPet } from "@/lib/db/schema";
 import { renderNewSubmissionEmail } from "@/lib/email-templates/new-submission";
@@ -76,6 +77,53 @@ export type SubmissionResult =
       got?: unknown;
     };
 
+/**
+ * The three asset URLs a submission points at, with the role name the presign
+ * route uses. `validateSubmission` has already pinned each to the bucket and
+ * to a submission path namespace, so the key derived from it is the object
+ * the caller PUT to.
+ */
+const SUBMISSION_ASSET_FIELDS: ReadonlyArray<{
+  field: "spritesheetUrl" | "petJsonUrl" | "zipUrl";
+  label: string;
+}> = [
+  { field: "spritesheetUrl", label: "sprite" },
+  { field: "petJsonUrl", label: "petjson" },
+  { field: "zipUrl", label: "zip" },
+];
+
+/**
+ * Reject a submission whose uploaded assets are larger than the presign
+ * declared they would be.
+ *
+ * The presign route checks the declared size; a presigned PUT does not bind
+ * the body to that declaration, so the same URL signed for a 2 MB spritesheet
+ * accepts a 20 MB one. The bucket is public and the URL is stored on the row,
+ * so an oversized object is a permanent liability — every later fetch, and
+ * the OG/sticker renderers that pull it into sharp, pays for it. This is the
+ * check that cannot be bypassed by skipping the presign route's.
+ */
+async function assertUploadedAssetsWithinLimit(
+  body: SubmissionInput,
+): Promise<SubmissionResult | null> {
+  const violation = await findOversizedAsset(
+    SUBMISSION_ASSET_FIELDS.map(({ field, label }) => ({
+      field,
+      label,
+      url: body[field],
+    })),
+  );
+  if (!violation) return null;
+  return {
+    ok: false,
+    status: 400,
+    error: "asset_too_large",
+    field: violation.field,
+    got: { bytes: violation.bytes, maxBytes: violation.maxBytes },
+    message: violation.message,
+  };
+}
+
 /** Persist a submission. Caller is responsible for authn/ratelimit.
  *  Slug collisions get suffixed (boba -> boba-2) by resolveUniqueSlug.
  *  Re-claiming pets from a deleted account uses an opt-in flow at
@@ -88,6 +136,13 @@ export async function persistSubmission(
   if (!requestedSlug) {
     return { ok: false, status: 400, error: "invalid_slug" };
   }
+
+  // Before the row exists: an oversized upload must not leave a pending
+  // submission behind, because the row is what makes the object reachable
+  // from the site. The presign route checks the declared size; this checks
+  // the bytes that actually landed.
+  const tooLarge = await assertUploadedAssetsWithinLimit(body);
+  if (tooLarge) return tooLarge;
 
   const profileHandlePromise = handleForUser(principal.userId).catch(() =>
     fallbackHandle(principal.userId),
