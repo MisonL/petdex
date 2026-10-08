@@ -4,8 +4,18 @@ import { eq } from "drizzle-orm";
 import { Webhook } from "svix";
 
 import { db, schema } from "@/lib/db/client";
+import {
+  contentLengthExceeds,
+  PayloadTooLargeError,
+  readBodyCapped,
+} from "@/lib/request-body";
 
 export const runtime = "nodejs";
+
+// Resend event payloads are a few KB; the signature is verified against the
+// raw body, so the body has to be read before the caller is authenticated.
+// Without a ceiling, an anonymous POST decides how much the process buffers.
+const MAX_BODY_BYTES = 256 * 1024;
 
 type ResendEventType =
   | "email.sent"
@@ -35,6 +45,10 @@ export async function POST(req: Request): Promise<Response> {
     );
   }
 
+  if (contentLengthExceeds(req, MAX_BODY_BYTES)) {
+    return NextResponse.json({ error: "payload_too_large" }, { status: 413 });
+  }
+
   const svixId = req.headers.get("svix-id");
   const svixTimestamp = req.headers.get("svix-timestamp");
   const svixSignature = req.headers.get("svix-signature");
@@ -42,7 +56,15 @@ export async function POST(req: Request): Promise<Response> {
     return NextResponse.json({ error: "signature_missing" }, { status: 400 });
   }
 
-  const body = await req.text();
+  let body: string;
+  try {
+    body = await readBodyCapped(req.body, MAX_BODY_BYTES);
+  } catch (err) {
+    if (err instanceof PayloadTooLargeError) {
+      return NextResponse.json({ error: "payload_too_large" }, { status: 413 });
+    }
+    throw err;
+  }
   let payload: ResendWebhookPayload;
   try {
     const wh = new Webhook(secret);
