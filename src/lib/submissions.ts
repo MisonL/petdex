@@ -293,8 +293,12 @@ export function isSlugUniqueViolation(error: unknown): boolean {
  * Insert the row, re-resolving the slug on a concurrent collision. Bounded:
  * after a few losses to other submissions the random-suffix fallback in
  * `resolveUniqueSlug` makes another collision vanishingly unlikely.
+ *
+ * Exported for its test: the retry is unreachable through `persistSubmission`
+ * without a live database that can actually raise 23505, and the dead version
+ * of `isSlugUniqueViolation` is exactly what a test here would have caught.
  */
-async function insertSubmissionWithUniqueSlug(input: {
+export async function insertSubmissionWithUniqueSlug(input: {
   id: string;
   requestedSlug: string;
   values: Omit<typeof schema.submittedPets.$inferInsert, "id" | "slug">;

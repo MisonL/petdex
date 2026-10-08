@@ -123,10 +123,14 @@ describe("findOversizedAsset", () => {
     );
   });
 
-  it("reports the first oversized asset and stops", async () => {
+  it("reports the FIRST oversized asset and stops checking the rest", async () => {
+    // Both oversized on purpose: "first" is only pinned if there is more than
+    // one, and "stops" is only pinned if something follows the one that
+    // failed — a lone oversized last entry can neither distinguish order nor
+    // observe an early return.
     const zipKey = "pets/boba-0123456789ab/zip.zip";
+    heads.set(KEY, { contentLength: PET_ASSET_MAX_BYTES + 1 });
     heads.set(zipKey, { contentLength: PET_ASSET_MAX_BYTES + 1 });
-    heads.set(KEY, { contentLength: 10 });
     const violation = await findOversizedAsset([
       sprite,
       {
@@ -135,9 +139,9 @@ describe("findOversizedAsset", () => {
         url: `${BUCKET_URL}/${zipKey}`,
       },
     ]);
-    expect(violation?.field).toBe("zipUrl");
-    // The sprite was checked first and passed; the zip was then requested.
-    expect(sendCalls).toContain(zipKey);
+    expect(violation?.field).toBe("spritesheetUrl");
+    // The sprite failed first; the zip was never looked at.
+    expect(sendCalls).toEqual([KEY]);
   });
 
   it("skips a URL that does not resolve to a bucket key", async () => {

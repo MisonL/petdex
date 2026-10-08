@@ -32,6 +32,7 @@ const PENDING_SPRITE = `${BUCKET}/pets/${SLUG}-pending-0123456789ab/sprite.webp`
 
 let contentLength: number;
 let wrote: boolean;
+let row: typeof ROW;
 
 const ROW = {
   id: "pet_1",
@@ -69,7 +70,7 @@ mock.module("@/lib/ratelimit", () => ({
 }));
 mock.module("@/lib/db/client", () => ({
   db: {
-    query: { submittedPets: { findFirst: async () => ROW } },
+    query: { submittedPets: { findFirst: async () => row } },
     update: () => {
       wrote = true;
       throw new Error("write reached before the size check");
@@ -90,6 +91,7 @@ const { applyPetEdit } = await import("@/lib/pet-edit");
 
 beforeEach(() => {
   wrote = false;
+  row = { ...ROW };
   contentLength = PET_ASSET_MAX_BYTES + 1;
   client.send = async (command: unknown) => {
     if (!(command instanceof HeadObjectCommand)) {
@@ -128,6 +130,28 @@ describe("applyPetEdit asset size guard", () => {
     // A text-only edit must not pay for a size check it cannot fail. The
     // write stub throws, so the outcome is a rejection — the assertion is the
     // HEAD count, which is what proves the guard skipped the bucket.
+    let heads = 0;
+    client.send = async () => {
+      heads += 1;
+      return { ContentLength: PET_ASSET_MAX_BYTES + 1 };
+    };
+    await expect(
+      applyPetEdit({
+        id: "pet_1",
+        userId: "user_1",
+        body: { displayName: "Boba the Second" },
+      }),
+    ).rejects.toThrow();
+    expect(heads).toBe(0);
+  });
+
+  it("does not re-check an unchanged pending asset on a text-only edit", async () => {
+    // The row already carries a pending sprite from an earlier edit. That
+    // upload was verified when it was written, so a description change must
+    // neither HEAD it again nor be refused for bytes it never touched — the
+    // bug when the guard looked at every pending URL rather than the changed
+    // ones.
+    row.pendingSpritesheetUrl = PENDING_SPRITE;
     let heads = 0;
     client.send = async () => {
       heads += 1;

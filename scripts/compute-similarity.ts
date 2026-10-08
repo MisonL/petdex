@@ -12,7 +12,6 @@
 // embeddings.
 
 import { neon } from "@neondatabase/serverless";
-import sharp from "sharp";
 
 import {
   buildPetEmbeddingText,
@@ -20,6 +19,7 @@ import {
   embedTextValue,
   PETDEX_EMBEDDING_MODEL,
 } from "../src/lib/embeddings";
+import { dhashFromSpriteBuffer } from "../src/lib/sprite-dhash";
 
 const args = new Set(process.argv.slice(2));
 const FORCE = args.has("--force");
@@ -32,28 +32,18 @@ function env(name: string): string {
 
 const sql = neon(env("DATABASE_URL")); // raw for vector inserts
 
-// dHash: 9x8 grayscale, compare adjacent columns. 64 bits = 16 hex.
+// Fetch the spritesheet and hash it with the SAME scale-aware helper the
+// review path uses (`dhashFromSpriteBuffer`). This script used to carry its own
+// copy that always cropped 192×208, so on an integer-scaled atlas (a legal
+// 3072×3744 v1 sheet) it sampled a quarter of the first frame and produced a
+// different hash than the review path — and a `--force` run rewrote the fixed
+// hashes back to the old format.
 async function dhash(spriteUrl: string): Promise<string | null> {
   try {
     const res = await fetch(spriteUrl);
     if (!res.ok) return null;
     const buf = Buffer.from(await res.arrayBuffer());
-    // Crop the first idle frame (192×208) like the OG image does.
-    const frame = await sharp(buf)
-      .extract({ left: 0, top: 0, width: 192, height: 208 })
-      .resize(9, 8, { fit: "fill" })
-      .grayscale()
-      .raw()
-      .toBuffer();
-    let bits = "";
-    for (let row = 0; row < 8; row++) {
-      for (let col = 0; col < 8; col++) {
-        const left = frame[row * 9 + col];
-        const right = frame[row * 9 + col + 1];
-        bits += left < right ? "1" : "0";
-      }
-    }
-    return BigInt(`0b${bits}`).toString(16).padStart(16, "0");
+    return await dhashFromSpriteBuffer(buf);
   } catch (err) {
     console.warn("  dhash fail:", (err as Error).message);
     return null;

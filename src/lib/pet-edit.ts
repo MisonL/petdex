@@ -308,25 +308,52 @@ function hasAssetEdit(patch: PendingPatch): boolean {
  * public page serves until then, so a reviewer may never see the bytes that
  * will actually ship. Runs before any row write, so a refused edit leaves the
  * pet untouched rather than half-updated.
+ *
+ * Only assets this edit *changed* are checked. An unchanged pending URL was
+ * verified when it was written (the guard precedes every write), so re-HEADing
+ * it on a text-only edit would cost three requests — and could reject a
+ * description change for bytes the user never touched, if an asset queued
+ * before this guard existed were oversized.
  */
 async function assertPendingAssetsWithinLimit(
+  row: SubmittedPet,
   patch: PendingPatch,
 ): Promise<Response | null> {
-  const assets = [
+  const candidates: Array<{
+    field: string;
+    label: string;
+    url: string | null;
+    current: string | null;
+  }> = [
     {
       field: "spritesheetUrl",
       label: "sprite",
       url: patch.pendingSpritesheetUrl,
+      current: row.pendingSpritesheetUrl ?? null,
     },
-    { field: "petJsonUrl", label: "petjson", url: patch.pendingPetJsonUrl },
-    { field: "zipUrl", label: "zip", url: patch.pendingZipUrl },
-  ].filter(
-    (asset): asset is { field: string; label: string; url: string } =>
-      asset.url !== null,
-  );
-  if (assets.length === 0) return null;
+    {
+      field: "petJsonUrl",
+      label: "petjson",
+      url: patch.pendingPetJsonUrl,
+      current: row.pendingPetJsonUrl ?? null,
+    },
+    {
+      field: "zipUrl",
+      label: "zip",
+      url: patch.pendingZipUrl,
+      current: row.pendingZipUrl ?? null,
+    },
+  ];
+  const changed = candidates.filter((asset) => asset.url !== asset.current);
+  if (changed.length === 0) return null;
 
-  const violation = await findOversizedAsset(assets);
+  const violation = await findOversizedAsset(
+    changed.flatMap((asset) =>
+      asset.url
+        ? [{ field: asset.field, label: asset.label, url: asset.url }]
+        : [],
+    ),
+  );
   if (!violation) return null;
   return NextResponse.json(
     {
@@ -605,11 +632,11 @@ export async function applyPetEdit(input: {
   if (assetError) return assetError;
   const contentError = validatePatchContent(patch);
   if (contentError) return contentError;
-  const sizeError = await assertPendingAssetsWithinLimit(patch);
-  if (sizeError) return sizeError;
   if (pendingEditIsNoOp(row, patch)) {
     return NextResponse.json({ error: "nothing_changed" }, { status: 400 });
   }
+  const sizeError = await assertPendingAssetsWithinLimit(row, patch);
+  if (sizeError) return sizeError;
 
   patch.pendingSubmittedAt = new Date();
   patch.pendingRejectionReason = null;
