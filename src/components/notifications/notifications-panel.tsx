@@ -71,6 +71,10 @@ type Props = {
   onMarkAll: () => void;
   onMarkOne: (id: string) => void;
   unread: number;
+  /** The list fetch failed. Without this the empty list below renders the
+   *  "all caught up" state, telling the user there is nothing to see when the
+   *  request actually errored. */
+  loadFailed?: boolean;
 };
 
 export function NotificationsPanel({
@@ -79,6 +83,7 @@ export function NotificationsPanel({
   onMarkAll,
   onMarkOne,
   unread,
+  loadFailed = false,
 }: Props) {
   const t = useTranslations("notifications");
   const locale = useLocale();
@@ -103,7 +108,7 @@ export function NotificationsPanel({
 
       {items.length === 0 ? (
         <div className="px-4 py-10 text-center text-sm text-muted-3">
-          {t("allCaughtUp")}
+          {loadFailed ? t("loadFailed") : t("allCaughtUp")}
         </div>
       ) : (
         <ul className="min-h-0 flex-1 divide-y divide-black/[0.06] overflow-y-auto dark:divide-white/[0.06]">

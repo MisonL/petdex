@@ -67,15 +67,53 @@ export async function POST(
   // were not part of the pending-asset GC's net. Delete them best-effort: a
   // failed cleanup is a cost problem, not a correctness one, so it must not
   // turn a successful withdraw into an error.
+  //
+  // Before deleting, re-check that nothing references the URLs. `row` is the
+  // caller's own row, but its asset URLs are NOT pinned to the caller's
+  // namespace — `validateSubmission` only checks host and path prefix
+  // (`/pets/`, `/curated/`, `/community/`), so a submission can point at
+  // another pet's live spritesheet. Deleting on the row's word alone would let
+  // any user destroy an arbitrary object by referencing it and withdrawing.
+  // Keying off what the database still points at is the same guard the GC
+  // uses (`scripts/gc-pending-r2.ts`), and it is exact: an owner who replaced
+  // the asset no longer references the old URL, so their orphan still goes.
   void (async () => {
     try {
-      const [{ deleteR2Objects }, { keyFromR2PublicUrl }] = await Promise.all([
-        import("@/lib/r2"),
-        import("@/lib/r2-public-url"),
-      ]);
-      const keys = [row.spritesheetUrl, row.petJsonUrl, row.zipUrl]
+      const [{ deleteR2Objects }, { keyFromR2PublicUrl }, { rowsOf }] =
+        await Promise.all([
+          import("@/lib/r2"),
+          import("@/lib/r2-public-url"),
+          import("@/lib/db/client"),
+        ]);
+      const urls = [row.spritesheetUrl, row.petJsonUrl, row.zipUrl].filter(
+        (url): url is string => Boolean(url),
+      );
+      const keys = urls
         .map((url) => keyFromR2PublicUrl(url))
         .filter((key): key is string => Boolean(key));
+      if (keys.length === 0) return;
+
+      const urlList = sql.join(
+        urls.map((url) => sql`${url}`),
+        sql`, `,
+      );
+      const referenced = rowsOf(
+        await db.execute(sql`
+          SELECT 1 FROM "submitted_pets"
+          WHERE "id" <> ${id}
+            AND (
+              "spritesheet_url" IN (${urlList})
+              OR "pet_json_url" IN (${urlList})
+              OR "zip_url" IN (${urlList})
+              OR "pending_spritesheet_url" IN (${urlList})
+              OR "pending_pet_json_url" IN (${urlList})
+              OR "pending_zip_url" IN (${urlList})
+            )
+          LIMIT 1
+        `),
+      );
+      if (referenced.length > 0) return;
+
       await deleteR2Objects(keys);
     } catch (error) {
       console.error("[withdraw] asset cleanup failed", { id, error });

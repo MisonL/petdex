@@ -342,7 +342,11 @@
     "errors": {
       "moreDetail": "Tell us a bit more (4+ chars).",
       "submitFailed": "Submit failed ({status}).",
-      "network": "Network error. Try again."
+      "network": "Network error. Try again.",
+      "rateLimited": "Too many messages. Try again in an hour.",
+      "tooLong": "That message is too long.",
+      "invalidEmail": "That email address is not valid.",
+      "generic": "Something went wrong. Try again."
     }
   },
   "submit": {
@@ -540,7 +544,17 @@
         "networkRetry": "Network error, try again.",
         "signInUpvote": "Sign in to upvote.",
         "voteFailed": "Vote failed ({status})",
-        "network": "Network error"
+        "network": "Network error",
+        "queryLength": "Use 4-200 characters.",
+        "queryInvalidCharacters": "Use plain text.",
+        "queryNotSearchable": "Use words, not symbols.",
+        "requestWriteFailed": "That request could not be saved. Try again.",
+        "invalidImageUrl": "That image link is not allowed.",
+        "blockedContent": "That request contains language we cannot accept.",
+        "urlInField": "Links are not allowed here.",
+        "invalidJson": "That request could not be read.",
+        "generic": "Something went wrong. Try again.",
+        "rateLimited": "Too many requests. Try again in a few minutes."
       }
     }
   },
@@ -1066,7 +1080,8 @@
         "blurb": "Collectors ranked by how many approved pets they have caught.",
         "empty": "No collectors yet."
       }
-    }
+    },
+    "anonymousCreator": "anonymous"
   },
   "claim": {
     "cta": "Sign in to claim",
@@ -1608,7 +1623,15 @@
     "descriptionPlaceholder": "What ties them together?",
     "cancel": "Cancel",
     "create": "Create",
-    "save": "Save"
+    "save": "Save",
+    "forbidden": "That collection is not yours.",
+    "notFound": "That collection no longer exists.",
+    "featuredNotEditable": "Featured collections cannot be edited or deleted.",
+    "invalidUrl": "That link is not allowed.",
+    "collectionPetLimit": "That collection already has the maximum number of pets.",
+    "petNotOwnedOrApproved": "Every pet in a collection must be yours and approved.",
+    "collectionCapReached": "You have reached the maximum number of collections.",
+    "collectionSlugConflict": "A collection with that name already exists."
   },
   "collectionEditor": {
     "selectPetsFirst": "Select pets first",
@@ -2184,7 +2207,10 @@
     "fallbackYourSubmission": "Your submission",
     "fallbackARequest": "a request",
     "fallbackEllipsis": "...",
-    "unreadLabel": "Unread"
+    "unreadLabel": "Unread",
+    "bellAria": "Notifications",
+    "bellAriaUnread": "{count} unread notifications",
+    "loadFailed": "Notifications could not be loaded."
   },
   "feedbackThread": {
     "kindFallback": "Feedback",

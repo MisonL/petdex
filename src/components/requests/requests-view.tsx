@@ -57,6 +57,23 @@ const MIN_LEN = 4;
 const MAX_LEN = 200;
 const COLLECTION_PREFIX = "Collection:";
 
+// Server error code → localized message key. The route answers with an English
+// `message` for several rejections ("Use 4-200 characters."), and the client
+// used to render it verbatim, so a zh/es user read an English sentence. Map the
+// code instead and fall back to a generic line — the convention every other
+// error surface in this repo follows.
+const REQUEST_ERROR_KEYS: Record<string, string> = {
+  rate_limited: "rateLimited",
+  query_length: "queryLength",
+  query_invalid_characters: "queryInvalidCharacters",
+  query_not_searchable: "queryNotSearchable",
+  request_write_failed: "requestWriteFailed",
+  invalid_image_url: "invalidImageUrl",
+  blocked_content: "blockedContent",
+  url_in_field: "urlInField",
+  invalid_json: "invalidJson",
+};
+
 type Sort = "top" | "new" | "fulfilled";
 type RequestKind = "pet" | "collection";
 
@@ -250,9 +267,9 @@ export function RequestsView({ initial }: { initial: RequestRow[] }) {
           error?: string;
         };
         setFormError(
-          data.message ??
-            data.error ??
-            t("errors.submitFailed", { status: res.status }),
+          data.error
+            ? t(`errors.${REQUEST_ERROR_KEYS[data.error] ?? "generic"}`)
+            : t("errors.submitFailed", { status: res.status }),
         );
         return;
       }
@@ -308,9 +325,9 @@ export function RequestsView({ initial }: { initial: RequestRow[] }) {
           error?: string;
         };
         setError(
-          data.message ??
-            data.error ??
-            t("errors.voteFailed", { status: res.status }),
+          data.error
+            ? t(`errors.${REQUEST_ERROR_KEYS[data.error] ?? "generic"}`)
+            : t("errors.voteFailed", { status: res.status }),
         );
         return;
       }

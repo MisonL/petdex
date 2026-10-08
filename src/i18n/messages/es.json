@@ -342,7 +342,11 @@
     "errors": {
       "moreDetail": "Cuéntanos un poco más (4+ caracteres).",
       "submitFailed": "No se pudo enviar ({status}).",
-      "network": "Error de red. Inténtalo de nuevo."
+      "network": "Error de red. Inténtalo de nuevo.",
+      "rateLimited": "Demasiados mensajes. Inténtalo de nuevo en una hora.",
+      "tooLong": "Ese mensaje es demasiado largo.",
+      "invalidEmail": "Esa dirección de correo no es válida.",
+      "generic": "Algo salió mal. Inténtalo de nuevo."
     }
   },
   "submit": {
@@ -540,7 +544,17 @@
         "networkRetry": "Error de red, inténtalo de nuevo.",
         "signInUpvote": "Inicia sesión para votar.",
         "voteFailed": "No se pudo votar ({status})",
-        "network": "Error de red"
+        "network": "Error de red",
+        "queryLength": "Usa entre 4 y 200 caracteres.",
+        "queryInvalidCharacters": "Usa texto sin formato.",
+        "queryNotSearchable": "Usa palabras, no solo símbolos.",
+        "requestWriteFailed": "No se pudo guardar esa petición. Inténtalo de nuevo.",
+        "invalidImageUrl": "Ese enlace de imagen no está permitido.",
+        "blockedContent": "Esa petición contiene lenguaje que no podemos aceptar.",
+        "urlInField": "Aquí no se permiten enlaces.",
+        "invalidJson": "No se pudo leer esa petición.",
+        "generic": "Algo salió mal. Inténtalo de nuevo.",
+        "rateLimited": "Demasiadas peticiones. Inténtalo de nuevo en unos minutos."
       }
     }
   },
@@ -1066,7 +1080,8 @@
         "blurb": "Coleccionistas ordenados por cuántas mascotas aprobadas han capturado.",
         "empty": "Todavía no hay coleccionistas."
       }
-    }
+    },
+    "anonymousCreator": "anónimo"
   },
   "claim": {
     "cta": "Inicia sesión para reclamar",
@@ -1608,7 +1623,15 @@
     "descriptionPlaceholder": "¿Qué las une?",
     "cancel": "Cancelar",
     "create": "Crear",
-    "save": "Guardar"
+    "save": "Guardar",
+    "forbidden": "Esa colección no es tuya.",
+    "notFound": "Esa colección ya no existe.",
+    "featuredNotEditable": "Las colecciones destacadas no se pueden editar ni eliminar.",
+    "invalidUrl": "Ese enlace no está permitido.",
+    "collectionPetLimit": "Esa colección ya tiene el máximo de mascotas.",
+    "petNotOwnedOrApproved": "Cada mascota de una colección debe ser tuya y estar aprobada.",
+    "collectionCapReached": "Has alcanzado el máximo de colecciones.",
+    "collectionSlugConflict": "Ya existe una colección con ese nombre."
   },
   "collectionEditor": {
     "selectPetsFirst": "Selecciona mascotas primero",
@@ -2184,7 +2207,10 @@
     "fallbackYourSubmission": "Tu envío",
     "fallbackARequest": "una petición",
     "fallbackEllipsis": "...",
-    "unreadLabel": "Sin leer"
+    "unreadLabel": "Sin leer",
+    "bellAria": "Notificaciones",
+    "bellAriaUnread": "{count} notificaciones sin leer",
+    "loadFailed": "No se pudieron cargar las notificaciones."
   },
   "feedbackThread": {
     "kindFallback": "Comentario",

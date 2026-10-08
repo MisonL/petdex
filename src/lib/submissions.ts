@@ -275,10 +275,17 @@ export async function resolveUniqueSlug(base: string): Promise<string> {
  * later INSERT then died as an uncaught 23505 — a 500 for the user, after the
  * request had already consumed a rate-limit slot. `submitted_pets_slug_unique`
  * is the only unique index the insert can hit, so any 23505 here is the slug.
+ *
+ * The code has to be read off `.cause`: drizzle wraps the driver error in
+ * `DrizzleQueryError` and does not copy `code` onto the wrapper, so reading
+ * `error.code` never matched and the retry below was dead. Same unwrap as
+ * `isMissingStickerTableError` / `isMissingCollectionTableError`.
  */
-function isSlugUniqueViolation(error: unknown): boolean {
+export function isSlugUniqueViolation(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
-  const code = (error as { code?: unknown }).code;
+  const cause = "cause" in error ? (error as { cause?: unknown }).cause : error;
+  if (!cause || typeof cause !== "object") return false;
+  const code = "code" in cause ? (cause as { code?: unknown }).code : null;
   return code === "23505";
 }
 

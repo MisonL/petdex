@@ -364,7 +364,11 @@
     "errors": {
       "moreDetail": "请再多说一点（至少 4 个字符）。",
       "submitFailed": "提交失败（{status}）。",
-      "network": "网络错误。请重试。"
+      "network": "网络错误。请重试。",
+      "rateLimited": "消息过于频繁，请一小时后再试。",
+      "tooLong": "这条消息太长了。",
+      "invalidEmail": "该邮箱地址无效。",
+      "generic": "出错了，请重试。"
     }
   },
   "submit": {
@@ -600,7 +604,17 @@
         "signInUpvote__fixme": true,
         "voteFailed": "投票失败（{status}）",
         "voteFailed__fixme": true,
-        "network": "网络错误"
+        "network": "网络错误",
+        "queryLength": "请输入 4-200 个字符。",
+        "queryInvalidCharacters": "请使用纯文本。",
+        "queryNotSearchable": "请使用文字，不要只用符号。",
+        "requestWriteFailed": "该请求无法保存，请重试。",
+        "invalidImageUrl": "不允许使用该图片链接。",
+        "blockedContent": "该请求包含我们不能接受的用语。",
+        "urlInField": "这里不能填写链接。",
+        "invalidJson": "无法读取该请求。",
+        "generic": "出错了，请重试。",
+        "rateLimited": "请求过于频繁，请过几分钟再试。"
       }
     }
   },
@@ -1253,7 +1267,8 @@
         "blurb": "按已捕获的获批宠物数量排序的收藏者。",
         "empty": "还没有收藏者。"
       }
-    }
+    },
+    "anonymousCreator": "匿名"
   },
   "claim": {
     "cta": "登录以认领",
@@ -1872,7 +1887,15 @@
     "descriptionPlaceholder": "它们之间有什么共同点？",
     "cancel": "取消",
     "create": "创建",
-    "save": "保存"
+    "save": "保存",
+    "forbidden": "该合集不属于你。",
+    "notFound": "该合集已不存在。",
+    "featuredNotEditable": "精选合集无法编辑或删除。",
+    "invalidUrl": "不允许使用该链接。",
+    "collectionPetLimit": "该合集的宠物数量已达上限。",
+    "petNotOwnedOrApproved": "合集里的宠物必须都属于你且已通过审核。",
+    "collectionCapReached": "你的合集数量已达上限。",
+    "collectionSlugConflict": "已存在同名合集。"
   },
   "collectionEditor": {
     "selectPetsFirst": "请先选择宠物",
@@ -2493,7 +2516,10 @@
     "fallbackYourSubmission": "你的提交",
     "fallbackARequest": "某个需求",
     "fallbackEllipsis": "...",
-    "unreadLabel": "未读"
+    "unreadLabel": "未读",
+    "bellAria": "通知",
+    "bellAriaUnread": "{count} 条未读通知",
+    "loadFailed": "无法加载通知。"
   },
   "feedbackThread": {
     "kindFallback": "反馈",

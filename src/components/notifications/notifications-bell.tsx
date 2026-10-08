@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
 
 import { Bell } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 import { useHeaderState } from "@/components/layout/header-state-provider";
 import type { NotificationItem } from "@/components/notifications/notifications-panel";
@@ -24,8 +25,13 @@ const NotificationsPanel = dynamic(
 
 export function NotificationsBell({ compact = false }: { compact?: boolean }) {
   const { state, refresh, setUnreadCount } = useHeaderState();
+  const t = useTranslations("notifications");
   const unread = state.notifications.unreadCount;
   const [items, setItems] = useState<NotificationItem[]>([]);
+  // A failed fetch leaves `items` empty, which the panel renders as "all
+  // caught up" — the user is told there is nothing to see when the request
+  // actually errored. Track it so the panel can say so instead.
+  const [loadFailed, setLoadFailed] = useState(false);
   const [open, setOpen] = useState(false);
 
   const setUnread = useCallback(
@@ -38,11 +44,15 @@ export function NotificationsBell({ compact = false }: { compact?: boolean }) {
   const loadItems = useCallback(async () => {
     try {
       const res = await fetch("/api/notifications", { cache: "no-store" });
-      if (!res.ok) return;
+      if (!res.ok) {
+        setLoadFailed(true);
+        return;
+      }
       const j = (await res.json()) as { items?: NotificationItem[] };
       setItems(j.items ?? []);
+      setLoadFailed(false);
     } catch {
-      /* silent */
+      setLoadFailed(true);
     }
   }, []);
 
@@ -117,7 +127,9 @@ export function NotificationsBell({ compact = false }: { compact?: boolean }) {
             variant="ghost"
             size="icon"
             aria-label={
-              unread > 0 ? `${unread} unread notifications` : "Notifications"
+              unread > 0
+                ? t("bellAriaUnread", { count: unread })
+                : t("bellAria")
             }
             className={`relative rounded-full border border-border-base bg-surface/70 text-muted-2 backdrop-blur transition-[width,height] duration-200 hover:bg-surface-muted ${compact ? "size-9" : "size-11"}`}
           >
@@ -125,7 +137,7 @@ export function NotificationsBell({ compact = false }: { compact?: boolean }) {
             {unread > 0 ? (
               <span
                 aria-hidden
-                className="pointer-events-none absolute -top-0.5 -right-0.5 grid size-4 place-items-center rounded-full bg-brand font-mono text-[9px] font-semibold text-on-inverse ring-2 ring-white"
+                className="pointer-events-none absolute -top-0.5 -right-0.5 grid size-4 place-items-center rounded-full bg-brand font-mono text-[9px] font-semibold text-on-inverse ring-2 ring-background"
               >
                 {unread > 9 ? "9+" : unread}
               </span>
@@ -145,6 +157,7 @@ export function NotificationsBell({ compact = false }: { compact?: boolean }) {
           onMarkAll={() => void markAll()}
           onMarkOne={(id) => void markOne(id)}
           unread={unread}
+          loadFailed={loadFailed}
         />
       </PopoverContent>
     </Popover>

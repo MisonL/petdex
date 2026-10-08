@@ -21,6 +21,14 @@ import {
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+// Server error code → localized message key. See requests-view.tsx for why the
+// code is mapped rather than the route's English `message`.
+const FEEDBACK_ERROR_KEYS: Record<string, string> = {
+  rate_limited: "rateLimited",
+  message_too_long: "tooLong",
+  invalid_email: "invalidEmail",
+};
+
 export type FeedbackKind = "suggestion" | "bug" | "praise" | "other";
 
 export type FeedbackSubmitState =
@@ -128,12 +136,15 @@ export function FeedbackPopover({
             error?: string;
             message?: string;
           };
+          // The route answers with an English `message` for several
+          // rejections ("Try again in an hour."); rendering it verbatim showed
+          // a zh/es user an English sentence. Map the code, fall back to a
+          // generic line.
           setState({
             tag: "error",
-            reason:
-              data.message ??
-              data.error ??
-              t("errors.submitFailed", { status: res.status }),
+            reason: data.error
+              ? t(`errors.${FEEDBACK_ERROR_KEYS[data.error] ?? "generic"}`)
+              : t("errors.submitFailed", { status: res.status }),
           });
           return;
         }
