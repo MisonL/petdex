@@ -9,6 +9,7 @@ import { db, schema } from "@/lib/db/client";
 import { renderFeedbackAdminReplyEmail } from "@/lib/email-templates/feedback-admin-reply";
 import { renderFeedbackFollowUpEmail } from "@/lib/email-templates/feedback-follow-up";
 import { createNotification } from "@/lib/notifications";
+import { feedbackReplyRatelimit } from "@/lib/ratelimit";
 import { requireSameOrigin } from "@/lib/same-origin";
 import { getPreferredLocaleForUser } from "@/lib/user-locale";
 
@@ -94,6 +95,22 @@ export async function POST(
   const { userId } = await auth();
   if (!userId) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  // Starting a thread is capped at 5/hour, but nothing capped continuing one —
+  // and a user reply emails the admin inbox, so an account could mail the
+  // admin without bound. Admins are exempt: answering many threads is the job.
+  if (!isAdmin(userId)) {
+    const lim = await feedbackReplyRatelimit.limit(userId);
+    if (!lim.success) {
+      return NextResponse.json(
+        {
+          error: "rate_limited",
+          message: "Too many replies. Try again later.",
+        },
+        { status: 429, headers: PRIVATE_HEADERS },
+      );
+    }
   }
 
   const { id } = await ctx.params;

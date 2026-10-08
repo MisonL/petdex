@@ -137,8 +137,9 @@ find ~/Library -iname "*.webp" -newermt "-5 minutes" 2>/dev/null | grep -i opena
 
 ## The reverse direction already works
 
-Petdex reads ChatGPT's pets with no conversion: same atlas, same 9 state rows,
-same frame counts, measured cell by cell. `~/.codex/pets/` is a root the desktop
+Petdex reads ChatGPT's pets with no conversion: same atlas, same frame counts,
+measured cell by cell — 9 state rows at 8×9 for v1 pets, 11 at 8×11 for the v2
+exports. `~/.codex/pets/` is a root the desktop
 app scans directly, and the CLI writes both roots on install. So a pet acquired
 either way shows up in both places, and `petdex://<slug>` is the path that
 actually works today.

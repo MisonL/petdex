@@ -311,7 +311,11 @@ function scheduleRouteCostSample(req: NextRequest, event?: NextFetchEvent) {
   event.waitUntil(
     signRouteCostPayload(body, secret)
       .then((signature) =>
-        fetch(new URL("/api/internal/route-cost", req.url), {
+        // Destination pinned to the configured public origin: `req.url`
+        // carries whatever Host the client sent, so a forged Host would
+        // have the app POST its signed sample to the attacker's server.
+        // Same reasoning that pins /api/pets/random's redirect above.
+        fetch(new URL("/api/internal/route-cost", CANONICAL_URL), {
           method: "POST",
           headers: {
             "content-type": "application/json",
