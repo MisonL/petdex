@@ -2519,7 +2519,9 @@
     "unreadLabel": "未读",
     "bellAria": "通知",
     "bellAriaUnread": "{count} 条未读通知",
-    "loadFailed": "无法加载通知。"
+    "loadFailed": "无法加载通知。",
+    "petTakenDown": "{pet} 已被下架",
+    "petTakenDownSub": "它已不再显示在 Petdex 上。你可以修改后重新提交。"
   },
   "feedbackThread": {
     "kindFallback": "反馈",
@@ -2557,5 +2559,11 @@
       "failed": "候选宠物提交失败：{code}",
       "unknown": "候选宠物提交失败。"
     }
+  },
+  "errorPage": {
+    "title": "出错了",
+    "body": "该页面无法加载。不是你的问题——请重试，或返回图鉴。",
+    "retry": "重试",
+    "home": "返回图鉴"
   }
 }

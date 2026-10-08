@@ -2210,7 +2210,9 @@
     "unreadLabel": "Unread",
     "bellAria": "Notifications",
     "bellAriaUnread": "{count} unread notifications",
-    "loadFailed": "Notifications could not be loaded."
+    "loadFailed": "Notifications could not be loaded.",
+    "petTakenDown": "{pet} was taken down",
+    "petTakenDownSub": "It no longer appears on Petdex. You can edit and resubmit it."
   },
   "feedbackThread": {
     "kindFallback": "Feedback",
@@ -2248,5 +2250,11 @@
       "failed": "The candidate could not be submitted: {code}",
       "unknown": "The candidate could not be submitted."
     }
+  },
+  "errorPage": {
+    "title": "Something went wrong",
+    "body": "That page could not be loaded. It is not you — try again, or head back to the gallery.",
+    "retry": "Try again",
+    "home": "Back to the gallery"
   }
 }

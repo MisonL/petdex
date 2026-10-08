@@ -233,7 +233,11 @@ export async function takedownPet(
         ...(reason ? { reason } : {}),
         takedown: true,
       },
-      href: "/",
+      // The enum has no takedown kind, so this rides `pet_rejected` with a
+      // `takedown` flag the panel reads to pick different copy. The href goes
+      // to /my-pets like a rejection's, not "/" — the owner needs a way back
+      // to the pet, and the home page is not it.
+      href: "/my-pets",
     }).catch(() => {});
 
     if (pet.ownerEmail && process.env.RESEND_API_KEY) {

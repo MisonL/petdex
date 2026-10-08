@@ -2210,7 +2210,9 @@
     "unreadLabel": "Sin leer",
     "bellAria": "Notificaciones",
     "bellAriaUnread": "{count} notificaciones sin leer",
-    "loadFailed": "No se pudieron cargar las notificaciones."
+    "loadFailed": "No se pudieron cargar las notificaciones.",
+    "petTakenDown": "{pet} fue retirada",
+    "petTakenDownSub": "Ya no aparece en Petdex. Puedes editarla y volver a enviarla."
   },
   "feedbackThread": {
     "kindFallback": "Comentario",
@@ -2248,5 +2250,11 @@
       "failed": "No se pudo enviar la candidata: {code}",
       "unknown": "No se pudo enviar la candidata."
     }
+  },
+  "errorPage": {
+    "title": "Algo salió mal",
+    "body": "No se pudo cargar esa página. No es culpa tuya: inténtalo de nuevo o vuelve a la galería.",
+    "retry": "Inténtalo de nuevo",
+    "home": "Volver a la galería"
   }
 }

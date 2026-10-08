@@ -7,6 +7,7 @@ import JSZip from "jszip";
 import pc from "picocolors";
 
 import pkg from "../package.json";
+import { apiRequest } from "../src/api-fetch.js";
 import { isTrustedAssetUrl } from "../src/asset-hosts.js";
 import { resolveAuthConfig } from "../src/auth-config.js";
 import { ClerkCliAuth } from "../src/cli-auth/index.js";
@@ -935,7 +936,7 @@ async function cmdEdit(args: string[]): Promise<void> {
   const s = p.spinner();
   s.start(`Resolving ${slug}`);
 
-  const petRes = await fetch(`${PETDEX_URL}/api/pets/${slug}`, {
+  const petRes = await apiRequest(`${PETDEX_URL}/api/pets/${slug}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!petRes.ok) {
@@ -971,7 +972,7 @@ async function cmdEdit(args: string[]): Promise<void> {
       p.cancel(message);
       process.exit(1);
     }
-    const presignRes = await fetch(`${PETDEX_URL}/api/cli/edit-presign`, {
+    const presignRes = await apiRequest(`${PETDEX_URL}/api/cli/edit-presign`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -1037,7 +1038,7 @@ async function cmdEdit(args: string[]): Promise<void> {
   }
 
   s.start("Submitting edit");
-  const editRes = await fetch(`${PETDEX_URL}/api/cli/edit`, {
+  const editRes = await apiRequest(`${PETDEX_URL}/api/cli/edit`, {
     method: "PATCH",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -1233,7 +1234,7 @@ async function submitOne(
     throw new Error("spritesheet dimensions could not be parsed");
   }
 
-  const presignRes = await fetch(`${PETDEX_URL}/api/cli/submit`, {
+  const presignRes = await apiRequest(`${PETDEX_URL}/api/cli/submit`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${bearer}`,
@@ -1280,7 +1281,7 @@ async function submitOne(
     ),
   ]);
 
-  const reg = await fetch(`${PETDEX_URL}/api/cli/submit/register`, {
+  const reg = await apiRequest(`${PETDEX_URL}/api/cli/submit/register`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${bearer}`,

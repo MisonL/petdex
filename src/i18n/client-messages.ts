@@ -31,6 +31,7 @@ export const CLIENT_MESSAGE_PATHS = [
   "openInCodex",
   "desktopAnnounce",
   "downloadHero",
+  "errorPage",
   "openInPetdex",
   "ownerCollections",
   "pet.counters",

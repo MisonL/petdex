@@ -184,6 +184,17 @@ function describe(
         }),
       };
     case "pet_rejected":
+      // A takedown rides the `pet_rejected` kind (the enum has no takedown
+      // value) and flags itself in the payload. Its copy and destination are
+      // different: the pet was live and is now gone, not waiting for edits.
+      if (p.takedown) {
+        return {
+          title: t("petTakenDown", {
+            pet: p.petName ?? t("fallbackYourPet"),
+          }),
+          sub: p.reason ?? t("petTakenDownSub"),
+        };
+      }
       return {
         title: t("petRejected", {
           pet: p.petName ?? t("fallbackYourSubmission"),
