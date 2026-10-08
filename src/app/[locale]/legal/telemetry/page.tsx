@@ -85,31 +85,36 @@ export default async function TelemetryPrivacyPage({
 
           <section className="space-y-3 rounded-2xl border border-border-base bg-surface/76 p-6 backdrop-blur">
             <h2 className="text-lg font-semibold">{t("collectTitle")}</h2>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border-base text-left font-mono text-xs text-muted-3">
-                  <th className="pb-2 pr-4">{t("table.field")}</th>
-                  <th className="pb-2 pr-4">{t("table.type")}</th>
-                  <th className="pb-2">{t("table.description")}</th>
-                </tr>
-              </thead>
-              <tbody className="text-muted-2">
-                {FIELD_ROWS.map(([field, type, key], index) => (
-                  <tr
-                    key={field}
-                    className={
-                      index === FIELD_ROWS.length - 1
-                        ? undefined
-                        : "border-b border-border-base/50"
-                    }
-                  >
-                    <td className="py-2 pr-4 font-mono text-xs">{field}</td>
-                    <td className="py-2 pr-4 font-mono text-xs">{type}</td>
-                    <td className="py-2">{t.rich(`fields.${key}`, rich)}</td>
+            {/* The field/type columns hold long unbreakable tokens
+                (binary_version, string[]); without a scroll container a
+                narrow viewport widens the page instead of the table. */}
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[520px] text-sm">
+                <thead>
+                  <tr className="border-b border-border-base text-left font-mono text-xs text-muted-3">
+                    <th className="pb-2 pr-4">{t("table.field")}</th>
+                    <th className="pb-2 pr-4">{t("table.type")}</th>
+                    <th className="pb-2">{t("table.description")}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="text-muted-2">
+                  {FIELD_ROWS.map(([field, type, key], index) => (
+                    <tr
+                      key={field}
+                      className={
+                        index === FIELD_ROWS.length - 1
+                          ? undefined
+                          : "border-b border-border-base/50"
+                      }
+                    >
+                      <td className="py-2 pr-4 font-mono text-xs">{field}</td>
+                      <td className="py-2 pr-4 font-mono text-xs">{type}</td>
+                      <td className="py-2">{t.rich(`fields.${key}`, rich)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </section>
 
           <section className="space-y-3 rounded-2xl border border-border-base bg-surface/76 p-6 backdrop-blur">

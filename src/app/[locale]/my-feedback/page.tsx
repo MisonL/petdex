@@ -228,10 +228,10 @@ export default async function MyFeedbackPage({
                   <li key={r.id}>
                     <Link
                       href={`/my-feedback/${r.id}`}
-                      className={`block rounded-2xl border p-4 transition hover:bg-white ${
+                      className={`block rounded-2xl border p-4 transition hover:bg-surface-muted ${
                         unread
-                          ? "border-brand/40 bg-white shadow-[0_0_0_1px_rgba(82,102,234,0.18),0_18px_45px_-26px_rgba(82,102,234,0.4)]"
-                          : "border-black/10 bg-surface/80 hover:border-black/30 dark:border-white/10 dark:hover:border-white/30"
+                          ? "border-brand/40 bg-surface shadow-[0_0_0_1px_rgba(82,102,234,0.18),0_18px_45px_-26px_rgba(82,102,234,0.4)]"
+                          : "border-border-base bg-surface/80 hover:border-border-strong"
                       }`}
                     >
                       <div className="flex items-start gap-3">

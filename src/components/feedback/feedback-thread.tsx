@@ -197,7 +197,10 @@ export function FeedbackThread({
                     <span>·</span>
                     <span>{new Date(r.createdAt).toLocaleString(locale)}</span>
                   </div>
-                  <p className="whitespace-pre-wrap">{r.body}</p>
+                  {/* break-words: `pre-wrap` keeps the author's line breaks but
+                      does not break a long unspaced run (a URL, a pasted pet
+                      name), which pushed the bubble past the viewport. */}
+                  <p className="whitespace-pre-wrap break-words">{r.body}</p>
                 </div>
               </li>
             );
