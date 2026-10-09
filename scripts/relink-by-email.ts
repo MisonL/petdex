@@ -11,6 +11,13 @@
 //
 // Stop on first match. Pets without any match stay on admin and the
 // /my-pets claim banner picks them up later.
+//
+// Usage:
+//   bun --env-file .env.local scripts/relink-by-email.ts            # preview
+//   bun --env-file .env.local scripts/relink-by-email.ts --apply    # write
+//
+// Ownership is rewritten in place and the match is a heuristic (email
+// local-part, then display name), so writing is opt-in.
 
 import { neon } from "@neondatabase/serverless";
 // Direct Clerk Backend API. The clerk CLI 1.0.3 returns empty arrays
@@ -148,6 +155,7 @@ async function main() {
 
   console.log(`scanning ${rows.length} admin-owned, github-credited pets`);
 
+  const apply = process.argv.includes("--apply");
   const cache = new Map<string, ClerkUser | null>();
   let relinked = 0;
   let unmatched = 0;
@@ -177,6 +185,10 @@ async function main() {
     }
 
     const email = pickPrimaryEmail(user) ?? row.owner_email;
+    if (!apply) {
+      console.log(`    would relink ${row.slug} -> ${user.id} (dry run)`);
+      continue;
+    }
     await db
       .update(schema.submittedPets)
       .set({ ownerId: user.id, ownerEmail: email })
@@ -186,6 +198,7 @@ async function main() {
   }
 
   console.log(`\nrelinked: ${relinked}`);
+  if (!apply) console.log("(dry run — pass --apply to write)");
   console.log(`unmatched: ${unmatched}`);
 }
 
