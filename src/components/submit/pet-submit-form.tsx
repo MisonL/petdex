@@ -93,6 +93,13 @@ export function PetSubmitForm() {
   const { isSignedIn, isLoaded, user } = useUser();
   const [parsed, setParsed] = useState<ParsedPet | null>(null);
   const [isReading, setIsReading] = useState(false);
+  // A parse that rejected (corrupt zip, unreadable stream) leaves `parsed`
+  // null and would otherwise fall back to the generic "drop files" prompt —
+  // a silent failure the user cannot act on. The throw's `finally` sets
+  // isReading false in the same batch this is set in, so the panel renders
+  // this branch directly instead of flashing the prompt for a frame.
+  const [readError, setReadError] = useState<string | null>(null);
+  const parseSeqRef = useRef(0);
   const [isDragging, setIsDragging] = useState(false);
   const [submission, setSubmission] = useState<SubmissionResult>({
     kind: "idle",
@@ -121,6 +128,11 @@ export function PetSubmitForm() {
     setIsReading(true);
     setSubmission({ kind: "idle" });
     setParsed(null);
+    setReadError(null);
+    // A second parse that starts while the first is still reading wins the
+    // right to write state; the loser's late `setParsed` would otherwise
+    // replace the newer selection with an older one.
+    const seq = ++parseSeqRef.current;
 
     try {
       const items = [...files];
@@ -262,6 +274,10 @@ export function PetSubmitForm() {
         }
 
         const buf = await zipFile.arrayBuffer();
+        // JSZip.loadAsync rejects on a corrupt zip ("Can't find end of
+        // central directory"). Propagated to the catch below — the channel
+        // the rest of the parse uses for its localized issue text — instead
+        // of being silently swallowed.
         const zip = await JSZip.loadAsync(buf);
         const petJsonEntry = zip.file("pet.json");
         const webpEntry = zip.file("spritesheet.webp");
@@ -387,8 +403,16 @@ export function PetSubmitForm() {
       });
       setEditedDisplayName(displayName);
       setEditedDescription(description);
+    } catch (err) {
+      // Every caller does `void handleFiles(...)`, so a rejection here was an
+      // unhandled promise rejection and an empty prompt. Surface it instead.
+      if (seq !== parseSeqRef.current) return;
+      const reason = err instanceof Error ? err.message : String(err);
+      setReadError(t("issues.unreadable", { reason }));
     } finally {
-      setIsReading(false);
+      // Only the still-current parse may flip this: an abandoned earlier
+      // attempt finishing late would otherwise hide the newer one's spinner.
+      if (seq === parseSeqRef.current) setIsReading(false);
     }
   }
 
@@ -667,9 +691,19 @@ export function PetSubmitForm() {
         onDrop={(event) => {
           event.preventDefault();
           setIsDragging(false);
-          void readDataTransfer(event.dataTransfer).then((files) => {
-            if (files.length > 0) void handleFiles(files);
-          });
+          void readDataTransfer(event.dataTransfer)
+            .then((files) => {
+              if (files.length > 0) return handleFiles(files);
+            })
+            .catch(() => {
+              // A dropped entry tree that cannot be read fails the same way
+              // a corrupt zip does: tell the user instead of vanishing.
+              parseSeqRef.current += 1;
+              setIsReading(false);
+              setParsed(null);
+              setSubmission({ kind: "idle" });
+              setReadError(t("issues.dropPetFolderOrZip"));
+            });
         }}
       >
         <legend className="sr-only">{t("drop.ariaLabel")}</legend>
@@ -708,12 +742,15 @@ export function PetSubmitForm() {
               {...({ directory: "" } as Record<string, string>)}
               multiple
               className="sr-only"
-              onChange={(event) =>
-                void handleFiles(event.target.files).then(() => {
-                  // Allow re-picking the same folder
-                  event.target.value = "";
-                })
-              }
+              onChange={(event) => {
+                const target = event.currentTarget;
+                void handleFiles(event.target.files)
+                  .catch(() => {}) // handleFiles reports its own errors now
+                  .finally(() => {
+                    // Allow re-picking the same folder
+                    target.value = "";
+                  });
+              }}
             />
           </label>
           <label className="inline-flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-border-base bg-surface/70 px-4 text-xs font-medium text-foreground transition hover:bg-surface">
@@ -723,11 +760,14 @@ export function PetSubmitForm() {
               type="file"
               accept=".zip"
               className="sr-only"
-              onChange={(event) =>
-                void handleFiles(event.target.files).then(() => {
-                  event.target.value = "";
-                })
-              }
+              onChange={(event) => {
+                const target = event.currentTarget;
+                void handleFiles(event.target.files)
+                  .catch(() => {}) // handleFiles reports its own errors now
+                  .finally(() => {
+                    target.value = "";
+                  });
+              }}
             />
           </label>
           <label className="inline-flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-border-base bg-surface/70 px-4 text-xs font-medium text-foreground transition hover:bg-surface">
@@ -737,11 +777,14 @@ export function PetSubmitForm() {
               type="file"
               accept=".png,.webp"
               className="sr-only"
-              onChange={(event) =>
-                void handleFiles(event.target.files).then(() => {
-                  event.target.value = "";
-                })
-              }
+              onChange={(event) => {
+                const target = event.currentTarget;
+                void handleFiles(event.target.files)
+                  .catch(() => {}) // handleFiles reports its own errors now
+                  .finally(() => {
+                    target.value = "";
+                  });
+              }}
             />
           </label>
         </div>
@@ -763,6 +806,13 @@ export function PetSubmitForm() {
           <p className="mt-6 inline-flex items-center gap-2 text-sm text-muted-2">
             <Loader2 className="size-3.5 animate-spin" />
             {t("check.reading")}
+          </p>
+        ) : readError ? (
+          <p
+            role="alert"
+            className="mt-6 rounded-xl bg-chip-danger-bg p-3 text-sm text-chip-danger-fg"
+          >
+            {readError}
           </p>
         ) : parsed ? (
           <div className="mt-6 space-y-5">

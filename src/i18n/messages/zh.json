@@ -496,7 +496,8 @@
         "tooSmall": "精灵图集看起来太小（{width}×{height}）。请使用 {classicWidth}×{classicHeight}（8×9）或 {v2Width}×{v2Height}（v2 8×11）。",
         "badGrid": "精灵图集网格为 {width}×{height}，不符合 8×9（1536×1872）或 v2 8×11（1536×2288）帧网格，帧会错位显示。",
         "spriteVersionMismatch": "精灵图集尺寸使用 v{detected}，但 pet.json 声明为 v{declared}。请先更新 spriteVersionNumber 再提交。",
-        "spritesheetMissingPetInfo": "此精灵图集旁未找到 pet.json，已生成占位名称/描述。请在下方填写宠物名称和描述后再提交。"
+        "spritesheetMissingPetInfo": "此精灵图集旁未找到 pet.json，已生成占位名称/描述。请在下方填写宠物名称和描述后再提交。",
+        "unreadable": "无法读取该文件包：{reason}"
       }
     }
   },
