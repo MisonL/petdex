@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, mock, test } from "bun:test";
+import { afterAll, describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 
 import { GetObjectCommand } from "@aws-sdk/client-s3";
@@ -17,10 +17,15 @@ import { R2_PUBLIC_HOSTS, R2_TRUSTED_HOSTS } from "@/lib/r2-public-url";
 // artifacts are skipped and the function returns before any sharp work — the
 // assertion is about which URL passes the gate, not how images are built.
 //
-// The `@/lib/r2` stub below is process-wide, so it spreads the real module
-// (a bare replacement stripped `presignPut` and broke `r2.test.ts` when that
-// file loaded later) and restores afterward. `mock.restore()` in `afterAll` is
-// what keeps the stub from reaching the next suite.
+// `r2.send` is replaced in place (an own property shadowing the prototype
+// method) and restored afterward, NOT `mock.module`-ed. `mock.module` is
+// process-wide and `mock.restore()` did not reliably undo it for a later file
+// on Bun 1.4.2: this suite loaded before `r2.test.ts`, the stub's `r2` (a bare
+// `{ send }`) reached it, and `getSignedUrl` died on
+// `client.config.endpointProvider` — three failures in a file that never
+// touched this stub. Patching the singleton leaves the real client, its
+// `config`, and every other export intact, which is the same reason
+// `asset-size-guard.test.ts` takes this route.
 
 const legacyHost = [...R2_PUBLIC_HOSTS].find((h) => !R2_TRUSTED_HOSTS.has(h));
 if (!legacyHost) {
@@ -37,26 +42,24 @@ const SOURCE_SHA = createHash("sha256").update(SOURCE).digest("hex");
 // NOT skipped (the #590 staleness fix). Default: every artifact is current.
 let storedSourceSha = SOURCE_SHA;
 
-const actualR2 = await import("@/lib/r2");
+const r2mod = await import("@/lib/r2");
+type R2Like = { send: (command: unknown) => Promise<unknown> };
+const client = r2mod.r2 as unknown as R2Like;
+const originalSend = client.send;
 
-mock.module("@/lib/r2", () => ({
-  ...actualR2,
-  r2: {
-    send: async (command: { constructor: { name: string } }) => {
-      if (command instanceof GetObjectCommand) {
-        return {
-          Body: { transformToByteArray: async () => new Uint8Array(SOURCE) },
-        };
-      }
-      return { Metadata: { "petdex-source-sha256": storedSourceSha } };
-    },
-  },
-}));
+client.send = async (command: unknown) => {
+  if (command instanceof GetObjectCommand) {
+    return {
+      Body: { transformToByteArray: async () => new Uint8Array(SOURCE) },
+    };
+  }
+  return { Metadata: { "petdex-source-sha256": storedSourceSha } };
+};
 
 const { publishPetPublicArtifacts } = await import("./pet-public-artifacts");
 
 afterAll(() => {
-  mock.restore();
+  client.send = originalSend;
 });
 
 describe("publishPetPublicArtifacts source gate", () => {

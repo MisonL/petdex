@@ -1,5 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
 
+import { DeleteObjectsCommand } from "@aws-sdk/client-s3";
+
 import * as schema from "@/lib/db/schema";
 
 // The withdraw route deletes R2 objects after removing the row. Its asset URLs
@@ -8,6 +10,13 @@ import * as schema from "@/lib/db/schema";
 // another pet's live spritesheet — deleting on the row's word alone would let
 // any user destroy an arbitrary object. These tests pin the reference re-check
 // that prevents it, and that an owner's genuinely orphaned asset still goes.
+//
+// The R2 client is stubbed by replacing `r2.send` on the module singleton, not
+// with `mock.module("@/lib/r2")`. `mock.module` is process-wide and its undo
+// is not reliable across files on Bun 1.4.2: a bare `{ deleteR2Objects }`
+// replacement here reached `r2.test.ts` loaded later, and `getSignedUrl` died
+// on `client.config.endpointProvider`. Patching the method leaves every other
+// export — and the client's `config` — intact.
 
 const BUCKET = "https://assets.petdex.dev";
 const UPLOAD = "0123456789ab";
@@ -22,7 +31,7 @@ const ROW = {
 };
 
 let referenced = false;
-let deleted: string[][] = [];
+let deleted: string[] = [];
 let deletedBatches = 0;
 // Whether the guarded pet DELETE matched a row. false models a concurrent
 // approve/claim winning between the route's read and its write.
@@ -36,14 +45,6 @@ mock.module("@/lib/same-origin", () => ({ requireSameOrigin: () => null }));
 mock.module("@/lib/ratelimit", () => ({
   withdrawRatelimit: { limit: async () => ({ success: true }) },
 }));
-mock.module("@/lib/r2", () => ({
-  deleteR2Objects: async (keys: string[]) => {
-    deletedBatches += 1;
-    deleted = keys;
-    return { Deleted: keys.map((Key) => ({ Key })) };
-  },
-  R2_BUCKET: "petdex-pets",
-}));
 mock.module("@/lib/db/client", () => ({
   db: {
     query: { submittedPets: { findFirst: async () => ROW } },
@@ -56,9 +57,24 @@ mock.module("@/lib/db/client", () => ({
   rowsOf: (result: unknown) => (Array.isArray(result) ? result : []),
 }));
 
+const r2mod = await import("@/lib/r2");
+type R2Like = { send: (command: unknown) => Promise<unknown> };
+const r2Client = r2mod.r2 as unknown as R2Like;
+const originalSend = r2Client.send;
+r2Client.send = async (command: unknown) => {
+  if (command instanceof DeleteObjectsCommand) {
+    deletedBatches += 1;
+    const objects = command.input.Delete?.Objects ?? [];
+    deleted = objects.map((o) => o.Key ?? "").filter(Boolean);
+    return { Deleted: deleted.map((Key) => ({ Key })) };
+  }
+  return originalSend(command);
+};
+
 const { POST } = await import("@/app/api/my-pets/[id]/withdraw/route");
 
 afterAll(() => {
+  r2Client.send = originalSend;
   mock.restore();
 });
 
