@@ -365,7 +365,7 @@ export async function POST(req: Request): Promise<Response> {
       { status: 400, headers: PRIVATE_HEADERS },
     );
   }
-  const imageUrl = normalizeRequestImageUrl(rawImageUrl);
+  const imageUrl = normalizeRequestImageUrl(rawImageUrl, userId);
   if (imageUrl === false) {
     return NextResponse.json(
       { error: "invalid_image_url" },
@@ -502,6 +502,7 @@ export async function POST(req: Request): Promise<Response> {
 
 function normalizeRequestImageUrl(
   value: string | null | undefined,
+  userId: string,
 ): string | null | false {
   // The caller now type-checks before calling, so this only ever sees a string
   // or a nullish value; the guard stays as the boundary's own defence.
@@ -514,6 +515,13 @@ function normalizeRequestImageUrl(
     if (url.protocol !== "https:") return false;
     if (url.host !== base.host) return false;
     if (!url.pathname.startsWith("/requests/")) return false;
+    // `/api/pet-requests/image` presigns keys under the caller's own slice
+    // (`requests/<userId.slice(-8)>-<uploadId>/…`). Accepting any
+    // `/requests/` path let an author attach another user's unreviewed
+    // reference upload by copying its path; the namespace is the caller's or
+    // the URL is refused.
+    const folder = url.pathname.split("/")[2] ?? "";
+    if (!folder.startsWith(`${userId.slice(-8).toLowerCase()}-`)) return false;
     return url.toString();
   } catch {
     return false;

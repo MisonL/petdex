@@ -377,17 +377,20 @@ describe("POST /api/pet-requests image ownership", () => {
   // URL replaced the author's pending reference image, which is the author's
   // contribution and not the voter's to change. The image fields are now
   // gated on the caller being the request's author.
+  // The folders mirror what /api/pet-requests/image presigns: the caller's
+  // last-8 userId suffix, then the upload id. normalizeRequestImageUrl pins
+  // that prefix, so these are the only paths each of these users may attach.
   const authorImage =
-    "https://assets.petdex.dev/requests/u_author-a1b2c3d4/reference.webp";
+    "https://assets.petdex.dev/requests/aaaabbbb-a1b2c3d4/reference.webp";
   const voterImage =
-    "https://assets.petdex.dev/requests/u_voter-e5f6a7b8/reference.webp";
+    "https://assets.petdex.dev/requests/ccccdddd-e5f6a7b8/reference.webp";
 
   it("keeps the author's pending image when a different user upvotes with their own", async () => {
     await testDb.execute(sql`DELETE FROM "pet_request_votes"`);
     await testDb.execute(sql`DELETE FROM "pet_requests"`);
 
     const text = "a heron that writes changelogs";
-    currentUserId = "user_author";
+    currentUserId = "user_aaaabbbb";
     const created = await postWithImage(text, authorImage);
     expect(created.status).toBe(200);
     expect((await imageState()).url).toBe(authorImage);
@@ -395,7 +398,7 @@ describe("POST /api/pet-requests image ownership", () => {
 
     // A second, unrelated signed-in user repeats the text with their own
     // image. The vote lands; the image must not.
-    currentUserId = "user_voter";
+    currentUserId = "user_ccccdddd";
     const upvoted = await postWithImage(text, voterImage);
     expect(upvoted.status).toBe(200);
     expect(((await upvoted.json()) as { mode: string }).mode).toBe("upvoted");
@@ -413,13 +416,47 @@ describe("POST /api/pet-requests image ownership", () => {
     await testDb.execute(sql`DELETE FROM "pet_requests"`);
 
     const text = "a stoat that debugs flaky tests";
-    currentUserId = "user_author";
+    currentUserId = "user_aaaabbbb";
     await postWithImage(text, authorImage);
 
     const replacement =
-      "https://assets.petdex.dev/requests/u_author-9999aaaa/reference.webp";
+      "https://assets.petdex.dev/requests/aaaabbbb-9999aaaa/reference.webp";
     await postWithImage(text, replacement);
     expect((await imageState()).url).toBe(replacement);
+
+    currentUserId = "user_1";
+  });
+
+  it("refuses an image living in another user's namespace", async () => {
+    // The URL gate used to accept any path under /requests/, so an author
+    // could paste a folder copied off someone else's unreviewed reference
+    // upload and have it displayed as theirs. The presign namespace is the
+    // only one the caller may attach.
+    await testDb.execute(sql`DELETE FROM "pet_request_votes"`);
+    await testDb.execute(sql`DELETE FROM "pet_requests"`);
+
+    currentUserId = "user_aaaabbbb";
+    const res = await postWithImage(
+      "a puffin that reviews diffs",
+      "https://assets.petdex.dev/requests/ccccdddd-e5f6a7b8/reference.webp",
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: "invalid_image_url" });
+    expect(await requestCount()).toBe(0);
+
+    currentUserId = "user_1";
+  });
+
+  it("also refuses a namespace that does not match the caller's suffix", async () => {
+    // user_author's suffix is `author` — a well-formed but different folder
+    // (theirs from another account, or any other prefix) is refused too.
+    currentUserId = "user_aaaabbbb";
+    const res = await postWithImage(
+      "a puffin that reviews diffs again",
+      "https://assets.petdex.dev/requests/aaaabbbbX-b1c2d3e4/reference.webp",
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: "invalid_image_url" });
 
     currentUserId = "user_1";
   });
