@@ -369,9 +369,10 @@ async function assertPendingAssetsWithinLimit(
 
 async function persistAutoAcceptedEdit(
   id: string,
+  ownerId: string,
   row: SubmittedPet,
   patch: PendingPatch,
-): Promise<void> {
+): Promise<boolean> {
   const liveUpdate: Record<string, unknown> = {
     pendingDisplayName: null,
     pendingDescription: null,
@@ -391,10 +392,26 @@ async function persistAutoAcceptedEdit(
   }
   if (patch.pendingTags !== null) liveUpdate.tags = patch.pendingTags;
 
-  await db
+  const applied = await db
     .update(schema.submittedPets)
     .set(liveUpdate)
-    .where(eq(schema.submittedPets.id, id));
+    // The ownership check above is a separate statement: a claim moving the
+    // row to another owner between it and this write would still apply the
+    // edit. Repeating the guard here is the same TOCTOU close the withdraw
+    // and claim writes do — no row coming back means the row is no longer
+    // ours, and there is nothing to notify or invalidate about.
+    .where(
+      and(
+        eq(schema.submittedPets.id, id),
+        eq(schema.submittedPets.ownerId, ownerId),
+      ),
+    )
+    .returning({
+      slug: schema.submittedPets.slug,
+      ownerId: schema.submittedPets.ownerId,
+      displayName: schema.submittedPets.displayName,
+    });
+  if (applied.length === 0) return false;
 
   void refreshSimilarityFor(id).catch(() => {});
   await invalidateAggregates(AGGREGATE_KEYS.variantIndex);
@@ -410,10 +427,13 @@ async function persistAutoAcceptedEdit(
     },
     href: `/pets/${row.slug}`,
   }).catch(() => {});
+
+  return true;
 }
 
 async function tryAutoAccept(
   id: string,
+  userId: string,
   row: SubmittedPet,
   patch: PendingPatch,
   flags: EditFlags,
@@ -453,7 +473,11 @@ async function tryAutoAccept(
   });
   if (!decision.autoAccept) return null;
 
-  await persistAutoAcceptedEdit(id, row, patch);
+  // A row that moved to another owner between the read and this write is not
+  // ours to auto-apply: fall through to queueEdit, whose guarded write also
+  // matches nothing and answers 404 — instead of reporting an approval for an
+  // edit that never landed.
+  if (!(await persistAutoAcceptedEdit(id, userId, row, patch))) return null;
   return NextResponse.json({ status: "auto_approved" });
 }
 
@@ -465,7 +489,11 @@ type QueuedEditRow = Pick<
   | "pendingSubmittedAt"
 >;
 
-async function queueEdit(id: string, patch: PendingPatch): Promise<Response> {
+async function queueEdit(
+  id: string,
+  userId: string,
+  patch: PendingPatch,
+): Promise<Response> {
   const assetKeys = pendingAssetKeysFromUrls([
     patch.pendingSpritesheetUrl,
     patch.pendingPetJsonUrl,
@@ -473,8 +501,8 @@ async function queueEdit(id: string, patch: PendingPatch): Promise<Response> {
   ]);
   const hasAssetKeys = assetKeys.length > 0;
   const updated = hasAssetKeys
-    ? await queueAssetEditWithClaimGuard(id, patch, assetKeys)
-    : await queueTextEdit(id, patch);
+    ? await queueAssetEditWithClaimGuard(id, userId, patch, assetKeys)
+    : await queueTextEdit(id, userId, patch);
 
   if (!updated) {
     if (!hasAssetKeys) {
@@ -502,12 +530,21 @@ async function queueEdit(id: string, patch: PendingPatch): Promise<Response> {
 
 async function queueTextEdit(
   id: string,
+  ownerId: string,
   patch: PendingPatch,
 ): Promise<QueuedEditRow | null> {
   const [updated] = await db
     .update(schema.submittedPets)
     .set(patch)
-    .where(eq(schema.submittedPets.id, id))
+    // Repeat applyPetEdit's ownership read on the write: a claim reassigning
+    // the row between the two would otherwise queue an edit on a pet the
+    // caller no longer owns. 0 rows back = same 404 as a missing row.
+    .where(
+      and(
+        eq(schema.submittedPets.id, id),
+        eq(schema.submittedPets.ownerId, ownerId),
+      ),
+    )
     .returning({
       pendingDisplayName: schema.submittedPets.pendingDisplayName,
       pendingDescription: schema.submittedPets.pendingDescription,
@@ -519,6 +556,7 @@ async function queueTextEdit(
 
 async function queueAssetEditWithClaimGuard(
   id: string,
+  ownerId: string,
   patch: PendingPatch,
   assetKeys: string[],
 ): Promise<QueuedEditRow | null> {
@@ -549,6 +587,7 @@ async function queueAssetEditWithClaimGuard(
         pending_dhash = ${patch.pendingDhash},
         pending_review_id = ${patch.pendingReviewId}
     WHERE pet.id = ${id}
+      AND pet.owner_id = ${ownerId}
       AND NOT EXISTS (
         SELECT 1
         FROM pending_asset_gc_claims AS claim
@@ -640,6 +679,6 @@ export async function applyPetEdit(input: {
 
   patch.pendingSubmittedAt = new Date();
   patch.pendingRejectionReason = null;
-  const autoAccepted = await tryAutoAccept(id, row, patch, flags);
-  return autoAccepted ?? queueEdit(id, patch);
+  const autoAccepted = await tryAutoAccept(id, userId, row, patch, flags);
+  return autoAccepted ?? queueEdit(id, userId, patch);
 }

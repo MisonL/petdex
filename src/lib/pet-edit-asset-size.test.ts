@@ -1,6 +1,8 @@
 import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
 
 import { HeadObjectCommand } from "@aws-sdk/client-s3";
+import type { SQL } from "drizzle-orm";
+import { PgDialect } from "drizzle-orm/pg-core";
 
 import * as schema from "@/lib/db/schema";
 import * as realRatelimit from "@/lib/ratelimit";
@@ -33,6 +35,13 @@ const PENDING_SPRITE = `${BUCKET}/pets/${SLUG}-pending-0123456789ab/sprite.webp`
 let contentLength: number;
 let wrote: boolean;
 let row: typeof ROW;
+// The write chain is stubbed down to .returning() so the ownership tests
+// below can inspect the WHERE it carries and decide what the guarded write
+// "matched". `writeThrows` preserves the first suites' behaviour: a write
+// reached before the size guard must fail loudly.
+let writeThrows = true;
+let updateRows: unknown[] = [];
+const updateWheres: unknown[] = [];
 
 const ROW = {
   id: "pet_1",
@@ -71,10 +80,18 @@ mock.module("@/lib/ratelimit", () => ({
 mock.module("@/lib/db/client", () => ({
   db: {
     query: { submittedPets: { findFirst: async () => row } },
-    update: () => {
-      wrote = true;
-      throw new Error("write reached before the size check");
-    },
+    update: () => ({
+      set: () => ({
+        where: (condition: unknown) => {
+          wrote = true;
+          if (writeThrows) {
+            throw new Error("write reached before the size check");
+          }
+          updateWheres.push(condition);
+          return { returning: async () => updateRows };
+        },
+      }),
+    }),
     execute: () => {
       wrote = true;
       throw new Error("write reached before the size check");
@@ -93,6 +110,8 @@ beforeEach(() => {
   wrote = false;
   row = { ...ROW };
   contentLength = PET_ASSET_MAX_BYTES + 1;
+  updateRows = [];
+  updateWheres.length = 0;
   client.send = async (command: unknown) => {
     if (!(command instanceof HeadObjectCommand)) {
       throw new Error("unexpected command");
@@ -165,5 +184,57 @@ describe("applyPetEdit asset size guard", () => {
       }),
     ).rejects.toThrow();
     expect(heads).toBe(0);
+  });
+});
+
+// The owner-scoped read at the top of applyPetEdit and the write that follows
+// are separate statements. A claim reassigning the row in between used to
+// leave the edit applied to a pet the caller no longer owned, so the write
+// repeats the ownership check — the same close the withdraw and claim writes
+// carry. These tests pin that the condition is on the statement (not only on
+// the read) and that its outcome decides the response.
+describe("applyPetEdit ownership re-check on the write", () => {
+  beforeEach(() => {
+    writeThrows = false;
+    updateWheres.length = 0;
+    // An existing pending edit makes tryAutoAccept decline before it reaches
+    // the AI-judged auto-accept path, routing this into queueEdit — the
+    // guarded write under test.
+    row.pendingSubmittedAt = new Date();
+  });
+
+  it("carries the caller's ownership in the write itself", async () => {
+    updateRows = [
+      {
+        pendingDisplayName: "Boba the Second",
+        pendingDescription: null,
+        pendingTags: null,
+        pendingSubmittedAt: new Date(),
+      },
+    ];
+    const res = await applyPetEdit({
+      id: "pet_1",
+      userId: "user_1",
+      body: { displayName: "Boba the Second" },
+    });
+    expect(res.status).toBe(200);
+    expect(updateWheres.length).toBe(1);
+    const query = new PgDialect().sqlToQuery(updateWheres[0] as SQL);
+    expect(query.sql).toContain('"owner_id"');
+    expect(query.params).toContain("user_1");
+  });
+
+  it("answers not_found, not success, when the guard matches no row", async () => {
+    // The row moved to another owner between the read and the write, so the
+    // guarded UPDATE matched nothing. A success response here would tell the
+    // caller an edit was queued that never landed.
+    updateRows = [];
+    const res = await applyPetEdit({
+      id: "pet_1",
+      userId: "user_1",
+      body: { displayName: "Boba the Second" },
+    });
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "not_found" });
   });
 });
