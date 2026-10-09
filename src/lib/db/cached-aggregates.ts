@@ -44,6 +44,7 @@ export const AGGREGATE_KEYS = {
   approvedCatalog: "petdex:agg:approved-catalog:v2",
   slimManifest: "petdex:agg:slim-manifest:v2",
   metricsIndex: "petdex:agg:metrics-index:v1",
+  leaderboard: "petdex:agg:leaderboard:v1",
   featuredPets: "petdex:agg:featured-pets:v2",
   dexNumbers: "petdex:agg:dex-numbers:v2",
   randomPetPool: "petdex:agg:random-pet-pool:v2",
