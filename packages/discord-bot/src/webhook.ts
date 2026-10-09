@@ -85,7 +85,7 @@ export async function findChannel(
   return null;
 }
 
-async function postPetApproved(
+export async function postPetApproved(
   client: Client,
   ev: PetApprovedEvent,
 ): Promise<void> {
@@ -98,18 +98,36 @@ async function postPetApproved(
     ? `<@${ev.pet.discordUserId}>`
     : "a creator";
   const embed = new EmbedBuilder()
-    .setTitle(escapeMarkdown(ev.pet.displayName))
+    // NOT escaped: Discord renders markdown only in an embed's description and
+    // field values (discord-api-docs#6088 — "markdown support for embeds was
+    // only implemented in description and fields"), and masked links never
+    // work in a title. Escaping here only injected visible backslashes into
+    // any name containing `*`, `_`, `` ` `` or `~`. The title's link comes
+    // from setURL below, which is the only way a title can be clickable.
+    .setTitle(ev.pet.displayName)
     .setURL(`${PETDEX_API_BASE}/pets/${ev.pet.slug}`)
-    // Creator-supplied markdown would render as links in a message that
-    // carries the official bot's name — neutralize it before it goes out.
-    .setDescription(escapeMarkdown(ev.pet.description.slice(0, 200)))
+    // Creator-supplied markdown WOULD render as links here — this is a
+    // description, and a description does render markdown — in a message that
+    // carries the official bot's name, so neutralize it before it goes out.
+    // `maskedLink: true` matters: the default escapeMarkdown leaves
+    // `[text](url)` intact, so without it this call never blocked the one
+    // markdown form the comment is about.
+    .setDescription(
+      escapeMarkdown(ev.pet.description.slice(0, 200), { maskedLink: true }),
+    )
     .setColor(0x5266ea)
     .setImage(`${PETDEX_API_BASE}/pets/${ev.pet.slug}/opengraph-image`)
     .addFields(
+      // `kind` is a fixed vocabulary (creature|object|character) and needs no
+      // escaping; the tags are free text, and a field value renders markdown.
       { name: "kind", value: ev.pet.kind, inline: true },
       {
         name: "tags",
-        value: ev.pet.tags.slice(0, 4).join(" · ") || "—",
+        value:
+          ev.pet.tags
+            .slice(0, 4)
+            .map((tag) => escapeMarkdown(tag))
+            .join(" · ") || "—",
         inline: true,
       },
       { name: "install", value: `\`npx petdex install ${ev.pet.slug}\`` },
@@ -129,16 +147,26 @@ async function postPetApproved(
   });
 }
 
-async function postCollectionFeatured(
+export async function postCollectionFeatured(
   client: Client,
   ev: CollectionFeaturedEvent,
 ): Promise<void> {
   const channel = await findChannel(client, "ip-spotlight");
   if (!channel) return;
   const embed = new EmbedBuilder()
+    // Title: not escaped, for the same reason as postPetApproved.
     .setTitle(ev.collection.title)
     .setURL(`${PETDEX_API_BASE}/collections/${ev.collection.slug}`)
-    .setDescription(ev.collection.description.slice(0, 240))
+    // Description: escaped — a collection description is owner-supplied free
+    // text and a description renders markdown, so a `[click here](evil)` would
+    // otherwise become a link under the bot's name (`maskedLink: true`, since
+    // the default leaves the link syntax alone). Length only is validated
+    // upstream (collection-input.ts), not markdown.
+    .setDescription(
+      escapeMarkdown(ev.collection.description.slice(0, 240), {
+        maskedLink: true,
+      }),
+    )
     .setColor(0x5266ea)
     .setImage(
       `${PETDEX_API_BASE}/collections/${ev.collection.slug}/opengraph-image`,

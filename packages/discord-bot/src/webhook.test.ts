@@ -16,7 +16,8 @@ const SECRET = "test-secret";
 process.env.PETDEX_WEBHOOK_SECRET = SECRET;
 process.env.DISCORD_GUILD_ID = "guild_a";
 
-const { handleWebhook, findChannel } = await import("./webhook.js");
+const { handleWebhook, findChannel, postPetApproved, postCollectionFeatured } =
+  await import("./webhook.js");
 
 function sign(body: string): string {
   return createHmac("sha256", SECRET).update(body).digest("hex");
@@ -131,5 +132,87 @@ describe("findChannel", () => {
       },
     } as unknown as Client;
     expect(await findChannel(scoped, "showcase")).toBe(right as never);
+  });
+});
+
+// Discord renders markdown only in an embed's description and field values,
+// and masked links never work in a title (discord-api-docs#6088). The escaping
+// has to follow that split: an unescaped description lets a creator's
+// `[click](url)` become a link under the official bot's name, while escaping a
+// title only injects visible backslashes into a pet name containing `*`/`_`.
+// These drive the real poster against a channel stub that captures the embed.
+describe("embed escaping matches where Discord renders markdown", () => {
+  function capturingClient(channelName: string) {
+    const sent: Array<{
+      content?: string;
+      embeds: Array<Record<string, unknown>>;
+    }> = [];
+    const channel = {
+      isTextBased: () => true,
+      name: channelName,
+      send: async (msg: {
+        content?: string;
+        embeds: Array<{ toJSON: () => Record<string, unknown> }>;
+      }) => {
+        sent.push({
+          content: msg.content,
+          embeds: msg.embeds.map((e) => e.toJSON()),
+        });
+      },
+    };
+    const client = {
+      guilds: {
+        cache: new Map([
+          [
+            "guild_a",
+            { id: "guild_a", channels: { cache: { find: () => channel } } },
+          ],
+        ]),
+      },
+    } as unknown as Client;
+    return { client, sent };
+  }
+
+  it("keeps a markdown pet name literal in the title but escapes the description", async () => {
+    const { client, sent } = capturingClient("showcase");
+    await postPetApproved(client, {
+      event: "pet_approved",
+      pet: {
+        slug: "boba",
+        displayName: "Bob*a*_b_",
+        description: "[click here](https://evil.example)",
+        kind: "creature",
+        tags: ["co*zy"],
+      },
+    });
+    const embed = sent[0]!.embeds[0]! as {
+      title: string;
+      description: string;
+      fields: Array<{ name: string; value: string }>;
+    };
+    // Title: literal, no injected backslashes.
+    expect(embed.title).toBe("Bob*a*_b_");
+    expect(embed.title).not.toContain("\\");
+    // Description: masked link neutralized — escapeMaskedLink prefixes the
+    // opening bracket with a backslash, which is what breaks the link.
+    expect(embed.description).toContain("\\[click here](");
+    // Field value (tags) renders markdown too.
+    const tags = embed.fields.find((f) => f.name === "tags");
+    expect(tags?.value).toContain("co\\*zy");
+  });
+
+  it("escapes a featured collection's description and leaves its title literal", async () => {
+    const { client, sent } = capturingClient("ip-spotlight");
+    await postCollectionFeatured(client, {
+      event: "collection_featured",
+      collection: {
+        slug: "cozy-deck",
+        title: "Cozy *Deck*",
+        description: "[win](https://evil.example) a pet",
+      },
+    });
+    const embed = sent[0]!.embeds[0]! as { title: string; description: string };
+    expect(embed.title).toBe("Cozy *Deck*");
+    expect(embed.description).toContain("\\[win](");
   });
 });
