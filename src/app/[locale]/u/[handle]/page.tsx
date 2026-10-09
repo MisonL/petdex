@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { cache } from "react";
 
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { asc, desc, sql as dsql, eq } from "drizzle-orm";
@@ -42,6 +43,28 @@ const SITE_URL = "https://petdex.dev";
 // replaces the entire pet list with whatever it was given.
 const OWNER_COLLECTION_PREVIEW_PETS = 6;
 
+// The metadata pass and the page body both need these two records, and the
+// route is force-dynamic — without request-level dedupe every profile view
+// paid for two user_profiles reads and two Clerk Backend API getUser
+// round-trips for the same row. React's cache() spans generateMetadata and
+// the page in one request (the same way getPet dedupes pets/[slug]).
+const getProfileRow = cache(async (userId: string) =>
+  db.query.userProfiles.findFirst({
+    where: eq(schema.userProfiles.userId, userId),
+  }),
+);
+
+// `null` means "Clerk did not answer", which both call sites already treat
+// as "render with the handle only".
+const getClerkUser = cache(async (userId: string) => {
+  try {
+    const client = await clerkClient();
+    return await client.users.getUser(userId);
+  } catch {
+    return null;
+  }
+});
+
 type PageProps = { params: Promise<{ handle: string; locale: string }> };
 
 export async function generateMetadata({ params }: PageProps) {
@@ -59,18 +82,14 @@ export async function generateMetadata({ params }: PageProps) {
     return { title: tProfile("notFoundTitle"), robots: { index: false } };
   }
   let displayName = `@${handle}`;
-  const profile = await db.query.userProfiles.findFirst({
-    where: eq(schema.userProfiles.userId, userId),
-  });
-  try {
-    const client = await clerkClient();
-    const u = await client.users.getUser(userId);
+  const profile = await getProfileRow(userId);
+  const u = await getClerkUser(userId);
+  if (u) {
     const name = [u.firstName, u.lastName].filter(Boolean).join(" ").trim();
     const fallbackName = name || (u.username ? `@${u.username}` : `@${handle}`);
     displayName = profile?.displayName ?? fallbackName;
-  } catch {
-    if (profile?.displayName) displayName = profile.displayName;
-    /* fall back */
+  } else if (profile?.displayName) {
+    displayName = profile.displayName;
   }
   const publicHandle = profile?.handle ?? handle.toLowerCase();
   // Pin OG image to locale-stripped path; next-intl redirects
@@ -115,15 +134,14 @@ export default async function UserProfilePage({ params }: PageProps) {
     (await userIdForHandle(handle));
   if (!ownerId) notFound();
 
-  // Pull Clerk profile.
+  // Pull Clerk profile (same cached lookup generateMetadata already used).
   let displayName: string | null = null;
   let username: string | null = null;
   let avatarUrl: string | null = null;
   const externalUrls: { url: string; label: string }[] = [];
   let memberSince: number | null = null;
-  try {
-    const client = await clerkClient();
-    const u = await client.users.getUser(ownerId);
+  const u = await getClerkUser(ownerId);
+  if (u) {
     const name = [u.firstName, u.lastName].filter(Boolean).join(" ").trim();
     displayName = name || u.username || null;
     username = u.username ?? null;
@@ -147,14 +165,11 @@ export default async function UserProfilePage({ params }: PageProps) {
         });
       }
     }
-  } catch {
-    /* will render with handle only */
   }
+  /* null from getClerkUser: will render with handle only */
 
   // Profile customization (bio, featured slug).
-  const profile = await db.query.userProfiles.findFirst({
-    where: eq(schema.userProfiles.userId, ownerId),
-  });
+  const profile = await getProfileRow(ownerId);
   if (profile?.handle && profile.handle !== requestedHandle) {
     // Locale-prefixed: a bare `/u/...` drops a zh/es visitor back to the
     // default-locale profile mid-session (the same `withLocale` the rest of
