@@ -1,11 +1,12 @@
 import Link from "next/link";
 
 import { clerkClient } from "@clerk/nextjs/server";
-import { desc, inArray, sql } from "drizzle-orm";
+import { inArray, sql } from "drizzle-orm";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 
 import { db, schema } from "@/lib/db/client";
 import { buildLocaleAlternates } from "@/lib/locale-routing";
+import { fetchVisibleRequestVotes } from "@/lib/visible-request-votes";
 
 import {
   type RequestRow,
@@ -77,17 +78,16 @@ export default async function RequestsPage({
 
   const requestIds = rows.map((r) => r.id);
 
-  type Vote = { requestId: string; userId: string };
-  const votes: Vote[] = requestIds.length
-    ? ((await db
-        .select({
-          requestId: schema.petRequestVotes.requestId,
-          userId: schema.petRequestVotes.userId,
-        })
-        .from(schema.petRequestVotes)
-        .where(inArray(schema.petRequestVotes.requestId, requestIds))
-        .orderBy(desc(schema.petRequestVotes.createdAt))) as Vote[])
-    : [];
+  // Only the newest VISIBLE_VOTER_LIMIT voters per request are ever shown
+  // (below), but this used to select *every* vote row for the 80 listed
+  // requests and discard all but three in JS — unbounded as one popular
+  // request collects upvotes. The per-request cap happens in SQL instead;
+  // the query lives in its own module so a PGlite test pins the property.
+  const votes = await fetchVisibleRequestVotes(
+    db,
+    requestIds,
+    VISIBLE_VOTER_LIMIT,
+  );
 
   const userIdSet = new Set<string>();
   for (const r of rows) if (r.requestedBy) userIdSet.add(r.requestedBy);
