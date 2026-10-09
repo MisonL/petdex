@@ -325,7 +325,10 @@ export function ProfileInlineEditor({
               </div>
 
               {error ? (
-                <p className="rounded-xl bg-chip-danger-bg px-3 py-2 text-xs text-chip-danger-fg">
+                <p
+                  role="alert"
+                  className="rounded-xl bg-chip-danger-bg px-3 py-2 text-xs text-chip-danger-fg"
+                >
                   {errorKey === "pinCapReached"
                     ? te("pinCapReached", { max: MAX_PINNED_PETS })
                     : errorKey

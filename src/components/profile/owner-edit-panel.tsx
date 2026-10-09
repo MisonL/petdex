@@ -653,7 +653,10 @@ export function OwnerEditPanel({
               </div>
 
               {error ? (
-                <p className="rounded-xl bg-chip-danger-bg px-3 py-2 text-xs text-chip-danger-fg">
+                <p
+                  role="alert"
+                  className="rounded-xl bg-chip-danger-bg px-3 py-2 text-xs text-chip-danger-fg"
+                >
                   {EDIT_ERROR_KEYS[error]
                     ? te(EDIT_ERROR_KEYS[error])
                     : error === "unknown"

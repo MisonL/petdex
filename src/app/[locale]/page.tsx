@@ -154,8 +154,11 @@ export default async function Home({
               <h1 className="mt-5 text-[56px] leading-[0.95] font-semibold tracking-[-0.03em] md:text-[96px]">
                 {t("title")}
               </h1>
+              {/* `text-brand` not `amber-300/70`: amber-on-light was ~1.2:1
+                  against the hero surface, and brand is the eyebrow/link
+                  color the rest of the header already uses. */}
               {locale === "zh" && (
-                <p className="text-xs text-amber-300/70 mt-1 tracking-wider">
+                <p className="mt-1 text-xs tracking-wider text-brand">
                   宠物图鉴 · {formattedTotalPets}+ 个开源伙伴
                 </p>
               )}

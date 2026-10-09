@@ -168,7 +168,11 @@ export function FeedbackThread({
       </div>
 
       {/* Replies */}
-      <ol className="space-y-2">
+      {/* aria-live: a sent reply appends below the fold, and a screen reader
+          announces nothing when React adds it — the bubble carries the
+          confirmation. The empty-state list item is present on mount, so it
+          is not re-announced. */}
+      <ol aria-live="polite" className="space-y-2">
         {replies.length === 0 ? (
           <li className="rounded-2xl border border-dashed border-border-base bg-surface/60 p-6 text-center text-xs text-muted-3">
             {t("noReplies")}
@@ -219,6 +223,8 @@ export function FeedbackThread({
         }}
         className="rounded-2xl border border-border-base bg-surface/80 p-3 backdrop-blur"
       >
+        {/* aria-label not placeholder: the placeholder vanishes the moment
+            someone types, and it is the field's only name otherwise. */}
         <textarea
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
@@ -231,6 +237,11 @@ export function FeedbackThread({
           rows={3}
           maxLength={2000}
           placeholder={
+            viewerKind === "admin"
+              ? t("replyPlaceholder")
+              : t("followUpPlaceholder")
+          }
+          aria-label={
             viewerKind === "admin"
               ? t("replyPlaceholder")
               : t("followUpPlaceholder")

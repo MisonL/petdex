@@ -142,10 +142,13 @@ export function SuggestCollectionButton({
           </div>
 
           {target ? (
+            // aria-label because the placeholder is the field's only name
+            // otherwise, and it disappears on the first keystroke.
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value.slice(0, 500))}
               placeholder={t("notePlaceholder")}
+              aria-label={t("notePlaceholder")}
               rows={2}
               className="w-full rounded-2xl border border-border-base bg-surface p-3 text-sm text-foreground placeholder:text-muted-3 focus:border-border-strong focus:outline-none"
             />

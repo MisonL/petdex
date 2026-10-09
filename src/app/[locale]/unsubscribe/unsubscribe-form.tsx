@@ -50,7 +50,10 @@ export function UnsubscribeForm({
       </div>
 
       {unsubscribed ? (
-        <>
+        // role="status" so a screen reader hears the swap: the confirmation
+        // replaces the button the user just activated, which otherwise drops
+        // focus to the body and announces nothing.
+        <div role="status" className="space-y-5">
           <div>
             <p className="text-base font-semibold">{t("unsubscribedTitle")}</p>
             <p className="mt-2 text-sm leading-6 text-muted-2">
@@ -65,7 +68,7 @@ export function UnsubscribeForm({
           >
             {pending ? t("working") : t("resubscribe")}
           </button>
-        </>
+        </div>
       ) : (
         <>
           <div>

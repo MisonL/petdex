@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   Check,
@@ -84,6 +84,7 @@ export function StickerExplorer({
     parseStickerDeck(initialParams.get("deck"), petSlugs),
   );
   const [notice, setNotice] = useState<string | null>(null);
+  const noticeTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(searchParams.toString());
@@ -176,8 +177,17 @@ export function StickerExplorer({
 
   function showNotice(value: string) {
     setNotice(value);
-    window.setTimeout(() => setNotice(null), 1800);
+    // Replace the previous timer, and drop it on unmount: a second notice
+    // within the window was being cleared early by the first, and the timer
+    // otherwise fired against a dead component.
+    window.clearTimeout(noticeTimerRef.current ?? undefined);
+    noticeTimerRef.current = window.setTimeout(() => setNotice(null), 1800);
   }
+
+  useEffect(
+    () => () => window.clearTimeout(noticeTimerRef.current ?? undefined),
+    [],
+  );
 
   function nextPet() {
     const index = petSlugs.indexOf(selection.pet);
@@ -205,7 +215,11 @@ export function StickerExplorer({
             priority
           />
           {notice ? (
-            <div className="absolute right-5 bottom-5 inline-flex items-center gap-2 rounded-full bg-inverse px-4 py-2 text-sm font-medium text-on-inverse shadow-lg">
+            // A toast that appears by itself is invisible to a screen reader.
+            <div
+              role="status"
+              className="absolute right-5 bottom-5 inline-flex items-center gap-2 rounded-full bg-inverse px-4 py-2 text-sm font-medium text-on-inverse shadow-lg"
+            >
               <Check className="size-4" />
               {notice}
             </div>
