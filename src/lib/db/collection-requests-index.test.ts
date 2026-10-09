@@ -83,7 +83,14 @@ describe("pet_collection_requests pair uniqueness", () => {
   it("still refuses two pending requests for the same pair", async () => {
     await reset();
     await insert("pending");
-    await expect(insert("pending")).rejects.toThrow();
+    // Specific, not a bare toThrow(): any failure on the suite's own
+    // connection — a typo'd column, a missing table — would satisfy the
+    // latter while the partial unique index went untested. Drizzle wraps the
+    // driver error, so the SQLSTATE lives on `cause`; 23505 is
+    // unique_violation.
+    await expect(insert("pending")).rejects.toMatchObject({
+      cause: { code: "23505" },
+    });
   });
 
   it("lets a pending request coexist with a decided one", async () => {

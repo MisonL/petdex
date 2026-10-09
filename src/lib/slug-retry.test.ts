@@ -101,8 +101,6 @@ describe("insertSubmissionWithUniqueSlug", () => {
     loseRaceOnce = false;
     // Every candidate is taken, so resolveUniqueSlug's random-suffix fallback
     // is the only slug left; make the insert reject it too by throwing always.
-    const original = schema.submittedPets.slug;
-    expect(original).toBeTruthy();
     let attempts = 0;
     const { db } = (await import("@/lib/db/client")) as unknown as {
       db: {
@@ -116,7 +114,9 @@ describe("insertSubmissionWithUniqueSlug", () => {
       },
     });
     await expect(insertSubmissionWithUniqueSlug(INPUT)).rejects.toThrow();
-    // Bounded: the retry stops at 5 attempts, not forever.
-    expect(attempts).toBeLessThanOrEqual(5);
+    // Bounded: the loop retries the insert at most 5 times before giving up.
+    // Exact, not `toBeLessThanOrEqual` — a bound the code never reaches would
+    // satisfy that while an unbounded loop just runs until the suite timeout.
+    expect(attempts).toBe(5);
   });
 });

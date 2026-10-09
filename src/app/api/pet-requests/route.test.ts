@@ -261,18 +261,26 @@ describe("POST /api/pet-requests", () => {
     expect(ok.headers.get("cache-control")).toBe("private, no-store");
   });
 
-  it("labels the unauthenticated response as private too", async () => {
-    // `auth()` is stubbed to `user_1` for this suite, so drive the branch
-    // through the handler's own guard by asserting the shape it uses rather
-    // than re-stubbing the module (which is process-wide).
-    const res = await POST(
-      new Request("https://petdex.dev/api/pet-requests", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ query: "a raccoon that files bugs" }),
-      }),
-    );
-    expect(res.headers.get("cache-control")).toBe("private, no-store");
+  it("answers 401 with the private header when there is no session", async () => {
+    // The auth() stub is mutable (`currentUserId`), so the 401 branch is
+    // reachable: set it to null and the route must refuse. Before, this case
+    // ran as user_1 and asserted only the 200's header — the 401 branch's own
+    // `headers: PRIVATE_HEADERS` could be deleted with nothing failing.
+    currentUserId = null;
+    try {
+      const res = await POST(
+        new Request("https://petdex.dev/api/pet-requests", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ query: "a raccoon that files bugs" }),
+        }),
+      );
+      expect(res.status).toBe(401);
+      expect(await res.json()).toEqual({ error: "unauthorized" });
+      expect(res.headers.get("cache-control")).toBe("private, no-store");
+    } finally {
+      currentUserId = "user_1";
+    }
   });
 
   it("leaves no request behind when the creator's vote cannot be written", async () => {

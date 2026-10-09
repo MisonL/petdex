@@ -185,19 +185,21 @@ describe("embed escaping matches where Discord renders markdown", () => {
         tags: ["co*zy"],
       },
     });
-    const embed = sent[0]!.embeds[0]! as {
-      title: string;
-      description: string;
-      fields: Array<{ name: string; value: string }>;
-    };
+    const embed = sent[0]?.embeds[0] as
+      | {
+          title: string;
+          description: string;
+          fields: Array<{ name: string; value: string }>;
+        }
+      | undefined;
     // Title: literal, no injected backslashes.
-    expect(embed.title).toBe("Bob*a*_b_");
-    expect(embed.title).not.toContain("\\");
+    expect(embed?.title).toBe("Bob*a*_b_");
+    expect(embed?.title).not.toContain("\\");
     // Description: masked link neutralized — escapeMaskedLink prefixes the
     // opening bracket with a backslash, which is what breaks the link.
-    expect(embed.description).toContain("\\[click here](");
+    expect(embed?.description).toContain("\\[click here](");
     // Field value (tags) renders markdown too.
-    const tags = embed.fields.find((f) => f.name === "tags");
+    const tags = embed?.fields.find((f) => f.name === "tags");
     expect(tags?.value).toContain("co\\*zy");
   });
 
@@ -211,8 +213,10 @@ describe("embed escaping matches where Discord renders markdown", () => {
         description: "[win](https://evil.example) a pet",
       },
     });
-    const embed = sent[0]!.embeds[0]! as { title: string; description: string };
-    expect(embed.title).toBe("Cozy *Deck*");
-    expect(embed.description).toContain("\\[win](");
+    const embed = sent[0]?.embeds[0] as
+      | { title: string; description: string }
+      | undefined;
+    expect(embed?.title).toBe("Cozy *Deck*");
+    expect(embed?.description).toContain("\\[win](");
   });
 });

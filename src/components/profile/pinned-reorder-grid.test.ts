@@ -65,10 +65,19 @@ describe("PinnedReorderGrid behavior contract", () => {
     ]) {
       expect(source).toContain(`${code}:`);
     }
-    // The mapped messages exist in the catalogue, so the render cannot fall
-    // through to a missing-key error.
-    for (const key of Object.values(en.pinnedReorder.errors)) {
-      expect(key).toBeTruthy();
+    // Every key ERROR_KEYS maps to exists in the catalogue, so the render
+    // (t(`errors.${ERROR_KEYS[error]}`)) cannot fall through to a missing-key
+    // error. Iterating the catalogue instead would pass even if ERROR_KEYS
+    // pointed at a key that is not in it — which is the failure this guards.
+    const mapped = source.match(
+      /ERROR_KEYS: Record<string, string> = \{([^}]*)\}/,
+    );
+    const keys = [...(mapped?.[1] ?? "").matchAll(/:\s*"([^"]+)"/g)].map(
+      (m) => m[1],
+    );
+    expect(keys.length).toBeGreaterThan(0);
+    for (const key of keys) {
+      expect(en.pinnedReorder.errors[key]).toBeTruthy();
     }
   });
 });

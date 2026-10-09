@@ -283,6 +283,10 @@ describe("validateSubmission", () => {
 });
 
 describe("posixInstallScript shell-injection", () => {
+  // `skipIf` rather than an early `return`: a runner without `sh` would
+  // otherwise report these two as passing while asserting nothing, which is
+  // exactly the shell-injection coverage that matters. Skipped tests are
+  // visible as skipped.
   const shAvailable = spawnSync("sh", ["-c", "exit 0"]).status === 0;
 
   const safeBase = {
@@ -295,17 +299,18 @@ describe("posixInstallScript shell-injection", () => {
     spriteExt: "webp" as const,
   };
 
-  it("escapes single quotes in URLs (sh syntax-checks clean)", () => {
-    if (!shAvailable) return;
-
-    // If our hard-quoting was wrong, the script would not parse. `sh -n`
-    // catches that without running the installer body.
-    const evilUrl = "https://x.com/a'; rm -rf /; echo '";
-    const script = posixInstallScript({ ...safeBase, petJsonUrl: evilUrl });
-    const r = spawnSync("sh", ["-n"], { input: script, encoding: "utf8" });
-    expect(r.status).toBe(0);
-    expect(r.stderr).toBe("");
-  });
+  it.skipIf(!shAvailable)(
+    "escapes single quotes in URLs (sh syntax-checks clean)",
+    () => {
+      // If our hard-quoting was wrong, the script would not parse. `sh -n`
+      // catches that without running the installer body.
+      const evilUrl = "https://x.com/a'; rm -rf /; echo '";
+      const script = posixInstallScript({ ...safeBase, petJsonUrl: evilUrl });
+      const r = spawnSync("sh", ["-n"], { input: script, encoding: "utf8" });
+      expect(r.status).toBe(0);
+      expect(r.stderr).toBe("");
+    },
+  );
 
   it("strips path traversal from slug", () => {
     const script = posixInstallScript({ ...safeBase, slug: "../../etc/pas" });
@@ -320,57 +325,58 @@ describe("posixInstallScript shell-injection", () => {
     expect(script).not.toMatch(/\nrm -rf/);
   });
 
-  it("treats displayName command substitutions as text", () => {
-    if (!shAvailable) return;
+  it.skipIf(!shAvailable)(
+    "treats displayName command substitutions as text",
+    () => {
+      const tempDir = mkdtempSync(join(tmpdir(), "petdex-install-"));
+      try {
+        const marker = join(tempDir, "pwned");
+        const backtickMarker = `${marker}-backtick`;
+        const binDir = join(tempDir, "bin");
+        mkdirSync(binDir);
+        const curlPath = join(binDir, "curl");
+        writeFileSync(
+          curlPath,
+          [
+            "#!/bin/sh",
+            "out=",
+            'while [ "$#" -gt 0 ]; do',
+            '  if [ "$1" = "-o" ]; then',
+            "    shift",
+            '    out="$1"',
+            "  fi",
+            "  shift",
+            "done",
+            'mkdir -p "$(dirname "$out")"',
+            "printf '{}\\n' > \"$out\"",
+            "",
+          ].join("\n"),
+        );
+        chmodSync(curlPath, 0o755);
 
-    const tempDir = mkdtempSync(join(tmpdir(), "petdex-install-"));
-    try {
-      const marker = join(tempDir, "pwned");
-      const backtickMarker = `${marker}-backtick`;
-      const binDir = join(tempDir, "bin");
-      mkdirSync(binDir);
-      const curlPath = join(binDir, "curl");
-      writeFileSync(
-        curlPath,
-        [
-          "#!/bin/sh",
-          "out=",
-          'while [ "$#" -gt 0 ]; do',
-          '  if [ "$1" = "-o" ]; then',
-          "    shift",
-          '    out="$1"',
-          "  fi",
-          "  shift",
-          "done",
-          'mkdir -p "$(dirname "$out")"',
-          "printf '{}\\n' > \"$out\"",
-          "",
-        ].join("\n"),
-      );
-      chmodSync(curlPath, 0o755);
+        const script = posixInstallScript({
+          ...safeBase,
+          displayName: `Boba $(touch ${marker}) \`touch ${backtickMarker}\``,
+        });
+        const result = spawnSync("sh", [], {
+          input: script,
+          env: {
+            ...process.env,
+            HOME: tempDir,
+            PATH: `${binDir}:${process.env.PATH ?? ""}`,
+          },
+          encoding: "utf8",
+        });
 
-      const script = posixInstallScript({
-        ...safeBase,
-        displayName: `Boba $(touch ${marker}) \`touch ${backtickMarker}\``,
-      });
-      const result = spawnSync("sh", [], {
-        input: script,
-        env: {
-          ...process.env,
-          HOME: tempDir,
-          PATH: `${binDir}:${process.env.PATH ?? ""}`,
-        },
-        encoding: "utf8",
-      });
-
-      expect(result.status).toBe(0);
-      expect(result.stderr).toBe("");
-      expect(existsSync(marker)).toBe(false);
-      expect(existsSync(backtickMarker)).toBe(false);
-    } finally {
-      rmSync(tempDir, { recursive: true, force: true });
-    }
-  });
+        expect(result.status).toBe(0);
+        expect(result.stderr).toBe("");
+        expect(existsSync(marker)).toBe(false);
+        expect(existsSync(backtickMarker)).toBe(false);
+      } finally {
+        rmSync(tempDir, { recursive: true, force: true });
+      }
+    },
+  );
 
   it("notFound script also strips slug", () => {
     const out = posixNotFoundScript("../../etc/pas");

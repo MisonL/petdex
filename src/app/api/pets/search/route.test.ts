@@ -46,17 +46,19 @@ testMock.module("@/lib/pet-search", () => ({
   },
 }));
 
+// Only the seed *source* is stubbed (createShuffleSeed / readShuffleSeed).
+// `setShuffleSeedCookie` is the real one, re-exported below: a hand-written
+// stub that emits the cookie string the assertion looks for proves only that
+// the mock ran, and leaves the real attributes (Path, SameSite, httpOnly,
+// Max-Age) unpinned. The real setter writes through NextResponse.cookies.set,
+// so the route's Set-Cookie header is genuine.
+const realShuffleSeed = await import("@/lib/shuffle-seed");
 testMock.module("@/lib/shuffle-seed", () => ({
+  ...realShuffleSeed,
   createShuffleSeed: () => TEST_SEED,
   normalizeShuffleSeed: (value: string | null | undefined) =>
     value && /^[a-f0-9]{16}$/.test(value) ? value : null,
   readShuffleSeed: async () => null,
-  setShuffleSeedCookie: (response: Response, seed: string) => {
-    response.headers.append(
-      "Set-Cookie",
-      `petdex_shuffle_seed=${seed}; Path=/; Max-Age=2592000; SameSite=Lax`,
-    );
-  },
 }));
 
 async function search(url: string): Promise<Response> {
@@ -124,9 +126,12 @@ describe("GET /api/pets/search", () => {
 
     expect(firstBody.shuffleSeed).toBe(TEST_SEED);
     expect(first.headers.get("Cache-Control")).toBe("private, no-store");
-    expect(first.headers.get("Set-Cookie") ?? "").toContain(
-      `petdex_shuffle_seed=${TEST_SEED}`,
-    );
+    const cookie = first.headers.get("Set-Cookie") ?? "";
+    expect(cookie).toContain(`petdex_shuffle_seed=${TEST_SEED}`);
+    // The real setter's attributes, not a stub's — Path=/ and SameSite=lax
+    // are what let the client reuse the seed on the next page.
+    expect(cookie.toLowerCase()).toContain("path=/");
+    expect(cookie.toLowerCase()).toContain("samesite=lax");
     expect(firstCall?.input.shuffleSeed).toBe(TEST_SEED);
 
     calls.length = 0;
