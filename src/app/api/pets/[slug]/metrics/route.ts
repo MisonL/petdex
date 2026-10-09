@@ -18,6 +18,9 @@ const CACHE_HEADERS = {
   "Cache-Control": PET_METRICS_CACHE_CONTROL,
 };
 
+// Errors are never shareable: see the 429 below.
+const NO_STORE = { "Cache-Control": "no-store" };
+
 type Params = { slug: string };
 
 export async function GET(
@@ -31,12 +34,21 @@ export async function GET(
     publicTrafficGuardKey(req.headers),
   );
   if (!lim.success) {
-    return NextResponse.json({ error: "rate_limited" }, { status: 429 });
+    // Every non-200 here has to be uncacheable: the success path is
+    // `public, max-age=300` and the edge keys on the URL alone, so a cached
+    // 429 would be served to every later caller for this slug.
+    return NextResponse.json(
+      { error: "rate_limited" },
+      { status: 429, headers: NO_STORE },
+    );
   }
 
   const { slug } = await ctx.params;
   if (!/^[a-z0-9-]{1,60}$/.test(slug)) {
-    return NextResponse.json({ error: "invalid_slug" }, { status: 400 });
+    return NextResponse.json(
+      { error: "invalid_slug" },
+      { status: 400, headers: NO_STORE },
+    );
   }
 
   const [metrics, summary] = await Promise.all([

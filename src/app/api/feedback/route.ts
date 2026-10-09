@@ -47,6 +47,12 @@ export async function POST(req: Request): Promise<Response> {
   } catch {
     return NextResponse.json({ error: "invalid_json" }, { status: 400 });
   }
+  // `req.json()` parses a literal `null` successfully — only malformed JSON
+  // throws — and the property reads below then 500'd this anonymous endpoint.
+  // Same boundary `notifications/read` and `pet-requests` carry.
+  if (body === null || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
+  }
 
   const kind = VALID_KINDS.has(String(body.kind))
     ? (body.kind as "suggestion" | "bug" | "praise" | "other")

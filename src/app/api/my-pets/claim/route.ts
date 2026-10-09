@@ -171,10 +171,33 @@ export async function POST(req: Request): Promise<Response> {
     update.ownerEmail = ident.email;
   }
 
-  await db
+  // Repeat the identity conditions the read above checked, and detect the
+  // no-match: the read is not in the same statement, so a concurrent takedown
+  // (row gone) or a `backfill-credits` rewrite of credit_url between the two
+  // would otherwise let the update ride on a stale row — or answer `ok:true`
+  // for a claim that never happened.
+  const claimed = await db
     .update(schema.submittedPets)
     .set(update)
-    .where(eq(schema.submittedPets.id, id));
+    .where(
+      and(
+        eq(schema.submittedPets.id, id),
+        // A row that was already ours is handled by the early return above;
+        // any row still matching here is one the guards still apply to.
+        eq(schema.submittedPets.ownerId, row.ownerId),
+        emailMatch
+          ? sql`lower(${schema.submittedPets.ownerEmail}) = ${ident.email}`
+          : sql`true`,
+        githubMatch
+          ? sql`lower(${schema.submittedPets.creditUrl}) = ${ident.githubUrl?.toLowerCase()}`
+          : sql`true`,
+      ),
+    )
+    .returning({ id: schema.submittedPets.id });
+  if (claimed.length === 0) {
+    // The row moved under us: someone else claimed it, or it was taken down.
+    return NextResponse.json({ error: "not_found" }, { status: 404 });
+  }
   // Claim rewrites ownerId/ownerEmail which feed the SubmittedBy
   // credit on /pets/[slug]. invalidatePetCaches flushes both Upstash
   // and Next page tags so the new owner's name shows up immediately.

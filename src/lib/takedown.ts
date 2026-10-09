@@ -130,6 +130,14 @@ export async function takedownPet(
       WHERE "submitted_pet_id" = ${pet.id}
         AND ${oldPetExists}
     `,
+    // Candidates are keyed by (pet_id, request_id) and carry no FK to the pet,
+    // so nothing takes them when the row goes. A leftover pending candidate
+    // is an orphan the admin queue would keep surfacing for a deleted pet.
+    sql`
+      DELETE FROM "pet_request_candidates"
+      WHERE "pet_id" = ${pet.id}
+        AND ${oldPetExists}
+    `,
     sql`
       UPDATE "pet_collections"
       SET "cover_pet_slug" = NULL

@@ -31,6 +31,11 @@ export async function PATCH(
   } catch {
     return NextResponse.json({ error: "invalid_json" }, { status: 400 });
   }
+  // A literal `null` parses fine and would otherwise reach `applyPetEdit`'s
+  // property reads — after the rate limit and a DB read were already spent.
+  if (body === null || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
+  }
 
   const { id } = await ctx.params;
   return applyPetEdit({ id, userId, body });

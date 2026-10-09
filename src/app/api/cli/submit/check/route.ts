@@ -48,7 +48,9 @@ export async function POST(req: Request): Promise<Response> {
     return NextResponse.json({ error: "invalid_json" }, { status: 400 });
   }
 
-  const candidates = Array.isArray(body.candidates) ? body.candidates : [];
+  const candidates: unknown[] = Array.isArray(body.candidates)
+    ? (body.candidates as unknown[])
+    : [];
   if (candidates.length === 0) {
     return NextResponse.json({ ok: true, existing: [] });
   }
@@ -61,7 +63,11 @@ export async function POST(req: Request): Promise<Response> {
 
   const slugSet = new Set<string>();
   for (const c of candidates) {
-    const raw = (c.petId ?? c.slugHint ?? "").toString();
+    // Elements are untrusted too: `[null]` used to throw on `c.petId` and
+    // 500 this endpoint.
+    if (c === null || typeof c !== "object") continue;
+    const { petId, slugHint } = c as Candidate;
+    const raw = (petId ?? slugHint ?? "").toString();
     const s = deriveSlug(raw);
     if (s) slugSet.add(s);
   }

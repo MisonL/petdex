@@ -44,6 +44,11 @@ export async function PATCH(
   } catch {
     return NextResponse.json({ error: "invalid_json" }, { status: 400 });
   }
+  // A literal `null` body parses fine, then `body.notifyEmail` throws —
+  // match the 400 the sibling routes answer instead of a 500.
+  if (body === null || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "invalid_body" }, { status: 400 });
+  }
 
   if (typeof body.notifyEmail !== "boolean") {
     return NextResponse.json({ error: "invalid_body" }, { status: 400 });

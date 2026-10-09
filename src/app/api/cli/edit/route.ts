@@ -26,6 +26,10 @@ export async function PATCH(req: Request): Promise<Response> {
   } catch {
     return NextResponse.json({ error: "invalid_json" }, { status: 400 });
   }
+  // A literal `null` parses fine; the property reads below would 500 it.
+  if (body === null || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
+  }
 
   const petId = typeof body.petId === "string" ? body.petId.trim() : "";
   if (!petId) {

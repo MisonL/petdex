@@ -135,6 +135,10 @@ async function takedownOne(pet: Pet, reason: string) {
   await db
     .delete(schema.petCollectionRequests)
     .where(eq(schema.petCollectionRequests.petSlug, slug));
+  // Keyed by pet_id, not slug, and no FK cascades it — see takedown.ts.
+  await db
+    .delete(schema.petRequestCandidates)
+    .where(eq(schema.petRequestCandidates.petId, pet.id));
   await db
     .update(schema.petCollections)
     .set({ coverPetSlug: null })

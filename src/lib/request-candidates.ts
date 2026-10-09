@@ -143,13 +143,22 @@ export async function createManualCandidate(args: {
   });
   if (existing) return { ok: false, reason: "exists" };
 
-  await db.insert(schema.petRequestCandidates).values({
-    petId: args.petId,
-    requestId: args.requestId,
-    similarity: null,
-    source: "manual",
-    status: "pending",
-  });
+  // The pre-read above is a not-in-the-same-transaction check, so two manual
+  // adds racing the same (petId, requestId) both pass it and the second hits
+  // the composite PK as an uncaught 23505 → 500. The auto path already uses
+  // `onConflictDoNothing`; do the same here and report the duplicate.
+  const inserted = await db
+    .insert(schema.petRequestCandidates)
+    .values({
+      petId: args.petId,
+      requestId: args.requestId,
+      similarity: null,
+      source: "manual",
+      status: "pending",
+    })
+    .onConflictDoNothing()
+    .returning({ petId: schema.petRequestCandidates.petId });
+  if (inserted.length === 0) return { ok: false, reason: "exists" };
 
   return { ok: true };
 }

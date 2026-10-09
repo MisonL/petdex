@@ -104,6 +104,10 @@ async function main() {
   await db
     .delete(schema.petCollectionRequests)
     .where(eq(schema.petCollectionRequests.petSlug, slug));
+  // Keyed by pet_id, not slug, and no FK cascades it — see takedown.ts.
+  await db
+    .delete(schema.petRequestCandidates)
+    .where(eq(schema.petRequestCandidates.petId, id));
 
   // 2. Null out collection covers.
   await db

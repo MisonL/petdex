@@ -23,6 +23,8 @@ export function publicTrafficGuardRule(input: {
   // a redirect. It is also the single most requested path, which made it the
   // largest contributor to the command volume that got the Upstash database
   // blocked. Leave it out of the guard.
+  if (pathname === "/api/pet-requests") return "catalog";
+  if (pathname === "/api/desktop/latest-release") return "metadata";
   if (pathname === "/api/pets/random") return "catalog";
   if (pathname === "/api/pets/search") return "catalog";
   if (pathname === "/api/me/header-state") return "state";

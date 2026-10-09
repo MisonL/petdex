@@ -11,6 +11,7 @@ import { Resend } from "resend";
 
 import { findOversizedAsset } from "@/lib/asset-size-guard";
 import { db, schema } from "@/lib/db/client";
+import { isUniqueViolation } from "@/lib/db/pg-errors";
 import type { SubmissionReview, SubmittedPet } from "@/lib/db/schema";
 import { sendEmail } from "@/lib/email-send";
 import { renderNewSubmissionEmail } from "@/lib/email-templates/new-submission";
@@ -294,11 +295,7 @@ export async function resolveUniqueSlug(base: string): Promise<string> {
  * `isMissingStickerTableError` / `isMissingCollectionTableError`.
  */
 export function isSlugUniqueViolation(error: unknown): boolean {
-  if (!error || typeof error !== "object") return false;
-  const cause = "cause" in error ? (error as { cause?: unknown }).cause : error;
-  if (!cause || typeof cause !== "object") return false;
-  const code = "code" in cause ? (cause as { code?: unknown }).code : null;
-  return code === "23505";
+  return isUniqueViolation(error);
 }
 
 /**

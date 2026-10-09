@@ -24,6 +24,9 @@ const ROW = {
 let referenced = false;
 let deleted: string[][] = [];
 let deletedBatches = 0;
+// Whether the guarded pet DELETE matched a row. false models a concurrent
+// approve/claim winning between the route's read and its write.
+let petDeleted = true;
 
 mock.module("server-only", () => ({}));
 mock.module("@clerk/nextjs/server", () => ({
@@ -47,7 +50,9 @@ mock.module("@/lib/db/client", () => ({
     execute: async () => (referenced ? [{ "?column?": 1 }] : []),
   },
   schema,
-  executeAtomicReturning: async () => [],
+  // Statement order is [pet delete, reviews delete]; only the pet delete's
+  // rows decide whether the withdraw took effect.
+  executeAtomicReturning: async () => [petDeleted ? [{ id: ROW.id }] : [], []],
   rowsOf: (result: unknown) => (Array.isArray(result) ? result : []),
 }));
 
@@ -61,6 +66,7 @@ beforeEach(() => {
   referenced = false;
   deleted = [];
   deletedBatches = 0;
+  petDeleted = true;
 });
 
 /**
@@ -102,6 +108,21 @@ describe("withdraw asset cleanup", () => {
     referenced = true;
     const res = await withdraw();
     expect(res.status).toBe(200);
+    await settle(() => false);
+    expect(deletedBatches).toBe(0);
+  });
+
+  it("reports not-withdrawable and skips cleanup when the guards lost the race", async () => {
+    // A concurrent approve/claim won between the route's read and its write:
+    // the guarded pet DELETE matched 0 rows, so the pet survived and its
+    // reviews must too. The response has to say so instead of `ok:true`, and
+    // no R2 cleanup may run for a withdrawal that never happened.
+    petDeleted = false;
+    const res = await withdraw();
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: "only_pending_can_be_withdrawn",
+    });
     await settle(() => false);
     expect(deletedBatches).toBe(0);
   });

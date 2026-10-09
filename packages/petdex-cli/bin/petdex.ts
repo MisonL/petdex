@@ -650,7 +650,9 @@ async function cmdInstall(args: string[]) {
   }
   if (lines.length > 0) p.note(lines.join("\n"), "Next steps");
 
-  if (failed.length > 0 && installed.length === 0) {
+  if (failed.length > 0 || missing.length > 0) {
+    // Partial success still exits non-zero: a script that asks for three
+    // pets and got one must be able to tell. Mirrors cmdSubmit's rule.
     process.exit(1);
   }
 }

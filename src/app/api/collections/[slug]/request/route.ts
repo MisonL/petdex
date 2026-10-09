@@ -52,6 +52,11 @@ export async function POST(
   } catch {
     return NextResponse.json({ error: "invalid_json" }, { status: 400 });
   }
+  // `req.json()` accepts a literal `null`; the property reads below would
+  // otherwise throw and 500. Same boundary as `notifications/read`.
+  if (body === null || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
+  }
   const petSlug = body.petSlug?.toString().trim().toLowerCase();
   if (!petSlug) {
     return NextResponse.json({ error: "invalid_pet_slug" }, { status: 400 });

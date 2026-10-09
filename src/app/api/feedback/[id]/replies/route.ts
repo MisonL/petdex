@@ -5,7 +5,7 @@ import { asc, eq } from "drizzle-orm";
 import { Resend } from "resend";
 
 import { isAdmin } from "@/lib/admin";
-import { db, schema } from "@/lib/db/client";
+import { db, executeAtomicReturning, schema } from "@/lib/db/client";
 import { sendEmail } from "@/lib/email-send";
 import { renderFeedbackAdminReplyEmail } from "@/lib/email-templates/feedback-admin-reply";
 import { renderFeedbackFollowUpEmail } from "@/lib/email-templates/feedback-follow-up";
@@ -150,30 +150,38 @@ export async function POST(
   const now = new Date();
   const replyId = newId();
 
-  const [reply] = await db
-    .insert(schema.feedbackReplies)
-    .values({
-      id: replyId,
-      feedbackId: id,
-      authorKind: adminCaller ? "admin" : "user",
-      authorUserId: userId,
-      body: text,
-      createdAt: now,
-    })
-    .returning();
-
-  // Update read markers for the writer.
-  if (adminCaller) {
-    await db
-      .update(schema.feedback)
-      .set({ adminLastReadAt: now })
-      .where(eq(schema.feedback.id, id));
-  } else {
-    await db
-      .update(schema.feedback)
-      .set({ userLastReadAt: now })
-      .where(eq(schema.feedback.id, id));
-  }
+  // One transaction, two separate statements (executeAtomicReturning): the
+  // read marker used to be a second await, so a failure between the insert
+  // and the update left the reply persisted while the marker never moved and
+  // the thread stayed unread forever.
+  await executeAtomicReturning([
+    db
+      .insert(schema.feedbackReplies)
+      .values({
+        id: replyId,
+        feedbackId: id,
+        authorKind: adminCaller ? "admin" : "user",
+        authorUserId: userId,
+        body: text,
+        createdAt: now,
+      })
+      .getSQL(),
+    // Update read markers for the writer.
+    (adminCaller
+      ? db.update(schema.feedback).set({ adminLastReadAt: now })
+      : db.update(schema.feedback).set({ userLastReadAt: now })
+    )
+      .where(eq(schema.feedback.id, id))
+      .getSQL(),
+  ]);
+  const reply = {
+    id: replyId,
+    feedbackId: id,
+    authorKind: adminCaller ? ("admin" as const) : ("user" as const),
+    authorUserId: userId,
+    body: text,
+    createdAt: now,
+  };
 
   // In-app notification: when admin replies, push a bell entry to the
   // original author. We don't notify admins of user follow-ups via the

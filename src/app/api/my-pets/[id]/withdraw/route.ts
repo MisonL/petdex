@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { and, eq, sql } from "drizzle-orm";
 
-import { db, executeAtomicReturning, schema } from "@/lib/db/client";
+import { db, executeAtomicReturning, rowsOf, schema } from "@/lib/db/client";
 import { withdrawRatelimit } from "@/lib/ratelimit";
 import { requireSameOrigin } from "@/lib/same-origin";
 
@@ -55,12 +55,28 @@ export async function POST(
   // itself — a plain DELETE left review rows pointing at a pet that no longer
   // existed. Written as its own statement, not a CTE, because a CTE's DELETE
   // cannot see its sibling's snapshot anyway; see executeAtomicReturning.
-  // The pet delete repeats the owner condition the read above checked: a
-  // concurrent claim can move ownerId between that read and this write.
-  await executeAtomicReturning([
-    sql`DELETE FROM "submission_reviews" WHERE "submitted_pet_id" = ${id}`,
-    sql`DELETE FROM "submitted_pets" WHERE "id" = ${id} AND "owner_id" = ${userId}`,
+  //
+  // Order and guards both matter. The pet goes FIRST, and every guard the
+  // read above checked is repeated here rather than trusted: under READ
+  // COMMITTED a statement that waits on a lock re-evaluates its WHERE against
+  // the latest committed row, so a concurrent approve (status flips) or claim
+  // (ownerId moves) between the read and this write matches 0 rows instead of
+  // deleting a pet that is no longer the pending row we validated. The reviews
+  // delete then runs only when the pet row is actually gone, so a lost race
+  // takes neither the pet nor its reviews.
+  const withdrawResults = await executeAtomicReturning([
+    sql`DELETE FROM "submitted_pets" WHERE "id" = ${id} AND "owner_id" = ${userId} AND "status" = 'pending'`,
+    sql`DELETE FROM "submission_reviews" WHERE "submitted_pet_id" = ${id} AND NOT EXISTS (SELECT 1 FROM "submitted_pets" WHERE "id" = ${id})`,
   ]);
+  if (rowsOf(withdrawResults[0]).length === 0) {
+    // The row survived the guards above: a concurrent approve or claim won
+    // between the read and the write. Same verdict as the status check, so
+    // callers need only one error case for "not withdrawable".
+    return NextResponse.json(
+      { error: "only_pending_can_be_withdrawn" },
+      { status: 400 },
+    );
+  }
 
   // The row is gone, so nothing will ever reference these uploads again — but
   // the objects still sit in R2 and the submit-shaped keys (pets/<slug>-<id>/)
@@ -79,12 +95,10 @@ export async function POST(
   // the asset no longer references the old URL, so their orphan still goes.
   void (async () => {
     try {
-      const [{ deleteR2Objects }, { keyFromR2PublicUrl }, { rowsOf }] =
-        await Promise.all([
-          import("@/lib/r2"),
-          import("@/lib/r2-public-url"),
-          import("@/lib/db/client"),
-        ]);
+      const [{ deleteR2Objects }, { keyFromR2PublicUrl }] = await Promise.all([
+        import("@/lib/r2"),
+        import("@/lib/r2-public-url"),
+      ]);
       const urls = [row.spritesheetUrl, row.petJsonUrl, row.zipUrl].filter(
         (url): url is string => Boolean(url),
       );

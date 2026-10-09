@@ -9,6 +9,7 @@ import {
   invalidatePublicProfileCaches,
 } from "@/lib/db/cached-aggregates";
 import { db, schema } from "@/lib/db/client";
+import { isUniqueViolation } from "@/lib/db/pg-errors";
 import {
   dedupePins,
   isPinOnlyProfilePatch,
@@ -233,24 +234,36 @@ export async function PATCH(req: Request): Promise<Response> {
     previousHandle = current?.handle ?? null;
   }
 
-  await db
-    .insert(schema.userProfiles)
-    .values({
-      userId,
-      displayName: patch.displayName ?? null,
-      handle: patch.handle ?? null,
-      bio: patch.bio ?? null,
-      preferredLocale: patch.preferredLocale ?? defaultLocale,
-      featuredPetSlugs: patch.featuredPetSlugs ?? [],
-      updatedAt: new Date(),
-    })
-    .onConflictDoUpdate({
-      target: schema.userProfiles.userId,
-      set: {
-        ...patch,
+  try {
+    await db
+      .insert(schema.userProfiles)
+      .values({
+        userId,
+        displayName: patch.displayName ?? null,
+        handle: patch.handle ?? null,
+        bio: patch.bio ?? null,
+        preferredLocale: patch.preferredLocale ?? defaultLocale,
+        featuredPetSlugs: patch.featuredPetSlugs ?? [],
         updatedAt: new Date(),
-      },
-    });
+      })
+      .onConflictDoUpdate({
+        target: schema.userProfiles.userId,
+        set: {
+          ...patch,
+          updatedAt: new Date(),
+        },
+      });
+  } catch (error) {
+    // The handle check above is a not-in-the-same-statement read, so two
+    // accounts taking the same handle at once both pass it and the second
+    // INSERT hits `user_profiles_handle_unique`. Answer the 409 the check
+    // would have, instead of an uncaught 23505 → 500. Same-shape race as
+    // `isSlugUniqueViolation` covers for submission slugs.
+    if (isUniqueViolation(error)) {
+      return NextResponse.json({ error: "handle_taken" }, { status: 409 });
+    }
+    throw error;
+  }
   await Promise.all([
     invalidatePublicProfileCaches(userId),
     invalidatePublicHandleCaches(previousHandle, patch.handle),
