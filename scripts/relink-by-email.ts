@@ -46,6 +46,7 @@ async function clerkApi<T>(path: string): Promise<T> {
   const key = env("CLERK_SECRET_KEY");
   const res = await fetch(`${CLERK_BASE}${path}`, {
     headers: { Authorization: `Bearer ${key}` },
+    signal: AbortSignal.timeout(30_000),
   });
   if (!res.ok) {
     throw new Error(`clerk ${path} -> ${res.status}`);

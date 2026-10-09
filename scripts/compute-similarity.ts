@@ -19,6 +19,7 @@ import {
   embedTextValue,
   PETDEX_EMBEDDING_MODEL,
 } from "../src/lib/embeddings";
+import { fetchR2AssetBuffer } from "../src/lib/r2-fetch";
 import { dhashFromSpriteBuffer } from "../src/lib/sprite-dhash";
 
 const args = new Set(process.argv.slice(2));
@@ -40,9 +41,10 @@ const sql = neon(env("DATABASE_URL")); // raw for vector inserts
 // hashes back to the old format.
 async function dhash(spriteUrl: string): Promise<string | null> {
   try {
-    const res = await fetch(spriteUrl);
-    if (!res.ok) return null;
-    const buf = Buffer.from(await res.arrayBuffer());
+    // Bounded: the URL comes from a DB row, and a stalled or oversized
+    // upstream would otherwise hang the run or buffer without limit.
+    const buf = await fetchR2AssetBuffer(spriteUrl);
+    if (!buf) return null;
     return await dhashFromSpriteBuffer(buf);
   } catch (err) {
     console.warn("  dhash fail:", (err as Error).message);
