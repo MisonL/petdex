@@ -12,6 +12,7 @@ const VIBE_SET = new Set<string>(PET_VIBES);
 const KIND_SET = new Set<string>(PET_KINDS);
 
 const MODEL = "openai/gpt-5-mini";
+const CLASSIFY_TIMEOUT_MS = 15000;
 
 export type Classification = {
   kind: PetKind;
@@ -31,6 +32,11 @@ export async function classifyPet(
       system:
         "You are a strict JSON classifier. Output ONLY the requested JSON object, no prose, no markdown fences.",
       messages: [{ role: "user", content: prompt }],
+      // classifyPet runs synchronously inside the approval side-effects, so a
+      // stalled gateway would pin the whole decision. The other AI calls in
+      // this tree all carry a deadline (embeddings, edit-policy,
+      // submission-review); this one did not.
+      abortSignal: AbortSignal.timeout(CLASSIFY_TIMEOUT_MS),
     });
     const raw = result.text;
     const json = JSON.parse(raw);

@@ -5,6 +5,12 @@
 
 const ISSUER = process.env.CLERK_CLI_ISSUER ?? "https://clerk.petdex.dev";
 
+// Every CLI/desktop route awaits this while handling its request, so a stalled
+// Clerk userinfo call would hold the instance until the platform timeout. The
+// rate limit only caps how often this is called, not how long each call may
+// take.
+const USERINFO_TIMEOUT_MS = 5000;
+
 export type CliPrincipal = {
   userId: string;
   email: string | null;
@@ -27,6 +33,7 @@ export async function verifyCliBearer(
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
+    signal: AbortSignal.timeout(USERINFO_TIMEOUT_MS),
   });
   if (!res.ok) return null;
 

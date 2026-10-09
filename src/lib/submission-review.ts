@@ -794,8 +794,17 @@ async function findVisualMatches(
 
     scanned += rows.length;
     for (const match of rows) {
-      const visualDistance = hammingDistanceHex(dhash, match.dhash ?? "0");
-      if (visualDistance <= SUBMISSION_SIMILARITY_VISUAL_THRESHOLD) {
+      // `match.dhash` is read from a text column with only an isNotNull filter,
+      // and the argument comes from the same family of values. hammingDistanceHex
+      // does BigInt(`0x${a}`), which throws on an empty or non-hex string — one
+      // legacy or hand-edited row would fail the whole review. A value that is
+      // not the 16-hex shape dhashFromSpriteBuffer writes is simply not a
+      // visual match.
+      const visualDistance = safeHammingDistance(dhash, match.dhash ?? "");
+      if (
+        visualDistance !== null &&
+        visualDistance <= SUBMISSION_SIMILARITY_VISUAL_THRESHOLD
+      ) {
         matches.push({
           id: match.id,
           slug: match.slug,
@@ -1301,6 +1310,19 @@ async function persistPetEmbedding(
         embedding_model = ${PETDEX_EMBEDDING_MODEL}
     WHERE id = ${petId}
   `;
+}
+
+const DHASH_HEX_RE = /^[0-9a-f]{16}$/;
+
+/**
+ * Hamming distance between two dhash values, or `null` when either is not the
+ * 16-hex shape `dhashFromSpriteBuffer` writes. Guarding here keeps a legacy or
+ * hand-edited value in the text column from turning `BigInt("0x…")` into a
+ * throw that fails the whole review.
+ */
+function safeHammingDistance(a: string, b: string): number | null {
+  if (!DHASH_HEX_RE.test(a) || !DHASH_HEX_RE.test(b)) return null;
+  return hammingDistanceHex(a, b);
 }
 
 function hammingDistanceHex(a: string, b: string): number {

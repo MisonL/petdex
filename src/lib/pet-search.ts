@@ -555,7 +555,13 @@ function orderForSort(
     case "installed":
       return [desc(installCountSql), asc(schema.submittedPets.displayName)];
     case "alpha":
-      return [asc(schema.submittedPets.displayName)];
+      // displayName is not unique, and the cursor is a raw OFFSET — two pets
+      // sharing a name (nothing constrains it) would let a row be skipped or
+      // repeated across pages. slug is unique, so it makes the order total.
+      return [
+        asc(schema.submittedPets.displayName),
+        asc(schema.submittedPets.slug),
+      ];
     case "recent":
       // Newest approvals first. Falls back to displayName so two pets
       // approved in the same second still get a stable order.
