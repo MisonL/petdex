@@ -259,6 +259,11 @@ async function main() {
 
   console.log("\nExecuting takedowns…");
 
+  // A per-item failure used to only warn, so a run where every removal
+  // failed still printed "Done." and exited 0 — a takedown that reported
+  // success while nothing came down. Count them and fail the process.
+  let failures = 0;
+
   // 1. Pets — inline takedown (mirrors src/lib/takedown.ts but avoids
   //    the `import "server-only"` boundary so this runs as a CLI).
   for (const p of pets) {
@@ -266,6 +271,7 @@ async function main() {
       await takedownOne(p, args.reason);
       console.log(`  pet ${p.slug}: removed`);
     } catch (err) {
+      failures++;
       console.warn(`  pet ${p.slug}: FAILED`, err);
     }
   }
@@ -288,6 +294,7 @@ async function main() {
         .where(eq(schema.petRequests.id, r.id));
       console.log(`  request ${r.id}: dismissed`);
     } catch (err) {
+      failures++;
       console.warn(`  request ${r.id}: FAILED`, err);
     }
   }
@@ -302,10 +309,15 @@ async function main() {
         .where(eq(schema.petCollections.id, c.id));
       console.log(`  collection ${c.slug}: deleted`);
     } catch (err) {
+      failures++;
       console.warn(`  collection ${c.slug}: FAILED`, err);
     }
   }
 
+  if (failures > 0) {
+    console.error(`\nDone with ${failures} failure(s).`);
+    process.exit(1);
+  }
   console.log("\nDone.");
 }
 
