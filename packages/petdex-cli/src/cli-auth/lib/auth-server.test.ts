@@ -390,13 +390,26 @@ describe("auth server while a response is held", () => {
 
 describe("auth server after the login is answered", () => {
   test("answers a callback that arrives on an already-open connection", async () => {
-    // A connection accepted before the listener closed can have its request
-    // parsed after `respond()` has run. Holding it would leave a socket that
-    // nothing can ever answer — `sendOutcome` returns early once
+    // A connection the server accepted before the listener closed can have its
+    // request parsed after `respond()` has run. Holding it would leave a socket
+    // that nothing can ever answer — `sendOutcome` returns early once
     // `responseSent` is set — so the tab would spin until the process exits.
+    //
+    // The request is sent in two pieces. A bare `connect()` is not enough: the
+    // TCP handshake can finish with the server never having accepted the
+    // socket (it sits in the listen backlog), and closing the listener then
+    // resets it — measured on Linux as an ECONNRESET with no bytes read. The
+    // first piece reaches the server through an accepted connection, which is
+    // the state the guarantee is about, and leaves the request incomplete so
+    // the handler does not run until the second piece goes out after
+    // `respond()`.
     const server = await start();
     const socket = connect(server.port, "127.0.0.1");
     await new Promise<void>((resolve) => socket.on("connect", () => resolve()));
+    socket.write(
+      `GET /callback?code=two&state=${STATE} HTTP/1.1\r\nHost: 127.0.0.1\r\n`,
+    );
+    await Bun.sleep(50);
 
     const first = beginFetch(
       callbackUrl(server, { code: "one", state: STATE }),
@@ -410,9 +423,7 @@ describe("auth server after the login is answered", () => {
       socket.on("data", (chunk) => (buf += chunk));
       socket.on("close", () => resolve(buf.split("\r\n")[0] ?? ""));
       socket.on("error", () => resolve("error"));
-      socket.write(
-        `GET /callback?code=two&state=${STATE} HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n`,
-      );
+      socket.write("Connection: close\r\n\r\n");
       setTimeout(() => {
         socket.destroy();
         resolve("no response");
