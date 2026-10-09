@@ -72,6 +72,14 @@ export const REQUIRED_FIELDS: ReadonlyArray<keyof SubmissionInput> = [
 
 export const MIN_SPRITE_DIM = 256;
 
+// The stored bounds for the two free-text fields. Every writer truncates to
+// these (submissions.ts, submission-decisions.ts, pet-edit.ts), so validation
+// can bound the blocklist/URL scans to the same length instead of running
+// several regexes over an unbounded request body. Kept here, not in a
+// component, so the API and the form cannot drift.
+export const MAX_DISPLAY_NAME_LENGTH = 60;
+export const MAX_DESCRIPTION_LENGTH = 280;
+
 const ASSET_URL_FIELDS: ReadonlyArray<
   "zipUrl" | "spritesheetUrl" | "petJsonUrl"
 > = ["zipUrl", "spritesheetUrl", "petJsonUrl"];
@@ -202,10 +210,25 @@ export function validateSubmission(
       };
     }
   }
+  // The URL and keyword scans run several regexes per field (and, for URLs,
+  // build more inside stripLegitDomains). Scan only the stored window — every
+  // writer truncates these fields to MAX_*_LENGTH — so a multi-MB body cannot
+  // make the caller choose how much CPU we spend, and nothing that survives to
+  // storage goes unscanned. (The `trim()` matches the writers, which trim
+  // before truncating.)
+  // `?? ""` because TS cannot see the STRING_FIELDS loop above narrow the
+  // optional fields; at runtime both are strings by this point.
+  const displayNameForScan = (body.displayName ?? "")
+    .trim()
+    .slice(0, MAX_DISPLAY_NAME_LENGTH);
+  const descriptionForScan = (body.description ?? "")
+    .trim()
+    .slice(0, MAX_DESCRIPTION_LENGTH);
+
   // URL filter — reject any URL embedded in free-text fields.
   const urlHit = containsUrl(
-    ["displayName", body.displayName],
-    ["description", body.description],
+    ["displayName", displayNameForScan],
+    ["description", descriptionForScan],
   );
   if (urlHit) {
     return {
@@ -220,7 +243,7 @@ export function validateSubmission(
   // Keyword blocklist — runs after structural validation so a blocked
   // submission gets the same shape as other 400s. Hit returns 422 to
   // distinguish moderation rejects from bad input in logs.
-  const hit = findBlockedKeyword(body.displayName, body.description);
+  const hit = findBlockedKeyword(displayNameForScan, descriptionForScan);
   if (hit) {
     return {
       ok: false,

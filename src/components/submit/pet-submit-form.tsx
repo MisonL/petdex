@@ -24,6 +24,8 @@ import {
 } from "@/lib/sprite-atlas";
 import { parseSpriteVersionNumber } from "@/lib/sprite-version";
 import {
+  MAX_DESCRIPTION_LENGTH,
+  MAX_DISPLAY_NAME_LENGTH,
   PET_LICENSE_CHOICES,
   type PetLicenseChoice,
 } from "@/lib/submissions-validation";
@@ -55,9 +57,6 @@ type ParsedPet = {
 // trip, and so the message can name the file (#594 reported only the
 // bare error code with no way to tell which of the three was over).
 const MAX_UPLOAD_BYTES = PET_ASSET_MAX_BYTES;
-
-const MAX_DISPLAY_NAME_LENGTH = 60;
-const MAX_DESCRIPTION_LENGTH = 500;
 
 type SubmissionReviewOutcome = {
   decision: "approved" | "rejected" | "hold";
