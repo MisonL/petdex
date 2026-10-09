@@ -351,7 +351,9 @@ async function notifySubmissionOwner(row: SubmittedPet): Promise<void> {
       slug: row.slug,
       status: row.status,
     }),
-  }).catch(() => {});
+  }).catch((err) =>
+    console.warn("[notify] submission decision notification failed:", err),
+  );
 
   if (!row.ownerEmail || !process.env.RESEND_API_KEY) return;
 

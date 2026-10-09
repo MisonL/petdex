@@ -246,7 +246,9 @@ export async function takedownPet(
       // to /my-pets like a rejection's, not "/" — the owner needs a way back
       // to the pet, and the home page is not it.
       href: "/my-pets",
-    }).catch(() => {});
+    }).catch((err) =>
+      console.warn("[notify] takedown notification failed:", err),
+    );
 
     if (pet.ownerEmail && process.env.RESEND_API_KEY) {
       try {

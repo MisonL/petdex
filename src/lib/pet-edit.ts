@@ -426,7 +426,11 @@ async function persistAutoAcceptedEdit(
       auto: true,
     },
     href: `/pets/${row.slug}`,
-  }).catch(() => {});
+    // fire-and-forget, but a silent drop is indistinguishable from success —
+    // log so a missing notification is at least visible in the logs.
+  }).catch((err) =>
+    console.warn("[notify] edit_approved notification failed:", err),
+  );
 
   return true;
 }
