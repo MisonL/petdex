@@ -25,18 +25,28 @@ export function UnsubscribeForm({
   function handleUnsubscribe() {
     setError(null);
     startTransition(async () => {
-      const res = await unsubscribeAction(token);
-      if (res.ok) setUnsubscribed(true);
-      else setError(t("error"));
+      try {
+        const res = await unsubscribeAction(token);
+        if (res.ok) setUnsubscribed(true);
+        else setError(t("error"));
+      } catch {
+        // A rejected action (transport failure) would otherwise leave the
+        // button re-enabled with no message at all.
+        setError(t("error"));
+      }
     });
   }
 
   function handleResubscribe() {
     setError(null);
     startTransition(async () => {
-      const res = await resubscribeAction(token);
-      if (res.ok) setUnsubscribed(false);
-      else setError(t("error"));
+      try {
+        const res = await resubscribeAction(token);
+        if (res.ok) setUnsubscribed(false);
+        else setError(t("error"));
+      } catch {
+        setError(t("error"));
+      }
     });
   }
 

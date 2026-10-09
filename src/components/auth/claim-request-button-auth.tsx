@@ -107,6 +107,10 @@ export function ClaimRequestButton({
       setSelected(null);
       setError(null);
       setDone(false);
+      // Drop the cached list: a pet claimed (or a new one approved) since
+      // the last open would otherwise keep being offered and be rejected
+      // server-side with `exists`. The next open refetches.
+      setPets(null);
     }, 200);
   }
 

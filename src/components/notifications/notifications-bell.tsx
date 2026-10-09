@@ -69,9 +69,14 @@ export function NotificationsBell({ compact = false }: { compact?: boolean }) {
   // panel kept the optimistic "read" forever, because nothing re-read the
   // list on its own. Rolling back on failure and refetching the badge keeps
   // the panel and the count from disagreeing.
+  // The list is replaced (not merged) by loadItems on every open. A rollback
+  // written before a PATCH may resolve *after* that replace finished — the
+  // popover can be closed and reopened while the request is in flight — and
+  // restoring the snapshot wholesale would clobber the rows the reload just
+  // brought in. Roll back only what this call changed: marks it did make are
+  // undone, rows it never touched are left as the reload left them.
   async function markAll() {
-    const previousItems = items;
-    const previousUnread = unread;
+    const changedIds = items.filter((n) => !n.readAt).map((n) => n.id);
     setUnread(0);
     setItems((prev) =>
       prev.map((n) =>
@@ -86,16 +91,18 @@ export function NotificationsBell({ compact = false }: { compact?: boolean }) {
       });
       if (!res.ok) throw new Error(`http_${res.status}`);
     } catch {
-      setItems(previousItems);
-      setUnread(previousUnread);
+      setItems((prev) =>
+        prev.map((n) =>
+          changedIds.includes(n.id) ? { ...n, readAt: null } : n,
+        ),
+      );
+      setUnread(changedIds.length);
     } finally {
       void refresh({ force: true });
     }
   }
 
   async function markOne(id: string) {
-    const previousItems = items;
-    const previousUnread = unread;
     setItems((prev) =>
       prev.map((n) =>
         n.id === id && !n.readAt
@@ -112,8 +119,12 @@ export function NotificationsBell({ compact = false }: { compact?: boolean }) {
       });
       if (!res.ok) throw new Error(`http_${res.status}`);
     } catch {
-      setItems(previousItems);
-      setUnread(previousUnread);
+      // Un-mark only if this row is still marked — if a loadItems replace
+      // landed while the request was out, that copy is not ours to restore.
+      setItems((prev) =>
+        prev.map((n) => (n.id === id && n.readAt ? { ...n, readAt: null } : n)),
+      );
+      setUnread((n) => n + 1);
     } finally {
       void refresh({ force: true });
     }
