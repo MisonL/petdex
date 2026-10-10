@@ -384,6 +384,7 @@ export default async function PetPage({ params }: PageProps) {
                   displayName={pet.displayName}
                   description={pet.description}
                   spritesheetUrl={pet.spritesheetPath}
+                  spriteVersionNumber={pet.spriteVersionNumber}
                 />
 
                 {/* Secondary CTA: single-line npx command + link to the
