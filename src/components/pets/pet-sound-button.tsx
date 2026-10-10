@@ -77,6 +77,18 @@ export function PetSoundButton({
       }
     };
 
+    // A load or decode failure fires `error`, not a rejected `play()`: the
+    // play promise has already resolved by then, so without this the button
+    // stayed lit as "playing" over a pet whose sound never loads (a stale
+    // soundUrl, or the R2 object gone).
+    audio.onerror = () => {
+      if (activeToken === token) {
+        activeAudio = null;
+        activeToken = null;
+      }
+      setPlaying(false);
+    };
+
     try {
       await audio.play();
       setPlaying(true);
