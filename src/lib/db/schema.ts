@@ -173,6 +173,18 @@ export const submittedPets = pgTable(
     pendingEditIdx: index("submitted_pets_pending_edit_idx").on(
       table.pendingSubmittedAt,
     ),
+    // drizzle/0004 created these three sha indexes on columns schema.ts does
+    // declare, so push — the only automated schema path here — was silently
+    // dropping them on every run (a push-built database carried none). Declared
+    // with the same shape the migration spelled out: plain btree, no predicate.
+    // The two `embedding_model` indexes from 0005 stay out of schema.ts because
+    // their column is a raw pgvector column this file deliberately omits; those
+    // are restored by scripts/bootstrap-pgvector.ts instead.
+    spriteShaIdx: index("submitted_pets_sprite_sha_idx").on(table.spriteSha256),
+    petJsonShaIdx: index("submitted_pets_pet_json_sha_idx").on(
+      table.petJsonSha256,
+    ),
+    zipShaIdx: index("submitted_pets_zip_sha_idx").on(table.zipSha256),
     vibesGinIdx: index("submitted_pets_vibes_gin_idx").using(
       "gin",
       table.vibes,
