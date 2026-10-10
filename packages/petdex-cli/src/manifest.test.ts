@@ -134,6 +134,22 @@ describe("manifest endpoint compatibility", () => {
       ),
     ).rejects.toThrow("manifest unavailable");
   });
+
+  // The manifest was the one network read with no byte ceiling: a hostile
+  // or broken endpoint could stream an unbounded body into memory before
+  // the 15s timeout fired.
+  it("rejects a manifest body that exceeds the byte ceiling", async () => {
+    const huge = `{"v":2,"pad":"${"x".repeat(9 * 1024 * 1024)}"}`;
+    await expect(
+      fetchManifest(
+        "https://petdex.test",
+        async () =>
+          new Response(huge, {
+            headers: { "content-type": "application/json" },
+          }),
+      ),
+    ).rejects.toThrow("exceeds the");
+  });
 });
 
 // `petdex install` joins the manifest's slug into `~/.petdex/pets/<slug>` and

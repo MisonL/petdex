@@ -1,6 +1,11 @@
 import { isTrustedAssetUrl } from "./asset-hosts.js";
+import { fetchCapped } from "./fetch-capped.js";
 
 const MANIFEST_TIMEOUT_MS = 15_000;
+// Every other network read in this package goes through fetchCapped's
+// byte ceiling; the manifest is the largest of them, so give it its own
+// (still generous) limit rather than an unbounded response.json().
+const MANIFEST_MAX_BYTES = 8 * 1024 * 1024;
 const COMPACT_FIELDS = [
   "slug",
   "displayName",
@@ -173,13 +178,19 @@ async function requestJson(
   fetchImpl: FetchJson,
   url: string,
 ): Promise<unknown> {
-  const response = await fetchImpl(url, {
-    headers: { Accept: "application/json" },
-    signal: AbortSignal.timeout(MANIFEST_TIMEOUT_MS),
+  const result = await fetchCapped(url, {
+    init: {
+      headers: { Accept: "application/json" },
+    },
+    maxBytes: MANIFEST_MAX_BYTES,
+    timeoutMs: MANIFEST_TIMEOUT_MS,
+    // FetchJson is the narrow seam tests stub; fetchCapped accepts the
+    // full `typeof fetch`, which the real fetch satisfies.
+    fetchImpl: fetchImpl as typeof fetch,
   });
-  if (!response.ok) throw new Error(`manifest fetch ${response.status}`);
+  if (!result.ok) throw new Error(`manifest fetch ${result.status}`);
   try {
-    return await response.json();
+    return JSON.parse(result.body.toString("utf8"));
   } catch {
     throw new Error("manifest response was not valid JSON");
   }
