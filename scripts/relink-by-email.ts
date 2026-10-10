@@ -107,33 +107,55 @@ async function loadAllUsers(): Promise<ClerkUser[]> {
   return acc;
 }
 
-async function findUserForLogin(login: string): Promise<ClerkUser | null> {
+// Returns the user to relink to, or null. `confidence` separates a match
+// that identifies a person (their GitHub account, or an address they proved
+// they own) from one that only looks like a coincidence.
+//
+// The heuristic tiers used to write `owner_id` on a hit: a GitHub login
+// `john` colliding with any `john@…` local-part is a common coincidence, and
+// the display-name tier ("Foo Bar" → GitHub `FooBar`) is looser still. Both
+// would hand a stranger's pets to the wrong account, which then drives every
+// later takedown, approval and owner email. Only the verified tiers may
+// write; the display-name tier is surfaced for a human to confirm.
+type LoginMatch = {
+  user: ClerkUser;
+  confidence: "strong" | "heuristic";
+};
+
+async function findUserForLogin(login: string): Promise<LoginMatch | null> {
   const target = login.toLowerCase();
   const users = await loadAllUsers();
-  // 1. GitHub OAuth username exact match
+  // 1. GitHub OAuth username exact match — the credit URL names this account.
   for (const u of users) {
     for (const a of u.external_accounts ?? []) {
       if (
         a.provider === "oauth_github" &&
         a.username?.toLowerCase().trim() === target
       ) {
-        return u;
+        return { user: u, confidence: "strong" };
       }
     }
   }
-  // 2. Email local-part match
+  // 2. Verified email local-part match. Only an address Clerk marks verified
+  //    proves the account holder owns that local-part; an unverified one is
+  //    self-asserted and may belong to anyone. `pickPrimaryEmail` already
+  //    requires this, so the check here keeps the two consistent.
   for (const u of users) {
     for (const e of u.email_addresses ?? []) {
+      if (e.verification?.status !== "verified") continue;
       const local = e.email_address.split("@")[0]?.toLowerCase().trim();
-      if (local === target) return u;
+      if (local === target) return { user: u, confidence: "strong" };
     }
   }
-  // 3. Display name match (rare but covers e.g. user "Foo Bar" -> github FooBar).
+  // 3. Display name match (rare but covers e.g. user "Foo Bar" -> github
+  //    FooBar). Coincidence-prone, so it is reported, never applied.
   for (const u of users) {
     const display = `${u.first_name ?? ""}${u.last_name ?? ""}`
       .toLowerCase()
       .replace(/\s+/g, "");
-    if (display && display === target) return u;
+    if (display && display === target) {
+      return { user: u, confidence: "heuristic" };
+    }
   }
   return null;
 }
@@ -157,7 +179,7 @@ async function main() {
   console.log(`scanning ${rows.length} admin-owned, github-credited pets`);
 
   const apply = process.argv.includes("--apply");
-  const cache = new Map<string, ClerkUser | null>();
+  const cache = new Map<string, LoginMatch | null>();
   let relinked = 0;
   let unmatched = 0;
 
@@ -168,23 +190,35 @@ async function main() {
       .trim();
     if (!ghLogin) continue;
 
-    let user = cache.get(ghLogin);
-    if (user === undefined) {
+    let match = cache.get(ghLogin);
+    if (match === undefined) {
       process.stdout.write(`  ${ghLogin} ... `);
-      user = await findUserForLogin(ghLogin);
-      cache.set(ghLogin, user);
+      match = await findUserForLogin(ghLogin);
+      cache.set(ghLogin, match);
       console.log(
-        user
-          ? `→ ${user.id} (${pickPrimaryEmail(user) ?? "no verified email"})`
+        match
+          ? `→ ${match.user.id} (${pickPrimaryEmail(match.user) ?? "no verified email"})`
           : "still no clerk user",
       );
     }
 
-    if (!user) {
+    if (!match) {
       unmatched++;
       continue;
     }
 
+    // A display-name coincidence is reported for a human to check, never
+    // written: relinking on it is how a stranger's pets get handed to the
+    // wrong account.
+    if (match.confidence === "heuristic") {
+      console.log(
+        `    SKIPPED ${row.slug}: only a display-name match on "${ghLogin}" ` +
+          `(→ ${match.user.id}); confirm by hand before relinking`,
+      );
+      continue;
+    }
+
+    const user = match.user;
     const email = pickPrimaryEmail(user) ?? row.owner_email;
     if (!apply) {
       console.log(`    would relink ${row.slug} -> ${user.id} (dry run)`);
