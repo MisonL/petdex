@@ -30,11 +30,26 @@ export async function verifyCliBearer(
   if (!token) return null;
 
   const url = `${ISSUER.replace(/\/+$/, "")}/oauth/userinfo`;
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
-    cache: "no-store",
-    signal: AbortSignal.timeout(USERINFO_TIMEOUT_MS),
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+      signal: AbortSignal.timeout(USERINFO_TIMEOUT_MS),
+    });
+  } catch (error) {
+    // A timeout or a connection failure reaches here. Return null like every
+    // other failure branch instead of letting the rejection escape: callers
+    // (the /api/cli/* and /api/desktop/* routes) await this bare and map null
+    // to 401, so a thrown error would surface as a 500 on a merely slow Clerk
+    // userinfo call. A 401 is the right answer — the caller can retry or
+    // re-authenticate; a 500 is not.
+    console.warn(
+      "[cli-auth] userinfo fetch failed:",
+      error instanceof Error ? error.message : String(error),
+    );
+    return null;
+  }
   if (!res.ok) return null;
 
   const data = (await res.json().catch(() => null)) as
