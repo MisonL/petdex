@@ -141,6 +141,12 @@ async function takedownOne(pet: Pet, reason: string) {
   await db
     .delete(schema.petRequestCandidates)
     .where(eq(schema.petRequestCandidates.petId, pet.id));
+  // Reviews hang off the pet by id as well, and the FK that would cascade
+  // them is absent from push-built databases (see the schema declaration),
+  // so nothing may delete a pet without taking the reviews.
+  await db
+    .delete(schema.submissionReviews)
+    .where(eq(schema.submissionReviews.submittedPetId, pet.id));
   await db
     .update(schema.petCollections)
     .set({ coverPetSlug: null })
@@ -169,10 +175,16 @@ async function takedownOne(pet: Pet, reason: string) {
     keyFromR2Url(pet.soundUrl),
     ...petPublicArtifactKeys(slug),
   ].filter((k): k is string => Boolean(k));
+  // Recorded, not thrown here: the owner still has to be told, and throwing
+  // mid-function would skip the notification and email below. The caller
+  // counts it as a failure and exits non-zero — swallowing it entirely meant
+  // the DB row came down while the public assets stayed in the bucket, and
+  // the run still reported success.
+  let r2Error: unknown = null;
   try {
     await deleteR2Objects(keys);
   } catch (err) {
-    console.warn(`    r2 cleanup failed for ${slug}:`, err);
+    r2Error = err;
   }
 
   await createNotification({
@@ -216,6 +228,8 @@ async function takedownOne(pet: Pet, reason: string) {
       console.warn(`    email failed for ${slug}:`, e);
     }
   }
+
+  if (r2Error) throw r2Error;
 }
 
 async function main() {

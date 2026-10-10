@@ -126,6 +126,14 @@ async function main() {
       .delete(schema.petRequestCandidates)
       .where(eq(schema.petRequestCandidates.petId, id))
       .getSQL(),
+    // Reviews hang off the pet by id too, and the FK that would cascade them
+    // is absent from push-built databases (see the schema declaration), so
+    // nothing may delete a pet without taking the reviews. The helper does
+    // the same; this list has to stay in step with it.
+    db
+      .delete(schema.submissionReviews)
+      .where(eq(schema.submissionReviews.submittedPetId, id))
+      .getSQL(),
 
     // 2. Null out collection covers.
     db
@@ -159,12 +167,17 @@ async function main() {
       .getSQL(),
   ]);
 
-  // 6. R2 cleanup.
+  // 6. R2 cleanup. The failure is recorded and rethrown at the end rather
+  // than warned away: the DB row is already gone, so a warn here left the
+  // public spritesheet / zip / preview / thumb / stickers in the bucket while
+  // the run printed "Done" and exited 0. It is deferred so the owner is still
+  // notified and emailed about the takedown they just received.
+  let r2Error: unknown = null;
   try {
     await deleteR2Objects(keys);
     console.log(`R2: deleted ${keys.length} objects`);
   } catch (err) {
-    console.warn("R2 cleanup failed:", err);
+    r2Error = err;
   }
 
   // 7. Notify owner.
@@ -213,6 +226,8 @@ async function main() {
   } else if (pet.ownerEmail) {
     console.log("RESEND_API_KEY missing — skipping email");
   }
+
+  if (r2Error) throw r2Error;
 
   console.log("\nDone. Slug is free for resubmit.");
 }
