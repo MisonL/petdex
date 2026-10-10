@@ -138,15 +138,28 @@ export async function POST(req: Request): Promise<Response> {
   // ranks what is stored, and `< ` admits every real transition while
   // rejecting a repeat of the same event (so retries are idempotent without a
   // processed-ids table) and any walk backwards.
+  //
+  // The CASE is built from STATUS_RANK rather than spelled out, so the rank
+  // list and the SQL cannot drift. They were two hand-maintained copies of
+  // the same ordering; adding a status to the enum and the map but not to the
+  // CASE would have left that status unranked — and an unranked status is
+  // excluded by the comparison, so the row would silently stop advancing with
+  // nothing to notice. (Ranking it as unknown behaves the same as the old
+  // trailing `else 4`, so this prevents the drift rather than changing any
+  // current transition.)
+  const storedRank = sql.join(
+    Object.entries(STATUS_RANK).map(
+      ([status, rank]) => sql`when ${status} then ${rank}`,
+    ),
+    sql` `,
+  );
   await db
     .update(schema.emailSends)
     .set(updates)
     .where(
       and(
         eq(schema.emailSends.resendId, resendId),
-        sql`case ${schema.emailSends.status}
-              when 'queued' then 0 when 'sent' then 1 when 'delivered' then 2
-              when 'opened' then 3 else 4 end < ${STATUS_RANK[target]}`,
+        sql`case ${schema.emailSends.status} ${storedRank} end < ${STATUS_RANK[target]}`,
       ),
     );
 

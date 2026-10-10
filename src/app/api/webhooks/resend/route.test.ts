@@ -210,6 +210,18 @@ describe("POST /api/webhooks/resend", () => {
     expect((await row()).status).toBe("delivered");
   });
 
+  // Covers every non-terminal status rather than just `opened`: the CASE that
+  // ranks the stored status and STATUS_RANK are one ordering now, and this
+  // pins that a terminal event still reaches each of them.
+  it("lets a terminal event advance every non-terminal stored status", async () => {
+    process.env.RESEND_WEBHOOK_SECRET = SECRET;
+    for (const status of ["queued", "sent", "delivered", "opened"]) {
+      await seedEmail(status);
+      expect((await deliver("email.bounced")).status).toBe(200);
+      expect((await row()).status).toBe("bounced");
+    }
+  });
+
   it("ignores an unknown event type", async () => {
     process.env.RESEND_WEBHOOK_SECRET = SECRET;
     await seedEmail("sent");
