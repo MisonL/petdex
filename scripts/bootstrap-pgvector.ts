@@ -39,9 +39,30 @@ const PLAIN_STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS "pet_requests_embedding_model_idx" ON "pet_requests" USING btree ("embedding_model")`,
 ];
 
+// Only "this server has no pgvector" may be swallowed. Matching on the
+// message text is too loose: `permission denied to create extension "vector"`
+// and `must be owner of extension vector` both contain "vector", so a
+// non-superuser run (RDS, a self-managed box) was reported as "this Postgres
+// has no pgvector", skipped, and exited 0 — leaving semantic search and
+// exact-hash dedup silently off while the operator saw success.
+//
+// Postgres reports the two cases with different SQLSTATEs, and the driver
+// surfaces it as `error.code`:
+//   0A000 feature_not_supported — `extension "vector" is not available`,
+//          i.e. pgvector is genuinely absent from the server.
+//   42501 insufficient_privilege — the extension may exist; the role just
+//          may not create it. That is an operator problem, not a missing
+//          feature, so it must throw.
+const SQLSTATE_FEATURE_NOT_SUPPORTED = "0A000";
+// 42703 — the embedding_model indexes name a column that a pgvector-less
+// server never created.
+const SQLSTATE_UNDEFINED_COLUMN = "42703";
+
 function isVectorUnavailable(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  return message.includes("vector") || message.includes("extension");
+  return (
+    (error as { code?: unknown } | null)?.code ===
+    SQLSTATE_FEATURE_NOT_SUPPORTED
+  );
 }
 
 async function main(): Promise<void> {
@@ -66,10 +87,19 @@ async function main(): Promise<void> {
   }
 
   for (const statement of PLAIN_STATEMENTS) {
-    // The two embedding_model indexes index a column the vector statements
-    // create; without them the column is missing and the index is skipped.
-    if (!hasVector && statement.includes("embedding_model")) continue;
-    await sql.unsafe(statement);
+    // The two embedding_model indexes reference a column the vector
+    // statements create, so on a server without pgvector they cannot be
+    // built. Tolerate exactly that failure (undefined_column) rather than
+    // gating on `hasVector`: the other three indexes are independent of the
+    // extension and must still be attempted, and a failure for any other
+    // reason stays loud.
+    try {
+      await sql.unsafe(statement);
+    } catch (error) {
+      const code = (error as { code?: unknown } | null)?.code;
+      if (!hasVector && code === SQLSTATE_UNDEFINED_COLUMN) continue;
+      throw error;
+    }
   }
 
   if (hasVector) console.log("pgvector bootstrap applied");
