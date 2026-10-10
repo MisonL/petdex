@@ -12,6 +12,7 @@ import { auth } from "@clerk/nextjs/server";
 import { and, eq } from "drizzle-orm";
 
 import { db, schema } from "@/lib/db/client";
+import { isUniqueViolation } from "@/lib/db/pg-errors";
 import {
   BLOCKED_KEYWORD_REASON,
   containsBlockedKeyword,
@@ -142,13 +143,34 @@ export async function POST(
   }
 
   const id = `pcr_${crypto.randomUUID().replace(/-/g, "").slice(0, 22)}`;
-  await db.insert(schema.petCollectionRequests).values({
-    id,
-    collectionId: collection.id,
-    petSlug,
-    requestedBy: userId,
-    note,
-  });
+  try {
+    await db.insert(schema.petCollectionRequests).values({
+      id,
+      collectionId: collection.id,
+      petSlug,
+      requestedBy: userId,
+      note,
+    });
+  } catch (error) {
+    // The pending check above is a separate statement, so two concurrent
+    // requests (double-click, retry) both pass it and the second INSERT
+    // hits `pet_collection_requests_pending_pair`. Answer the same
+    // alreadyPending body the check would have instead of a 500.
+    if (isUniqueViolation(error)) {
+      const pending = await db.query.petCollectionRequests.findFirst({
+        where: and(
+          eq(schema.petCollectionRequests.collectionId, collection.id),
+          eq(schema.petCollectionRequests.petSlug, petSlug),
+          eq(schema.petCollectionRequests.status, "pending"),
+        ),
+      });
+      return NextResponse.json(
+        { ok: true, alreadyPending: true, id: pending?.id ?? null },
+        { status: 200 },
+      );
+    }
+    throw error;
+  }
 
   return NextResponse.json({ ok: true, id }, { status: 201 });
 }
