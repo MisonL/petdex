@@ -94,30 +94,42 @@ export async function PATCH(req: Request): Promise<Response> {
     if (body.handle !== null && typeof body.handle !== "string") {
       return NextResponse.json({ error: "invalid_handle" }, { status: 400 });
     }
-    const normalized = normalizeProfileHandle(body.handle);
-    if (normalized === null) {
-      return NextResponse.json({ error: "handle_too_short" }, { status: 400 });
-    }
-    const validation = validateProfileHandle(normalized);
-    if (validation !== "ok") {
-      return NextResponse.json(
-        { error: `handle_${validation}` },
-        { status: 400 },
-      );
-    }
-    if (normalized) {
-      const existing = await db.query.userProfiles.findFirst({
-        columns: { userId: true },
-        where: and(
-          eq(schema.userProfiles.handle, normalized),
-          ne(schema.userProfiles.userId, userId),
-        ),
-      });
-      if (existing) {
-        return NextResponse.json({ error: "handle_taken" }, { status: 409 });
+    // Clearing the handle is a legal edit — the column is nullable and
+    // `validateProfileHandle(null)` answers "ok" — and both web editors
+    // send `handle.trim() || null`. Rejecting it here 400'd the whole
+    // PATCH, so clearing the field also blocked a bio-only save. Mirror
+    // the displayName/bio blocks: null means "clear".
+    if (body.handle === null || body.handle === "") {
+      patch.handle = null;
+    } else {
+      const normalized = normalizeProfileHandle(body.handle);
+      if (normalized === null) {
+        return NextResponse.json(
+          { error: "handle_too_short" },
+          { status: 400 },
+        );
       }
+      const validation = validateProfileHandle(normalized);
+      if (validation !== "ok") {
+        return NextResponse.json(
+          { error: `handle_${validation}` },
+          { status: 400 },
+        );
+      }
+      if (normalized) {
+        const existing = await db.query.userProfiles.findFirst({
+          columns: { userId: true },
+          where: and(
+            eq(schema.userProfiles.handle, normalized),
+            ne(schema.userProfiles.userId, userId),
+          ),
+        });
+        if (existing) {
+          return NextResponse.json({ error: "handle_taken" }, { status: 409 });
+        }
+      }
+      patch.handle = normalized;
     }
-    patch.handle = normalized;
   }
 
   if (body.bio !== undefined) {
