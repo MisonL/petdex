@@ -67,3 +67,6 @@ console.log(`done updated=${updated} failed=${failed.length}`);
 for (const item of failed) {
   console.log(`fail ${item.slug}: ${item.reason}`);
 }
+// Exit non-zero when anything failed: a caller scripting this saw exit 0 and
+// read the run as complete, while the pets it could not update stayed wrong.
+if (failed.length > 0) process.exit(1);
