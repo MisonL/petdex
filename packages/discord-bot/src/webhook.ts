@@ -14,10 +14,20 @@ import {
 
 const SECRET = process.env.PETDEX_WEBHOOK_SECRET;
 const PETDEX_API_BASE = process.env.PETDEX_API_BASE ?? "https://petdex.dev";
-// Runtime guild scope. Without it, channel lookup walks every guild the bot
-// is in and posts to whichever one holds the first channel named `showcase`;
-// with it, an invite to a second guild cannot redirect announcements.
+// Runtime guild scope. With it, an invite to a second guild cannot redirect
+// announcements; channel lookup is confined to that guild. Without it the
+// lookup walks every guild the bot is in and posts to whichever one holds the
+// first channel named `showcase` — the cross-server leak this scope exists to
+// prevent. `.env.example` ships the value blank, and a blank string is falsy
+// here, so the filter would be skipped silently: warn instead, without
+// refusing to boot (a single-guild bot that never sets it is still valid).
 const GUILD_ID = process.env.DISCORD_GUILD_ID;
+if (!GUILD_ID) {
+  console.warn(
+    "[webhook] DISCORD_GUILD_ID is unset — announcements are not scoped to a " +
+      "guild and will post into whichever server holds the first #showcase.",
+  );
+}
 
 // Resend-sized events are a few KB. The signature covers the raw body, so the
 // body is read before the caller is trusted; without a ceiling an anonymous
@@ -44,6 +54,31 @@ type CollectionFeaturedEvent = {
 type Event = PetApprovedEvent | CollectionFeaturedEvent;
 
 class PayloadTooLargeError extends Error {}
+
+// Discord renders markdown in an embed's description and field values, so
+// creator text must not be able to form a link under the bot's name.
+// `escapeMarkdown(…, { maskedLink: true })` neutralizes only the FIRST masked
+// link on each line — its `\[.+]\(.+\)` pattern is greedy, so on
+// `[a](u) [b](u)` it matches the whole span once and leaves `[b](u)` live
+// (measured against @discordjs/formatters). After it runs, escape any `[`
+// that is not already escaped, counting backslash runs so a literal `\\`
+// the library itself wrote is not double-escaped. Ordinary text renders
+// unchanged (`\[x]` displays as `[x]`); it just can no longer become a link.
+function plainEmbedText(text: string): string {
+  const escaped = escapeMarkdown(text, { maskedLink: true });
+  let out = "";
+  let slashes = 0;
+  for (const ch of escaped) {
+    if (ch === "\\") {
+      slashes += 1;
+      out += ch;
+      continue;
+    }
+    out += ch === "[" && slashes % 2 === 0 ? "\\[" : ch;
+    slashes = 0;
+  }
+  return out;
+}
 
 async function readBody(
   req: IncomingMessage,
@@ -109,12 +144,9 @@ export async function postPetApproved(
     // Creator-supplied markdown WOULD render as links here — this is a
     // description, and a description does render markdown — in a message that
     // carries the official bot's name, so neutralize it before it goes out.
-    // `maskedLink: true` matters: the default escapeMarkdown leaves
-    // `[text](url)` intact, so without it this call never blocked the one
-    // markdown form the comment is about.
-    .setDescription(
-      escapeMarkdown(ev.pet.description.slice(0, 200), { maskedLink: true }),
-    )
+    // plainEmbedText (not bare escapeMarkdown): the library's masked-link
+    // escape only catches the first `[text](url)` per line.
+    .setDescription(plainEmbedText(ev.pet.description.slice(0, 200)))
     .setColor(0x5266ea)
     .setImage(`${PETDEX_API_BASE}/pets/${ev.pet.slug}/opengraph-image`)
     .addFields(
@@ -126,7 +158,7 @@ export async function postPetApproved(
         value:
           ev.pet.tags
             .slice(0, 4)
-            .map((tag) => escapeMarkdown(tag))
+            .map((tag) => plainEmbedText(tag))
             .join(" · ") || "—",
         inline: true,
       },
@@ -159,14 +191,9 @@ export async function postCollectionFeatured(
     .setURL(`${PETDEX_API_BASE}/collections/${ev.collection.slug}`)
     // Description: escaped — a collection description is owner-supplied free
     // text and a description renders markdown, so a `[click here](evil)` would
-    // otherwise become a link under the bot's name (`maskedLink: true`, since
-    // the default leaves the link syntax alone). Length only is validated
+    // otherwise become a link under the bot's name. Length only is validated
     // upstream (collection-input.ts), not markdown.
-    .setDescription(
-      escapeMarkdown(ev.collection.description.slice(0, 240), {
-        maskedLink: true,
-      }),
-    )
+    .setDescription(plainEmbedText(ev.collection.description.slice(0, 240)))
     .setColor(0x5266ea)
     .setImage(
       `${PETDEX_API_BASE}/collections/${ev.collection.slug}/opengraph-image`,

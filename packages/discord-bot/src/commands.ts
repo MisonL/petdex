@@ -20,7 +20,11 @@ export const commandData = [
       opt
         .setName("slug")
         .setDescription("Pet slug, e.g. boba")
-        .setRequired(true),
+        .setRequired(true)
+        // Bounded: the reply interpolates the raw value into a channel message,
+        // and Discord rejects content over 2000 chars, so an unlimited slug was
+        // both a long dead link and a way to make the reply itself throw.
+        .setMaxLength(100),
     ),
 
   new SlashCommandBuilder()
@@ -38,7 +42,8 @@ export const commandData = [
       opt
         .setName("slug")
         .setDescription("Collection slug, e.g. graycraft, anime-heroes")
-        .setRequired(true),
+        .setRequired(true)
+        .setMaxLength(100),
     ),
 ].map((c) => c.toJSON());
 

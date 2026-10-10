@@ -219,4 +219,34 @@ describe("embed escaping matches where Discord renders markdown", () => {
     expect(embed?.title).toBe("Cozy *Deck*");
     expect(embed?.description).toContain("\\[win](");
   });
+
+  it("neutralizes every masked link, not just the first on a line", async () => {
+    // `escapeMarkdown(…, { maskedLink: true })` neutralizes only the FIRST
+    // masked link per line: its `\[.+]\(.+\)` pattern is greedy, so on
+    // "[a](u) [b](u)" it matches the whole span once. A description can hold
+    // several, so a second live link under the bot's name must not survive.
+    const { client, sent } = capturingClient("showcase");
+    await postPetApproved(client, {
+      event: "pet_approved",
+      pet: {
+        slug: "boba",
+        displayName: "Boba",
+        description:
+          "[a](https://evil1.example) mid [b](https://evil2.example)",
+        kind: "creature",
+        tags: ["[t](https://evil3.example)"],
+      },
+    });
+    const embed = sent[0]?.embeds[0] as
+      | {
+          description: string;
+          fields: Array<{ name: string; value: string }>;
+        }
+      | undefined;
+    // No unescaped `[` may remain anywhere in a region Discord renders.
+    expect(embed?.description).not.toMatch(/(?<!\\)\[/);
+    const tags = embed?.fields.find((f) => f.name === "tags");
+    expect(tags?.value).not.toMatch(/(?<!\\)\[/);
+    expect(embed?.description).toContain("\\[b](");
+  });
 });
