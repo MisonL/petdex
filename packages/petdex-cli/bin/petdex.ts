@@ -1,4 +1,12 @@
-import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  readdir,
+  readFile,
+  rename,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 
@@ -98,6 +106,17 @@ async function getAuth({
 }
 
 const VERSION = pkg.version;
+
+// `getAccessToken()`/`whoami()` throw for reasons that are not "signed
+// out" — a locked keychain, an unreadable credential file, a failed
+// refresh or userinfo request. Collapsing every one of those into the
+// bare login hint sent users to `login`, which then failed the same way
+// with no visible cause. Keep the hint (it is right for the common case)
+// and append the underlying message so the real problem is readable.
+function authFailureHint(err: unknown): string {
+  const detail = err instanceof Error ? err.message : String(err);
+  return `Not signed in. Run ${pc.cyan("petdex login")}. (${detail})`;
+}
 
 // ─── entrypoint ────────────────────────────────────────────────────────────
 // Called at the bottom of the file.
@@ -453,8 +472,8 @@ async function cmdWhoami() {
       ].join("\n"),
       "Signed in",
     );
-  } catch {
-    p.cancel(`Not signed in. Run ${pc.cyan("petdex login")}.`);
+  } catch (err) {
+    p.cancel(authFailureHint(err));
     process.exit(1);
   }
 }
@@ -525,12 +544,28 @@ async function installOne(pet: ManifestPet): Promise<void> {
     fetchOrThrow(pet.petJsonUrl),
     fetchOrThrow(pet.spritesheetUrl),
   ]);
-  await Promise.all([
-    writeFile(path.join(petdexDir, "pet.json"), petJson),
-    writeFile(path.join(petdexDir, `spritesheet.${ext}`), spritesheet),
-    writeFile(path.join(codexDir, "pet.json"), petJson),
-    writeFile(path.join(codexDir, `spritesheet.${ext}`), spritesheet),
-  ]);
+  // Write each file through a temp name and rename over the target: a
+  // rename is atomic, so a crash or a concurrent reader never sees a
+  // half-written pet.json/spritesheet. Within each directory the sprite
+  // lands before pet.json so an interrupted install never pairs new
+  // metadata with the old image.
+  const otherExt: "png" | "webp" = ext === "png" ? "webp" : "png";
+  const writeAtomic = async (target: string, data: Buffer) => {
+    const tmp = `${target}.${process.pid}.tmp`;
+    await writeFile(tmp, data);
+    await rename(tmp, target);
+  };
+  await Promise.all(
+    [petdexDir, codexDir].map(async (dir) => {
+      await writeAtomic(path.join(dir, `spritesheet.${ext}`), spritesheet);
+      await writeAtomic(path.join(dir, "pet.json"), petJson);
+      // The desktop loader takes the first of spritesheet.webp /
+      // spritesheet.png that exists, so a leftover file in the other
+      // extension from an earlier install shadows the one just written
+      // and the pet keeps rendering the old art. Drop it.
+      await rm(path.join(dir, `spritesheet.${otherExt}`), { force: true });
+    }),
+  );
 
   // Fire-and-forget install metric so the gallery counter ticks up. The
   // timeout keeps a hung endpoint from holding the process open at exit.
@@ -744,8 +779,8 @@ async function cmdSubmit(args: string[]) {
       process.exit(1);
     }
     token = t;
-  } catch {
-    p.cancel(`Not signed in. Run ${pc.cyan("petdex login")}.`);
+  } catch (err) {
+    p.cancel(authFailureHint(err));
     process.exit(1);
   }
   let profileUrl = PETDEX_URL;
@@ -911,8 +946,8 @@ async function cmdEdit(args: string[]): Promise<void> {
       process.exit(1);
     }
     token = t;
-  } catch {
-    p.cancel(`Not signed in. Run ${pc.cyan("petdex login")}.`);
+  } catch (err) {
+    p.cancel(authFailureHint(err));
     process.exit(1);
   }
 
@@ -938,9 +973,17 @@ async function cmdEdit(args: string[]): Promise<void> {
   const s = p.spinner();
   s.start(`Resolving ${slug}`);
 
-  const petRes = await apiRequest(`${PETDEX_URL}/api/pets/${slug}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  // The slug comes straight from argv, so encode it before it reaches the
+  // path: a value like `../cli/edit` (or one carrying `?`/`#`) would
+  // otherwise rewrite the request line and hit a different endpoint with
+  // the bearer attached. Real slugs are `[a-z0-9-]`, which encoding leaves
+  // untouched — this only neutralizes the malformed ones.
+  const petRes = await apiRequest(
+    `${PETDEX_URL}/api/pets/${encodeURIComponent(slug)}`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  );
   if (!petRes.ok) {
     s.stop(pc.red("not found"));
     p.cancel(`Pet "${slug}" not found or you don't own it.`);
@@ -1144,7 +1187,19 @@ async function readFolderCandidate(folder: string): Promise<Candidate | null> {
   } catch {
     throw new Error(`pet.json in ${folder} is not valid JSON`);
   }
+  // Cap the sprite the same way the zip path does before reading it: a
+  // stray multi-GB image in the folder would otherwise be slurped into
+  // memory and then duplicated by the DEFLATE pass below.
+  const spriteStat = await stat(spritePath);
+  if (spriteStat.size <= 0 || spriteStat.size > MAX_EDIT_ASSET_BYTES) {
+    throw new Error(
+      `spritesheet in ${folder} is ${(spriteStat.size / (1024 * 1024)).toFixed(1)} MB; maximum is 8 MB`,
+    );
+  }
   const spritesheetBuffer = await readFile(spritePath);
+  if (spritesheetBuffer.length > MAX_EDIT_ASSET_BYTES) {
+    throw new Error(`spritesheet in ${folder} changed while it was being read`);
+  }
 
   const zip = new JSZip();
   zip.file("pet.json", petJson);
@@ -1396,13 +1451,26 @@ async function fetchOwnedSlugs(
       }),
       signal: AbortSignal.timeout(8000),
     });
-    if (!res.ok) return out; // older server: just skip dedup, don't block submit
+    // A 404 is an older server without the dedup endpoint — silently
+    // fall back, as before. Any other failure (5xx, network, timeout)
+    // means we could not tell whether these pets are already submitted,
+    // and staying quiet there lets the server mint a `-2` slug the user
+    // never agreed to. Say so instead of pretending there were no dupes.
+    if (res.status === 404) return out;
+    if (!res.ok) {
+      process.stderr.write(
+        `petdex: could not check for duplicate submissions (HTTP ${res.status}); submitting without the duplicate prompt.\n`,
+      );
+      return out;
+    }
     const data = (await res.json()) as { existing?: OwnedPet[] };
     for (const row of data.existing ?? []) {
       if (row && typeof row.slug === "string") out.set(row.slug, row);
     }
-  } catch {
-    /* server doesn't support dedup yet — fall back to old behavior */
+  } catch (err) {
+    process.stderr.write(
+      `petdex: could not check for duplicate submissions (${err instanceof Error ? err.message : String(err)}); submitting without the duplicate prompt.\n`,
+    );
   }
   return out;
 }
