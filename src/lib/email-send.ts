@@ -1,6 +1,19 @@
 import type { CreateEmailOptions, Resend } from "resend";
 
 /**
+ * Read an email env var, treating a blank value as unset.
+ *
+ * `.env.example` ships `RESEND_FROM=` and `PETDEX_ADMIN_NOTIFY_EMAIL=` blank,
+ * and `??` keeps `""`: an operator who copied the example then sent `from: ""`
+ * (or an empty recipient) to Resend, which rejects every such message. Blank
+ * means "not configured" everywhere else in this codebase's env handling.
+ */
+export function emailEnv(name: string, fallback: string): string {
+  const value = process.env[name];
+  return value && value.trim() !== "" ? value : fallback;
+}
+
+/**
  * Send a transactional email and record a failure instead of dropping it.
  *
  * Resend's SDK **resolves** on HTTP 4xx/5xx — it answers with
@@ -18,12 +31,14 @@ export async function sendEmail(
   resend: Resend,
   payload: CreateEmailOptions,
   label: string,
-): Promise<void> {
+): Promise<boolean> {
   try {
     const { error } = await resend.emails.send(payload);
     if (error) {
       console.error(`[email] ${label} was rejected:`, error);
+      return false;
     }
+    return true;
   } catch (thrown) {
     // Defensive: the SDK should not throw, but a network stack or a bad
     // payload could, and that path used to be swallowed too.
@@ -31,5 +46,6 @@ export async function sendEmail(
       `[email] ${label} threw:`,
       thrown instanceof Error ? thrown.message : String(thrown),
     );
+    return false;
   }
 }

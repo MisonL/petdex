@@ -12,6 +12,7 @@ import { neon } from "@neondatabase/serverless";
 import { Resend } from "resend";
 
 import { invalidatePetCaches } from "../src/lib/db/cached-aggregates";
+import { emailEnv, sendEmail } from "../src/lib/email-send";
 
 const PROD_URL = "https://petdex.dev";
 const databaseUrl = process.env.DATABASE_URL;
@@ -22,7 +23,7 @@ const sql = neon(databaseUrl);
 const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
   : null;
-const from = process.env.RESEND_FROM ?? "Petdex <petdex@updates.railly.dev>";
+const from = emailEnv("RESEND_FROM", "Petdex <petdex@updates.railly.dev>");
 
 const dryRun = !process.argv.includes("--apply");
 
@@ -67,8 +68,12 @@ async function main() {
     revivedSlugs.push(row.slug);
 
     if (resend && row.owner_email) {
-      try {
-        await resend.emails.send({
+      // Resend resolves 4xx/5xx with an `error` rather than throwing, so the
+      // bare call here printed "emailed …" even when nothing sent. sendEmail
+      // logs the rejection; only claim success when it really went out.
+      const sent = await sendEmail(
+        resend,
+        {
           from,
           to: row.owner_email,
           subject: `Update: ${row.display_name} is live on Petdex after all`,
@@ -92,11 +97,10 @@ async function main() {
             "Sorry for the back-and-forth, and thanks for shipping a pet,",
             "Petdex",
           ].join("\n"),
-        });
-        console.log(`  emailed ${row.owner_email}`);
-      } catch (err) {
-        console.warn(`  email failed for ${row.slug}:`, err);
-      }
+        },
+        `revive ${row.slug}`,
+      );
+      if (sent) console.log(`  emailed ${row.owner_email}`);
     }
   }
 

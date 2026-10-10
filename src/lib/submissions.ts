@@ -13,7 +13,7 @@ import { findOversizedAsset } from "@/lib/asset-size-guard";
 import { db, schema } from "@/lib/db/client";
 import { isUniqueViolation } from "@/lib/db/pg-errors";
 import type { SubmissionReview, SubmittedPet } from "@/lib/db/schema";
-import { sendEmail } from "@/lib/email-send";
+import { emailEnv, sendEmail } from "@/lib/email-send";
 import { renderNewSubmissionEmail } from "@/lib/email-templates/new-submission";
 import { fallbackHandle, handleForUser } from "@/lib/handles";
 import { normalizeSpriteVersionNumber } from "@/lib/sprite-version";
@@ -154,12 +154,19 @@ export async function persistSubmission(
   const credit = creditFromPrincipal(principal);
   const spriteVersion = normalizeSpriteVersionNumber(body.spriteVersionNumber);
 
+  // The stored window, computed once: the DB row and the admin email must
+  // agree. Sending the raw body into the email instead let a multi-KB display
+  // name or description reach the reviewer's inbox for text the record never
+  // kept.
+  const storedDisplayName = body.displayName.trim().slice(0, 60);
+  const storedDescription = body.description.trim().slice(0, 280);
+
   const slug = await insertSubmissionWithUniqueSlug({
     id,
     requestedSlug,
     values: {
-      displayName: body.displayName.trim().slice(0, 60),
-      description: body.description.trim().slice(0, 280),
+      displayName: storedDisplayName,
+      description: storedDescription,
       spritesheetUrl: body.spritesheetUrl,
       petJsonUrl: body.petJsonUrl,
       zipUrl: body.zipUrl,
@@ -187,10 +194,10 @@ export async function persistSubmission(
         const resend = new Resend(resendKey);
         const locale = await getPreferredLocaleForUser(null);
         const email = renderNewSubmissionEmail(locale, {
-          displayName: body.displayName,
+          displayName: storedDisplayName,
           slug,
           from: principal.email ?? principal.userId,
-          description: body.description,
+          description: storedDescription,
           spritesheetUrl: body.spritesheetUrl,
           zipUrl: body.zipUrl,
         });
@@ -205,8 +212,7 @@ export async function persistSubmission(
         await sendEmail(
           resend,
           {
-            from:
-              process.env.RESEND_FROM ?? "Petdex <petdex@updates.railly.dev>",
+            from: emailEnv("RESEND_FROM", "Petdex <petdex@updates.railly.dev>"),
             to: ownerNotify,
             subject: email.subject,
             html: email.html,

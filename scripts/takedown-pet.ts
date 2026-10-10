@@ -25,6 +25,8 @@ import { petPublicArtifactKeys } from "@/lib/pet-public-artifact-keys";
 import { deleteR2Objects, keyFromR2Url } from "@/lib/r2";
 import { getPreferredLocaleForUser } from "@/lib/user-locale";
 
+import { emailEnv, sendEmail } from "../src/lib/email-send";
+
 type Args = {
   slug?: string;
   id?: string;
@@ -181,21 +183,30 @@ async function main() {
   if (pet.ownerEmail && process.env.RESEND_API_KEY) {
     try {
       const resend = new Resend(process.env.RESEND_API_KEY);
-      const from =
-        process.env.RESEND_FROM ?? "Petdex <petdex@updates.railly.dev>";
+      const from = emailEnv(
+        "RESEND_FROM",
+        "Petdex <petdex@updates.railly.dev>",
+      );
       const locale = await getPreferredLocaleForUser(pet.ownerId);
       const email = renderSubmissionTakedownEmail(locale, {
         petName: pet.displayName,
         reason: args.reason,
       });
-      await resend.emails.send({
-        from,
-        to: pet.ownerEmail,
-        subject: email.subject,
-        html: email.html,
-        text: email.text,
-      });
-      console.log(`email sent to ${pet.ownerEmail}`);
+      // sendEmail logs the rejection itself (Resend resolves 4xx/5xx with an
+      // `error` rather than throwing, so the old bare call dropped the failure
+      // silently); only claim success when it actually sent.
+      const sent = await sendEmail(
+        resend,
+        {
+          from,
+          to: pet.ownerEmail,
+          subject: email.subject,
+          html: email.html,
+          text: email.text,
+        },
+        `takedown ${pet.slug}`,
+      );
+      if (sent) console.log(`email sent to ${pet.ownerEmail}`);
     } catch (e) {
       console.warn("email failed:", e);
     }

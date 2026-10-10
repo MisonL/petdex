@@ -370,14 +370,21 @@ export function PetSubmitForm() {
         }
       }
 
-      const displayName =
+      // Slice to the same windows the server stores (60/280). Without this a
+      // long pet.json description prefills in full — the `maxLength` attribute
+      // only blocks new keystrokes — and the server's `trim().slice(0, 280)`
+      // then silently keeps the first 280 chars, so the author believed they
+      // had submitted what the form showed them.
+      const displayName = (
         typeof petJson.displayName === "string" && petJson.displayName.trim()
           ? petJson.displayName.trim()
-          : t("defaults.untitledPet");
-      const description =
+          : t("defaults.untitledPet")
+      ).slice(0, MAX_DISPLAY_NAME_LENGTH);
+      const description = (
         typeof petJson.description === "string" && petJson.description.trim()
           ? petJson.description.trim()
-          : t("defaults.description");
+          : t("defaults.description")
+      ).slice(0, MAX_DESCRIPTION_LENGTH);
       const petId =
         typeof petJson.id === "string" && petJson.id.trim()
           ? petJson.id.trim()

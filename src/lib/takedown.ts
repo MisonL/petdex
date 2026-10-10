@@ -14,7 +14,7 @@ import {
   revalidateCollectionTags,
 } from "@/lib/db/cached-aggregates";
 import { db, type schema } from "@/lib/db/client";
-import { sendEmail } from "@/lib/email-send";
+import { emailEnv, sendEmail } from "@/lib/email-send";
 import { renderSubmissionTakedownEmail } from "@/lib/email-templates/submission-takedown";
 import { createNotification } from "@/lib/notifications";
 import { petPublicArtifactKeys } from "@/lib/pet-public-artifact-keys";
@@ -253,8 +253,10 @@ export async function takedownPet(
     if (pet.ownerEmail && process.env.RESEND_API_KEY) {
       try {
         const resend = new Resend(process.env.RESEND_API_KEY);
-        const from =
-          process.env.RESEND_FROM ?? "Petdex <petdex@updates.railly.dev>";
+        const from = emailEnv(
+          "RESEND_FROM",
+          "Petdex <petdex@updates.railly.dev>",
+        );
         const locale = await getPreferredLocaleForUser(pet.ownerId);
         const email = renderSubmissionTakedownEmail(locale, {
           petName: pet.displayName,

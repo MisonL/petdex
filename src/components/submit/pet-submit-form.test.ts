@@ -55,3 +55,20 @@ describe("submit form register-stage failure handling", () => {
     expect(errorSites.length).toBeGreaterThanOrEqual(3);
   });
 });
+
+describe("submit form prefills within the stored window", () => {
+  // A pet.json description longer than the server stores used to prefill the
+  // form in full (`maxLength` blocks new keystrokes, not a prefilled value),
+  // and the server's `trim().slice(0, 280)` then silently kept the first 280,
+  // so the author saw text they had not actually submitted. The prefill now
+  // slices to the same constants the server uses.
+  test("the pet.json prefill slices display name and description", () => {
+    const at = source.indexOf("petJson.displayName.trim()");
+    expect(at, "prefill block missing").toBeGreaterThan(-1);
+    const block = source.slice(at, at + 700);
+    expect(block).toContain("MAX_DISPLAY_NAME_LENGTH");
+    expect(block).toContain("MAX_DESCRIPTION_LENGTH");
+    expect(block).toContain(".slice(0, MAX_DISPLAY_NAME_LENGTH)");
+    expect(block).toContain(".slice(0, MAX_DESCRIPTION_LENGTH)");
+  });
+});

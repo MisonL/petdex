@@ -6,7 +6,7 @@ import { Resend } from "resend";
 
 import { isAdmin } from "@/lib/admin";
 import { db, executeAtomicReturning, schema } from "@/lib/db/client";
-import { sendEmail } from "@/lib/email-send";
+import { emailEnv, sendEmail } from "@/lib/email-send";
 import { renderFeedbackAdminReplyEmail } from "@/lib/email-templates/feedback-admin-reply";
 import { renderFeedbackFollowUpEmail } from "@/lib/email-templates/feedback-follow-up";
 import { createNotification } from "@/lib/notifications";
@@ -202,8 +202,10 @@ export async function POST(
   if (process.env.RESEND_API_KEY) {
     try {
       const resend = new Resend(process.env.RESEND_API_KEY);
-      const from =
-        process.env.RESEND_FROM ?? "Petdex <petdex@updates.railly.dev>";
+      const from = emailEnv(
+        "RESEND_FROM",
+        "Petdex <petdex@updates.railly.dev>",
+      );
 
       if (adminCaller) {
         // Admin replied → notify the original author.
@@ -245,8 +247,10 @@ export async function POST(
         }
       } else {
         // User followed up → notify admin (Hunter).
-        const adminEmail =
-          process.env.PETDEX_ADMIN_NOTIFY_EMAIL ?? "railly@clerk.dev";
+        const adminEmail = emailEnv(
+          "PETDEX_ADMIN_NOTIFY_EMAIL",
+          "railly@clerk.dev",
+        );
         const excerpt = row.message.slice(0, 80);
         const email = renderFeedbackFollowUpEmail("en", {
           kindLabel: row.kind,

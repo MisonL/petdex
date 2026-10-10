@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, spyOn } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { sendEmail } from "./email-send";
+import { emailEnv, sendEmail } from "./email-send";
 
 // Resend's SDK does NOT reject on HTTP 4xx/5xx — it resolves with
 // `{ data: null, error }`. Every caller used to write
@@ -70,8 +70,64 @@ describe("sendEmail", () => {
 
   it("stays quiet on success", async () => {
     capture();
-    await sendEmail(fakeResend({ data: { id: "abc" } }), PAYLOAD, "test");
+    const ok = await sendEmail(
+      fakeResend({ data: { id: "abc" } }),
+      PAYLOAD,
+      "test",
+    );
     expect(logged).toHaveLength(0);
+    expect(ok).toBe(true);
+  });
+
+  it("reports false on a rejected or thrown send", async () => {
+    capture();
+    const rejected = await sendEmail(
+      fakeResend({ error: { name: "validation_error", message: "bad from" } }),
+      PAYLOAD,
+      "test notice",
+    );
+    const thrown = await sendEmail(
+      fakeResend(() => Promise.reject(new Error("socket hang up"))),
+      PAYLOAD,
+      "test notice",
+    );
+    expect(rejected).toBe(false);
+    expect(thrown).toBe(false);
+  });
+});
+
+describe("emailEnv treats a blank value as unset", () => {
+  // `.env.example` ships `RESEND_FROM=` and `PETDEX_ADMIN_NOTIFY_EMAIL=` blank.
+  // `??` kept `""`, so a copied example produced `from: ""` — which Resend
+  // rejects on every send.
+  const REAL_ENV = process.env.RESEND_FROM;
+
+  afterEach(() => {
+    if (REAL_ENV === undefined) delete process.env.RESEND_FROM;
+    else process.env.RESEND_FROM = REAL_ENV;
+  });
+
+  it("falls back when the variable is unset", () => {
+    delete process.env.RESEND_FROM;
+    expect(emailEnv("RESEND_FROM", "Fallback <f@x.dev>")).toBe(
+      "Fallback <f@x.dev>",
+    );
+  });
+
+  it("falls back when the variable is blank, not just unset", () => {
+    for (const blank of ["", "   "]) {
+      process.env.RESEND_FROM = blank;
+      expect(emailEnv("RESEND_FROM", "Fallback <f@x.dev>")).toBe(
+        "Fallback <f@x.dev>",
+      );
+    }
+  });
+
+  it("keeps a configured value exactly as written", () => {
+    process.env.RESEND_FROM = "Petdex <petdex@updates.railly.dev>";
+    expect(emailEnv("RESEND_FROM", "Fallback <f@x.dev>")).toBe(
+      "Petdex <petdex@updates.railly.dev>",
+    );
   });
 });
 
@@ -102,5 +158,24 @@ describe("app senders go through sendEmail", () => {
     const source = readFileSync(REPLIES, "utf8");
     expect(source).not.toContain("emails.send(");
     expect(source).toContain("sendEmail(");
+  });
+
+  // The one-off operator scripts that mail an affected creator: same Resend
+  // contract, same silent drop when they call `emails.send` bare.
+  const SCRIPT_SENDERS = [
+    "takedown-pet.ts",
+    "takedown-by-keyword.ts",
+    "revive-rejected-pets.ts",
+  ];
+
+  it("the operator scripts send through sendEmail too", () => {
+    for (const file of SCRIPT_SENDERS) {
+      const source = readFileSync(
+        join(import.meta.dir, "..", "..", "scripts", file),
+        "utf8",
+      );
+      expect(source, file).not.toContain("emails.send(");
+      expect(source, file).toContain("sendEmail(");
+    }
   });
 });

@@ -8,7 +8,7 @@ import {
 } from "@/lib/db/cached-aggregates";
 import type { SubmittedPet } from "@/lib/db/schema";
 import * as schema from "@/lib/db/schema";
-import { sendEmail } from "@/lib/email-send";
+import { emailEnv, sendEmail } from "@/lib/email-send";
 import { renderSubmissionApprovedEmail } from "@/lib/email-templates/submission-approved";
 import { renderSubmissionRejectedEmail } from "@/lib/email-templates/submission-rejected";
 
@@ -359,8 +359,7 @@ async function notifySubmissionOwner(row: SubmittedPet): Promise<void> {
 
   try {
     const resend = new Resend(process.env.RESEND_API_KEY);
-    const from =
-      process.env.RESEND_FROM ?? "Petdex <petdex@updates.railly.dev>";
+    const from = emailEnv("RESEND_FROM", "Petdex <petdex@updates.railly.dev>");
     const { getPreferredLocaleForUser } = await import("@/lib/user-locale");
     const locale = await getPreferredLocaleForUser(row.ownerId);
 
