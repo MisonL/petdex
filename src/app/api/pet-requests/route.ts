@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { neon } from "@neondatabase/serverless";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 
 import { db, executeAtomicReturning, rowsOf, schema } from "@/lib/db/client";
 import {
@@ -18,6 +18,7 @@ import { R2_PUBLIC_BASE } from "@/lib/r2";
 import { petRequestRatelimit } from "@/lib/ratelimit";
 import { requireSameOrigin } from "@/lib/same-origin";
 import { containsUrl, URL_BLOCKED_REASON } from "@/lib/url-blocklist";
+import { fetchVisibleRequestVotes } from "@/lib/visible-request-votes";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -114,18 +115,17 @@ export async function GET(req: Request): Promise<Response> {
     myVotes = new Set(v.map((r) => r.requestId));
   }
 
-  // Top voters per request, most-recent first.
-  type VoteRow = { requestId: string; userId: string };
-  const votes: VoteRow[] = requestIds.length
-    ? ((await db
-        .select({
-          requestId: schema.petRequestVotes.requestId,
-          userId: schema.petRequestVotes.userId,
-        })
-        .from(schema.petRequestVotes)
-        .where(inArray(schema.petRequestVotes.requestId, requestIds))
-        .orderBy(desc(schema.petRequestVotes.createdAt))) as VoteRow[])
-    : [];
+  // Top voters per request, most-recent first. Same SQL-side cap the /requests
+  // page uses (fetchVisibleRequestVotes): the old select here took *every* vote
+  // row for all 80 listed requests and threw all but 3-per-request away in JS,
+  // so one popular request made each list refresh pull the whole vote history
+  // across the wire. The ranking and the requester exclusion now happen in SQL,
+  // and a PGlite test beside the helper pins both.
+  const votes = await fetchVisibleRequestVotes(
+    db,
+    requestIds,
+    VISIBLE_VOTER_LIMIT,
+  );
 
   // Batch one Clerk lookup for all relevant userIds (requesters + voters).
   const userIdSet = new Set<string>();
