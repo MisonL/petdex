@@ -120,10 +120,11 @@ async function main() {
   // Best-effort embedding refresh so the revived pets show up in vibe search.
   if (!dryRun) {
     await invalidatePetCaches(...revivedSlugs);
-    console.log("\nKick off similarity refresh via /api/admin/edits is not");
-    console.log("strictly needed — the daily auto-tag cron picks them up.");
     console.log(
-      "If you want them in vibe search immediately, run:\n  bun scripts/refresh-similarity.ts",
+      "\nEmbeddings are not recomputed here; the daily auto-tag cron picks",
+    );
+    console.log(
+      "the revived pets up. To refresh them now, run:\n  bun scripts/compute-similarity.ts",
     );
   }
 
