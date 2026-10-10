@@ -543,7 +543,12 @@ function rowToSchema(
   };
 }
 
-function orderForSort(
+// Exported for its test: the page cursor is a raw OFFSET, so every branch has
+// to end in a unique column or a tie lets a row be skipped or repeated across
+// pages. The same suite's "page order" cases render each sort and assert the
+// final clause is `slug`; nothing else pins that, and the bug (only `alpha`
+// was total) shipped once.
+export function orderForSort(
   key: SortKey,
   installCountSql: SQL<number>,
   likeCountSql: SQL<number>,
@@ -551,9 +556,20 @@ function orderForSort(
 ) {
   switch (key) {
     case "popular":
-      return [desc(likeCountSql), asc(schema.submittedPets.displayName)];
+      // slug is the final tiebreak in every branch below: displayName is not
+      // unique and the cursor is a raw OFFSET, so a non-total order lets a
+      // row be skipped or repeated across pages. Same reasoning as `alpha`.
+      return [
+        desc(likeCountSql),
+        asc(schema.submittedPets.displayName),
+        asc(schema.submittedPets.slug),
+      ];
     case "installed":
-      return [desc(installCountSql), asc(schema.submittedPets.displayName)];
+      return [
+        desc(installCountSql),
+        asc(schema.submittedPets.displayName),
+        asc(schema.submittedPets.slug),
+      ];
     case "alpha":
       // displayName is not unique, and the cursor is a raw OFFSET — two pets
       // sharing a name (nothing constrains it) would let a row be skipped or
@@ -568,6 +584,7 @@ function orderForSort(
       return [
         desc(schema.submittedPets.approvedAt),
         asc(schema.submittedPets.displayName),
+        asc(schema.submittedPets.slug),
       ];
     default: {
       // Per-visitor stable shuffle: featured pets keep their pinned
@@ -578,14 +595,19 @@ function orderForSort(
       // (e.g. cookies disabled, server-side debug calls).
       // See https://github.com/crafter-station/petdex/issues/82
       if (shuffleSeed) {
+        // md5(slug||seed) is already unique per slug, so it is total on its
+        // own; the featured tier is prepended and slug keeps it total when
+        // the hash collides.
         return [
           desc(schema.submittedPets.featured),
           sql`md5(${schema.submittedPets.slug} || ${shuffleSeed})`,
+          asc(schema.submittedPets.slug),
         ];
       }
       return [
         desc(schema.submittedPets.featured),
         asc(schema.submittedPets.displayName),
+        asc(schema.submittedPets.slug),
       ];
     }
   }

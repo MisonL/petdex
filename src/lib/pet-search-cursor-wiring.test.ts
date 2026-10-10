@@ -10,10 +10,14 @@
 // stand-in that records the builder calls and resolves them to no rows.
 import { afterAll, describe, expect, it, mock } from "bun:test";
 
+import { sql } from "drizzle-orm";
+import { PgDialect } from "drizzle-orm/pg-core";
+
 import * as schema from "@/lib/db/schema";
 import { MAX_CURSOR } from "@/lib/pet-search-cursor";
 
 const offsets: unknown[] = [];
+const orderByCalls: unknown[][] = [];
 
 type Chain = Record<string, (...args: unknown[]) => Chain> & {
   then: (resolve: (value: unknown[]) => void) => void;
@@ -29,6 +33,7 @@ function recordingChain(): Chain {
       }
       return (...args: unknown[]) => {
         if (property === "offset") offsets.push(args[0]);
+        if (property === "orderBy") orderByCalls.push(args);
         return chain;
       };
     },
@@ -63,7 +68,7 @@ mock.module("@/lib/db/client", () => ({
   rowsOf: () => [],
 }));
 
-const { searchPets } = await import("@/lib/pet-search");
+const { searchPets, orderForSort } = await import("@/lib/pet-search");
 
 afterAll(() => {
   mock.restore();
@@ -86,5 +91,41 @@ describe("searchPets cursor wiring", () => {
     await searchPets({ sort: "alpha", cursor: 48 });
 
     expect(offsets).toEqual([48]);
+  });
+});
+
+// The cursor is a raw OFFSET, so a non-total order silently skips or repeats a
+// row when two pets tie. `displayName` is not unique and nothing constrains it;
+// `slug` is. Only `alpha` ended in slug before — the other four sorts tied and
+// drifted across pages. Render the real ORDER BY each branch produces and
+// require `slug` to be the last key in every one.
+describe("searchPets page order is total", () => {
+  const dialect = new PgDialect();
+  const counts = sql<number>`coalesce(pm.like_count, 0)`;
+  const keys = ["popular", "installed", "alpha", "recent"] as const;
+
+  for (const key of keys) {
+    it(`${key} ends the order in the unique slug`, () => {
+      const rendered = orderForSort(key, counts, counts, "seed").map(
+        (e) => dialect.sqlToQuery(e).sql,
+      );
+      expect(rendered.length).toBeGreaterThan(1);
+      expect(rendered.at(-1)).toContain(`"slug"`);
+    });
+  }
+
+  it("curated without a seed ends in slug", () => {
+    const rendered = orderForSort("curated", counts, counts).map(
+      (e) => dialect.sqlToQuery(e).sql,
+    );
+    expect(rendered.at(-1)).toContain(`"slug"`);
+  });
+
+  it("the seeded shuffle orders by hash and still ends in slug", () => {
+    const rendered = orderForSort("curated", counts, counts, "seed").map(
+      (e) => dialect.sqlToQuery(e).sql,
+    );
+    expect(rendered.some((s) => s.includes("md5"))).toBe(true);
+    expect(rendered.at(-1)).toContain(`"slug"`);
   });
 });
