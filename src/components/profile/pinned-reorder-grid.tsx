@@ -433,7 +433,7 @@ function SortablePinnedPet({
             maxPins: MAX_PINNED_PETS,
             onPinChange: (isPinned) => onPinChange?.(pet.slug, isPinned),
             disabled: pinActionsDisabled,
-            disabledTitle: "Pinned order is saving",
+            disabledTitle: tp("pinSaving"),
           }}
           actionMode="profilePinHover"
         />
