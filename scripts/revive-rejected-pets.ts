@@ -4,6 +4,15 @@
 // all to approved, refresh embeddings, and email the owners with an
 // apology + the same launch checklist as a fresh approval.
 //
+// The duplicate reason is the ONLY one this rescue covers, so the query
+// filters for it: `rejectionReasonForDecision` writes a fixed sentence for a
+// duplicate rejection, while a security rejection stores the review's own
+// summary (`security_malicious_pet_json` and friends). Reviving every
+// `status = 'rejected'` row indiscriminately would put a submission the
+// scanner flagged as malicious back on the gallery and erase the reason.
+const DUPLICATE_REASON_PREFIX = "This submission appears to duplicate";
+
+//
 // Dry run by default (prints what it would do), like the other maintenance
 // scripts: this flips every rejected row to approved and emails real people,
 // so the destructive pass has to be asked for explicitly with --apply.
@@ -13,6 +22,7 @@ import { Resend } from "resend";
 
 import { invalidatePetCaches } from "../src/lib/db/cached-aggregates";
 import { emailEnv, sendEmail } from "../src/lib/email-send";
+import { sanitizeSubject } from "../src/lib/email-templates/shared";
 
 const PROD_URL = "https://petdex.dev";
 const databaseUrl = process.env.DATABASE_URL;
@@ -32,6 +42,7 @@ async function main() {
     SELECT id, slug, display_name, owner_email, owner_id, rejection_reason
     FROM submitted_pets
     WHERE status = 'rejected'
+      AND rejection_reason LIKE ${`${DUPLICATE_REASON_PREFIX}%`}
     ORDER BY rejected_at DESC
   `) as Array<{
     id: string;
@@ -76,7 +87,9 @@ async function main() {
         {
           from,
           to: row.owner_email,
-          subject: `Update: ${row.display_name} is live on Petdex after all`,
+          subject: sanitizeSubject(
+            `Update: ${row.display_name} is live on Petdex after all`,
+          ),
           text: [
             `Heads up: earlier we declined "${row.display_name}" as a duplicate. That was a bad call. Petdex is happy to host similar pets, especially when they're yours.`,
             "",
