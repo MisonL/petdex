@@ -145,6 +145,55 @@ describe("Petdex MCP server stdio", () => {
     });
   });
 
+  test("refuses a frame whose declared length is past the ceiling", async () => {
+    // A framed client that declares a huge Content-Length would otherwise make
+    // the server buffer up to the declaration before it can parse anything.
+    // The server refuses the declaration and keeps serving, so a following
+    // valid frame still gets an answer.
+    const oversized = `Content-Length: 999999999\r\n\r\n`;
+    const initialize = frame({
+      jsonrpc: "2.0",
+      id: 7,
+      method: "initialize",
+      params: { protocolVersion: "2025-03-26" },
+    });
+
+    const result = await runServer(oversized + initialize);
+
+    expect(result.code).toBe(0);
+    // The first response is the refusal (id null, parse error), then the
+    // initialize is answered normally.
+    expect(result.frames[0]).toMatchObject({
+      jsonrpc: "2.0",
+      id: null,
+      error: { code: -32700 },
+    });
+    expect(result.frames[1]).toMatchObject({
+      jsonrpc: "2.0",
+      id: 7,
+      result: { serverInfo: { name: "petdex-mcp-server" } },
+    });
+  });
+
+  test("refuses a JSONL line that never terminates within the ceiling", async () => {
+    // No newline ever arrives and the buffer passes the ceiling: the server
+    // answers with a parse error rather than growing memory without bound.
+    // (One byte over the cap, so the test stays cheap.)
+    const cap = 16 * 1024 * 1024;
+    const blob = `{"jsonrpc":"2.0","id":1,"method":"initialize","padding":"${"x".repeat(
+      cap,
+    )}"}`;
+
+    const result = await runServer(blob);
+
+    expect(result.code).toBe(0);
+    expect(result.frames[0]).toMatchObject({
+      jsonrpc: "2.0",
+      id: null,
+      error: { code: -32700 },
+    });
+  });
+
   test("accepts Antigravity JSONL initialize request", async () => {
     const initialize = `${JSON.stringify({
       jsonrpc: "2.0",
