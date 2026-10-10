@@ -390,6 +390,11 @@ export function PetSubmitForm() {
           ? petJson.id.trim()
           : petIdFromName;
 
+      // Guarded like the catch below: a second selection taken while this
+      // parse was still reading bumps `parseSeqRef` at the top, and without
+      // this check the slower, older parse would still land and replace the
+      // newer package on screen — the race the catch's guard exists to stop.
+      if (seq !== parseSeqRef.current) return;
       setParsed({
         petId,
         displayName,
