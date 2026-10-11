@@ -758,6 +758,7 @@
     "chapters": {
       "eyebrow": "生态系统指南",
       "title": "按章节探索",
+      "label": "第 {number} 章",
       "description": "按类别浏览 Petdex 生态系统。每个章节重点介绍开发者发布的内容以及他们如何让 Petdex 生动起来。",
       "viewAll": "查看全部（{count}）"
     },

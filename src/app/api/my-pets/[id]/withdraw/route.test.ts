@@ -36,6 +36,25 @@ let deletedBatches = 0;
 // Whether the guarded pet DELETE matched a row. false models a concurrent
 // approve/claim winning between the route's read and its write.
 let petDeleted = true;
+// The statements the route handed to `executeAtomicReturning`, rendered to
+// SQL text. The route's race guard reads the pet DELETE's rows, so that
+// statement MUST carry `RETURNING` — without it every driver reports zero
+// rows and the guard would deny a withdraw that in fact succeeded. The stub
+// below cannot model that (it fabricates rows), so assert on the SQL instead.
+let atomicStatements: string[] = [];
+
+function statementText(query: unknown): string {
+  const chunks = (
+    query as { getSQL?: () => { queryChunks?: unknown[] } }
+  )?.getSQL?.()?.queryChunks;
+  if (!Array.isArray(chunks)) return "";
+  return chunks
+    .map((chunk) => {
+      const value = (chunk as { value?: unknown }).value;
+      return Array.isArray(value) ? value.join("") : String(value ?? "");
+    })
+    .join("");
+}
 
 mock.module("server-only", () => ({}));
 mock.module("@clerk/nextjs/server", () => ({
@@ -53,7 +72,10 @@ mock.module("@/lib/db/client", () => ({
   schema,
   // Statement order is [pet delete, reviews delete]; only the pet delete's
   // rows decide whether the withdraw took effect.
-  executeAtomicReturning: async () => [petDeleted ? [{ id: ROW.id }] : [], []],
+  executeAtomicReturning: async (statements: unknown[]) => {
+    atomicStatements = statements.map(statementText);
+    return [petDeleted ? [{ id: ROW.id }] : [], []];
+  },
   rowsOf: (result: unknown) => (Array.isArray(result) ? result : []),
 }));
 
@@ -83,6 +105,7 @@ beforeEach(() => {
   deleted = [];
   deletedBatches = 0;
   petDeleted = true;
+  atomicStatements = [];
 });
 
 /**
@@ -109,6 +132,17 @@ async function withdraw(): Promise<Response> {
 }
 
 describe("withdraw asset cleanup", () => {
+  it("returns the rows the race guard reads, so a lost race is visible", async () => {
+    // Without `RETURNING` the pet DELETE reports zero rows on every driver,
+    // which would make the route answer "only_pending_can_be_withdrawn" for
+    // the withdraw it just performed. Asserted on the SQL text because the
+    // stub above fabricates the rows and cannot model a driver's behaviour.
+    await withdraw();
+    expect(atomicStatements).toHaveLength(2);
+    expect(atomicStatements[0]).toContain("RETURNING");
+    expect(atomicStatements[0]).toContain("'pending'");
+  });
+
   it("deletes the owner's orphaned assets when nothing references them", async () => {
     const res = await withdraw();
     expect(res.status).toBe(200);

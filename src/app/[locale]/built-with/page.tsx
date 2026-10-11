@@ -346,7 +346,9 @@ export default async function BuiltWithPage({
                     <div className="flex items-center gap-3">
                       <Icon className="size-5 text-brand" weight="duotone" />
                       <span className="font-mono text-[10px] tracking-[0.18em] text-muted-2 uppercase">
-                        Chapter 0{categoryIndex + 1}
+                        {t("chapters.label", {
+                          number: String(categoryIndex + 1).padStart(2, "0"),
+                        })}
                       </span>
                     </div>
                     <h3 className="mt-5 text-2xl font-semibold tracking-[-0.025em]">

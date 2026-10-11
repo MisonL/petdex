@@ -64,8 +64,15 @@ export async function POST(
   // deleting a pet that is no longer the pending row we validated. The reviews
   // delete then runs only when the pet row is actually gone, so a lost race
   // takes neither the pet nor its reviews.
+  //
+  // `RETURNING "id"` is what makes the guard below able to see the race at
+  // all: a DELETE without it reports no rows on every driver, so `rowsOf`
+  // would read empty whether the pet was removed or not — the withdraw would
+  // delete the pet and still answer "only_pending_can_be_withdrawn". The
+  // reviews delete needs no RETURNING; its own NOT EXISTS predicate already
+  // ties it to the pet's disappearance.
   const withdrawResults = await executeAtomicReturning([
-    sql`DELETE FROM "submitted_pets" WHERE "id" = ${id} AND "owner_id" = ${userId} AND "status" = 'pending'`,
+    sql`DELETE FROM "submitted_pets" WHERE "id" = ${id} AND "owner_id" = ${userId} AND "status" = 'pending' RETURNING "id"`,
     sql`DELETE FROM "submission_reviews" WHERE "submitted_pet_id" = ${id} AND NOT EXISTS (SELECT 1 FROM "submitted_pets" WHERE "id" = ${id})`,
   ]);
   if (rowsOf(withdrawResults[0]).length === 0) {

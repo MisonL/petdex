@@ -664,6 +664,7 @@
     "chapters": {
       "eyebrow": "La guía del ecosistema",
       "title": "Explora por capítulo",
+      "label": "Capítulo {number}",
       "description": "Recorre el ecosistema Petdex por categoría. Cada capítulo muestra qué están shippeando y cómo le dan vida a Petdex.",
       "viewAll": "Ver todos ({count})"
     },

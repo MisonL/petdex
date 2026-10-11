@@ -664,6 +664,7 @@
     "chapters": {
       "eyebrow": "The ecosystem field guide",
       "title": "Explore by chapter",
+      "label": "Chapter {number}",
       "description": "Browse the Petdex ecosystem by category. Each chapter highlights what builders ship and how they bring Petdex to life.",
       "viewAll": "View all ({count})"
     },
