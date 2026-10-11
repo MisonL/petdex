@@ -70,7 +70,17 @@ async function ephemeralNotice(
   } catch {
     /* already gone */
   }
-  await interaction.followUp({ content, ephemeral: true });
+  // Interaction responses parse user mentions by default, and the
+  // `/install` slug is caller input interpolated into the notice — the
+  // `No pet with slug \`${slug}\`` line lets a slug containing backticks
+  // close the code span early and leave a bare `<@id>` in plain text
+  // (measured: slug `a\`<@id>b` renders the mention live). Suppress every
+  // mention type here; there is none worth keeping.
+  await interaction.followUp({
+    content,
+    ephemeral: true,
+    allowedMentions: { parse: [] },
+  });
 }
 
 export const handlers: Record<string, Handler> = {
