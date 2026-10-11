@@ -27,24 +27,48 @@ const SITE_ORIGINS = new Set<string>([
 ]);
 
 /**
- * The `*.vercel.app` hosts this deployment answers on, as exact hosts.
+ * The origins this deployment answers on as a Vercel deployment (preview or
+ * production), as exact `protocol//host` strings.
  *
- * A bare `host.endsWith(".vercel.app")` check was here, and it defeated the
- * point of the module: `vercel.app` is a public suffix anyone can deploy
- * under, so `https://evil.vercel.app` passed the origin check and could POST
- * to every `requireSameOrigin` endpoint with the visitor's Clerk cookie —
- * the exact cross-site write this file exists to stop. Vercel sets these
- * three env vars on the deployment itself, so the real hosts are known and
- * a suffix match is not needed.
+ * Compared as a full origin, not a bare host, for the same reason as
+ * `SITE_ORIGINS` above: these vars are set on the deployment's own hosts, so
+ * the scheme is known and has to match. A host-only check admitted
+ * `http://<this deployment's host>` on an https deployment — the plaintext
+ * twin of an origin this app does not serve, carryable by a browser that
+ * reached the host before the Cloudflare 308/HSTS applied.
+ *
+ * A bare `host.endsWith(".vercel.app")` check was also here once, and it
+ * defeated the point of the module: `vercel.app` is a public suffix anyone
+ * can deploy under, so `https://evil.vercel.app` passed the origin check and
+ * could POST to every `requireSameOrigin` endpoint with the visitor's Clerk
+ * cookie — the exact cross-site write this file exists to stop. Vercel sets
+ * these three env vars on the deployment itself, so the real hosts are known
+ * and a suffix match is not needed.
  */
-function vercelHosts(): string[] {
-  return [
+function vercelOrigins(): string[] {
+  const origins = new Set<string>();
+  for (const value of [
     process.env.VERCEL_URL,
     process.env.VERCEL_BRANCH_URL,
     process.env.VERCEL_PROJECT_PRODUCTION_URL,
-  ]
-    .filter((value): value is string => Boolean(value))
-    .map((value) => value.split("/")[0]);
+  ]) {
+    if (!value) continue;
+    // Vercel sets these as bare hosts (`my-app-abc123.vercel.app`), but a
+    // deployment that sets them itself may include a scheme; accept either and
+    // pin the scheme to https, which is what Vercel serves. A value that
+    // parses to nothing contributes nothing — the allowlist must only hold
+    // origins someone configured on purpose.
+    const candidate = value.includes("://") ? value : `https://${value}`;
+    let url: URL;
+    try {
+      url = new URL(candidate);
+    } catch {
+      continue;
+    }
+    if (!url.host || url.origin === "null") continue;
+    origins.add(url.origin);
+  }
+  return [...origins];
 }
 
 /**
@@ -103,7 +127,7 @@ export function isSameOrigin(req: Request): boolean {
     // configured one: an `http://` deployment must not accept an `https://`
     // origin of the same host, and vice versa.
     if (configuredOrigins().has(parsed.origin)) return true;
-    return vercelHosts().includes(parsed.host);
+    return vercelOrigins().includes(parsed.origin);
   }
   // No Origin header. Use Sec-Fetch-Site as a fallback. Only `same-origin`
   // and `none` qualify: `same-site` covers sibling subdomains, which are not

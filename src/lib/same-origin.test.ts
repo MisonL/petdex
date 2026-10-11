@@ -60,6 +60,29 @@ describe("isSameOrigin", () => {
     );
   });
 
+  test("the vercel branch compares the scheme too", () => {
+    // `VERCEL_URL` names an https host, so the plaintext twin of the
+    // deployment's own origin is not an origin this app serves — the same
+    // reason `http://petdex.dev` is refused above. The host-only comparison
+    // this used to do admitted it.
+    process.env.VERCEL_URL = "petdex-git-main-acme.vercel.app";
+    expect(isSameOrigin(post("http://petdex-git-main-acme.vercel.app"))).toBe(
+      false,
+    );
+    expect(isSameOrigin(post("https://petdex-git-main-acme.vercel.app"))).toBe(
+      true,
+    );
+  });
+
+  test("a scheme-less VERCEL_URL still admits its https origin", () => {
+    // The env var is a bare host on Vercel today; the bare value must keep
+    // working, not silently drop out of the allowlist.
+    process.env.VERCEL_URL = "petdex-git-main-acme.vercel.app";
+    expect(isSameOrigin(post("https://petdex-git-main-acme.vercel.app"))).toBe(
+      true,
+    );
+  });
+
   test("rejects an unrelated origin", () => {
     expect(isSameOrigin(post("https://attacker.example.com"))).toBe(false);
   });

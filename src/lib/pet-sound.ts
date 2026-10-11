@@ -172,7 +172,19 @@ export async function buildSoundBrief(
   });
 
   const raw = result.text;
-  const parsed = JSON.parse(raw) as Partial<SoundBrief>;
+  // The model is asked for a bare object and answers with a code fence or a
+  // sentence of prose around it often enough that the strict parse below threw
+  // a SyntaxError on replies that were perfectly good — and the throw landed
+  // ahead of the shape check, so the intended `invalid_brief_shape` error was
+  // unreachable for malformed JSON. Slicing to the outer braces first, the
+  // same extraction `parsePolicyJson` and `textPolicyModerationPasses` do for
+  // their model replies.
+  const start = raw.indexOf("{");
+  const end = raw.lastIndexOf("}");
+  if (start === -1 || end === -1 || end <= start) {
+    throw new Error("invalid_brief_shape");
+  }
+  const parsed = JSON.parse(raw.slice(start, end + 1)) as Partial<SoundBrief>;
 
   if (
     typeof parsed.promptForElevenLabs !== "string" ||
