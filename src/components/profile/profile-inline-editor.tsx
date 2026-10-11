@@ -10,6 +10,7 @@ import { MAX_PINNED_PETS } from "@/lib/profiles";
 import { useFocusTrap } from "@/lib/use-focus-trap";
 
 import { useHeaderState } from "@/components/layout/header-state-provider";
+import { profileErrorKey } from "@/components/profile/profile-error-key";
 
 type ApprovedPet = {
   slug: string;
@@ -46,6 +47,7 @@ export function ProfileInlineEditor({
   const [pinned, setPinned] = useState<string[]>(initialFeaturedSlugs);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const errorKey = profileErrorKey(error);
   const { refresh: refreshHeaderState } = useHeaderState();
   const [, startTransition] = useTransition();
 
@@ -73,41 +75,6 @@ export function ProfileInlineEditor({
   // `handle_${validation}`, and the validator returns too_short, too_long,
   // invalid_format and reserved); anything else falls back to one message
   // carrying the code.
-  const errorKey = (() => {
-    if (!error) return null;
-    switch (error) {
-      case "unauthorized":
-        return "unauthorized";
-      case "rate_limited":
-        return "rateLimited";
-      case "invalid_display_name":
-        return "invalidDisplayName";
-      case "invalid_handle":
-      case "handle_invalid_format":
-        return "invalidHandle";
-      case "handle_too_short":
-        return "handleTooShort";
-      case "handle_too_long":
-        return "handleTooLong";
-      case "handle_reserved":
-        return "handleReserved";
-      case "handle_taken":
-        return "handleTaken";
-      case "invalid_bio":
-        return "invalidBio";
-      case "invalid_featured":
-        return "invalidFeatured";
-      case "pin_cap_reached":
-        return "pinCapReached";
-      case "pet_not_owned_or_not_approved":
-        return "petNotOwned";
-      case "nothing_to_update":
-        return "nothingToUpdate";
-      default:
-        return null;
-    }
-  })();
-
   function togglePin(slug: string) {
     setPinned((prev) => {
       if (prev.includes(slug)) return prev.filter((s) => s !== slug);
