@@ -7,6 +7,16 @@ import { assertZipEntriesWithinLimits } from "./zip-guard.js";
 
 export const MAX_EDIT_ASSET_BYTES = 8 * 1024 * 1024;
 
+// The largest a sprite may declare, mirroring the server's ceiling in
+// `src/lib/sprite-atlas.ts` (3x the v2 8x11 sheet = 4608x6864). The validator
+// here reads a PNG's IHDR before trusting its pixels, and the byte cap above
+// only bounds the compressed size, so without a declared-dimension ceiling a
+// tiny file can name dimensions the row-builder and inflater would then try to
+// materialize. Kept as a copy, not an import: this is a standalone package.
+const MAX_SPRITE_WIDTH = 4608;
+const MAX_SPRITE_HEIGHT = 6864;
+const MAX_SPRITE_DECODED_BYTES = 128 * 1024 * 1024;
+
 export type SpriteFormat = "png" | "webp";
 
 export type ValidatedSprite = {
@@ -175,6 +185,12 @@ function parsePng(buffer: Buffer): ImageDimensions | null {
   if (
     header.width === 0 ||
     header.height === 0 ||
+    // A u32 height is attacker-chosen, and `pngPassRows` builds an array with
+    // one entry per row before anything checks the size: a 68-byte file
+    // declaring 4294967295 rows allocates a 4-billion-element array and the
+    // call never returns. Reject an impossible sheet here, before the build.
+    header.width > MAX_SPRITE_WIDTH ||
+    header.height > MAX_SPRITE_HEIGHT ||
     !pngChannels(header.colorType) ||
     !pngBitDepthAllowed(header.colorType, header.bitDepth) ||
     (header.interlace !== 0 && header.interlace !== 1)
@@ -194,11 +210,19 @@ function parsePng(buffer: Buffer): ImageDimensions | null {
     (total, rowBytes) => total + rowBytes + 1,
     0,
   );
-  if (expectedBytes > 128 * 1024 * 1024) return null;
+  if (expectedBytes > MAX_SPRITE_DECODED_BYTES) return null;
 
   let decoded: Buffer;
   try {
-    decoded = inflateSync(Buffer.concat(idat));
+    // `maxOutputLength` bounds the inflate itself: a DEFLATE stream can expand
+    // far past the size its header declares (measured: a 130 KB file inflates
+    // to 128 MB), so checking `decoded.length` afterwards would already have
+    // allocated the buffer. Cap the output at the declared size and treat the
+    // overrun as a malformed file; the length check below then still holds for
+    // a stream that stops short.
+    decoded = inflateSync(Buffer.concat(idat), {
+      maxOutputLength: expectedBytes,
+    });
   } catch {
     return null;
   }
