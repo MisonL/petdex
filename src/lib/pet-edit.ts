@@ -512,6 +512,23 @@ async function queueEdit(
     if (!hasAssetKeys) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
+    // The asset-path update has two predicates — `owner_id = userId` and the
+    // GC-claim NOT EXISTS — and a miss could be either. Re-read ownership to
+    // tell them apart: a row that is gone or reassigned answers 404 like the
+    // text path and like `tryAutoAccept`'s comment promises, and only a row we
+    // still own falls through to the claim verdict. Reporting the claim's 409
+    // for a lost-ownership race told the caller an asset was unavailable when
+    // the pet was no longer theirs.
+    const stillOwned = await db.query.submittedPets.findFirst({
+      where: and(
+        eq(schema.submittedPets.id, id),
+        eq(schema.submittedPets.ownerId, userId),
+      ),
+      columns: { id: true },
+    });
+    if (!stillOwned) {
+      return NextResponse.json({ error: "not_found" }, { status: 404 });
+    }
     return NextResponse.json(
       {
         error: "asset_no_longer_available",

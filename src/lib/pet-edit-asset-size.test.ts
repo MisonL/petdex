@@ -42,6 +42,12 @@ let row: typeof ROW;
 let writeThrows = true;
 let updateRows: unknown[] = [];
 const updateWheres: unknown[] = [];
+// `findFirst` is called more than once on the asset path: once by
+// applyPetEdit's up-front ownership read, and again by queueEdit's re-read
+// after a guarded write misses. `findFirstResults` (when set) hands out one
+// result per call so a test can model the row vanishing between the two.
+let findFirstResults: Array<typeof ROW | null> | null = null;
+let findFirstCalls = 0;
 
 const ROW = {
   id: "pet_1",
@@ -79,7 +85,21 @@ mock.module("@/lib/ratelimit", () => ({
 }));
 mock.module("@/lib/db/client", () => ({
   db: {
-    query: { submittedPets: { findFirst: async () => row } },
+    query: {
+      submittedPets: {
+        findFirst: async () => {
+          findFirstCalls += 1;
+          if (findFirstResults) {
+            return (
+              findFirstResults[
+                Math.min(findFirstCalls - 1, findFirstResults.length - 1)
+              ] ?? null
+            );
+          }
+          return row;
+        },
+      },
+    },
     update: () => ({
       set: () => ({
         where: (condition: unknown) => {
@@ -94,7 +114,23 @@ mock.module("@/lib/db/client", () => ({
     }),
     execute: () => {
       wrote = true;
-      throw new Error("write reached before the size check");
+      if (writeThrows) {
+        throw new Error("write reached before the size check");
+      }
+      // A query carrier for the batch below; the asset-path write builds its
+      // statements with `db.execute(...)` and hands them to `db.batch`.
+      return { __sql: true };
+    },
+    // The asset path (`queueAssetEditWithClaimGuard`) needs one of these two,
+    // and takes `batch` first. Its second statement is the guarded UPDATE, so
+    // `updateRows` decides what the write "matched".
+    batch: async (queries: readonly unknown[]) => {
+      wrote = true;
+      if (writeThrows) {
+        throw new Error("write reached before the size check");
+      }
+      if (queries.length !== 2) throw new Error("expected two statements");
+      return [undefined, { rows: updateRows }];
     },
   },
   // The real schema: `applyPetEdit` builds its WHERE from
@@ -109,6 +145,8 @@ const { applyPetEdit } = await import("@/lib/pet-edit");
 beforeEach(() => {
   wrote = false;
   row = { ...ROW };
+  findFirstResults = null;
+  findFirstCalls = 0;
   contentLength = PET_ASSET_MAX_BYTES + 1;
   updateRows = [];
   updateWheres.length = 0;
@@ -236,5 +274,62 @@ describe("applyPetEdit ownership re-check on the write", () => {
     });
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: "not_found" });
+  });
+});
+
+describe("queueEdit distinguishes a lost race from a claimed asset", () => {
+  // The asset-path write has two predicates — owner_id and the GC-claim NOT
+  // EXISTS — so a miss could be either. Reporting the claim's 409 for a
+  // lost-ownership race told the caller an asset was unavailable when the pet
+  // was no longer theirs; the text path and tryAutoAccept's comment both
+  // promise 404. This pins the re-read that tells them apart.
+  beforeEach(() => {
+    writeThrows = false;
+    updateWheres.length = 0;
+    // An existing pending edit keeps this off the AI-judged auto-accept path.
+    row.pendingSubmittedAt = new Date();
+    // Within the limit, so the size guard does not short-circuit to 400 and
+    // the request reaches the guarded write under test.
+    contentLength = PET_ASSET_MAX_BYTES - 1;
+  });
+
+  it("answers 404 when the row is no longer the caller's", async () => {
+    // Call 1: applyPetEdit's ownership read sees the row. Call 2: the guarded
+    // write misses, so queueEdit re-reads — and the row is gone.
+    findFirstResults = [{ ...ROW }, null];
+    updateRows = [];
+    const res = await applyPetEdit({
+      id: "pet_1",
+      userId: "user_1",
+      body: {
+        spritesheetUrl: PENDING_SPRITE,
+        spritesheetWidth: 1536,
+        spritesheetHeight: 2288,
+        spriteVersionNumber: 2,
+      },
+    });
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "not_found" });
+  });
+
+  it("answers 409 when the row is still owned but its asset was claimed", async () => {
+    // Same guarded write, same miss — but the re-read still finds our own row,
+    // so the only explanation left is the GC claim.
+    findFirstResults = [{ ...ROW }, { ...ROW }];
+    updateRows = [];
+    const res = await applyPetEdit({
+      id: "pet_1",
+      userId: "user_1",
+      body: {
+        spritesheetUrl: PENDING_SPRITE,
+        spritesheetWidth: 1536,
+        spritesheetHeight: 2288,
+        spriteVersionNumber: 2,
+      },
+    });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({
+      error: "asset_no_longer_available",
+    });
   });
 });
