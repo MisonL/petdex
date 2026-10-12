@@ -66,6 +66,11 @@ async function main() {
 
   let processed = 0;
   let skipped = 0;
+  // A pet that needed a dhash or an embedding but got `null` back (R2 fetch
+  // miss, dead AI key, dimension mismatch) used to print OK and write nothing,
+  // so a full run with a misconfigured key read as complete. Count it and exit
+  // non-zero, matching the backfills' "counted failure → non-zero" convention.
+  let failed = 0;
   for (const row of rows) {
     const r = row as {
       id: string;
@@ -100,6 +105,8 @@ async function main() {
       const h = await dhash(r.spritesheet_url);
       if (h) {
         await sql`UPDATE submitted_pets SET dhash = ${h} WHERE id = ${r.id}`;
+      } else {
+        failed++;
       }
     }
 
@@ -122,6 +129,8 @@ async function main() {
               embedding_model = ${PETDEX_EMBEDDING_MODEL}
           WHERE id = ${r.id}
         `;
+      } else {
+        failed++;
       }
     }
 
@@ -129,7 +138,10 @@ async function main() {
     process.stdout.write("OK\n");
   }
 
-  console.log(`\nprocessed: ${processed}, skipped: ${skipped}`);
+  console.log(
+    `\nprocessed: ${processed}, skipped: ${skipped}, failed: ${failed}`,
+  );
+  if (failed > 0) process.exitCode = 1;
 }
 
 await main();
