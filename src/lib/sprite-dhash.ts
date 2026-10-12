@@ -2,6 +2,7 @@ import sharp from "sharp";
 
 import {
   detectSpriteAtlas,
+  isDecodableSpriteSize,
   SPRITE_FRAME_HEIGHT,
   SPRITE_FRAME_WIDTH,
 } from "@/lib/sprite-atlas";
@@ -25,6 +26,10 @@ export async function dhashFromSpriteBuffer(
 ): Promise<string | null> {
   try {
     const meta = await sharp(buf).metadata();
+    // A ratio-valid sheet can be arbitrarily large and still fit the byte cap,
+    // so bound the decode before the extract below reads pixels (measured: a
+    // 232.9 MP flat PNG is 920 KB and decodes to hundreds of MB).
+    if (!isDecodableSpriteSize(meta.width, meta.height)) return null;
     const atlas = detectSpriteAtlas(meta.width, meta.height);
     const scale = atlas ? atlas.scale : 1;
     const cellWidth = Math.round(SPRITE_FRAME_WIDTH * scale);

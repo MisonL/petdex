@@ -14,6 +14,7 @@ import {
 } from "@/lib/color-families";
 import { toCurrentR2PublicUrl } from "@/lib/r2-public-url";
 import { readResponseBodyBounded } from "@/lib/response-body";
+import { isDecodableSpriteSize } from "@/lib/sprite-atlas";
 import { PET_ASSET_MAX_BYTES } from "@/lib/upload-limits";
 import { isAllowedAssetUrl } from "@/lib/url-allowlist";
 
@@ -59,6 +60,12 @@ export async function extractDominantColor(
       EXTRACT_MAX_BYTES,
       EXTRACT_FETCH_TIMEOUT_MS,
     );
+    // The byte cap above does not bound the decode: a flat-colour PNG at
+    // 13824x16848 is 920 KB but decodes to a ~1.7 GB RGBA buffer inside
+    // Vibrant/Jimp (measured). Refuse a sheet whose dimensions exceed the
+    // largest legitimate atlas before handing it to the decoder.
+    const meta = await sharp(buffer).metadata();
+    if (!isDecodableSpriteSize(meta.width, meta.height)) return null;
     const normalized = await sharp(buffer).png().toBuffer();
     const palette = await Vibrant.from(normalized).getPalette();
 
