@@ -54,8 +54,21 @@ export type BlockedKeywordHit = {
   source: "latin" | "chinese";
 };
 
+// Invisible characters that carry no reading but split a keyword so neither
+// pass below sees it: format characters (`\p{Cf}` — ZWSP, ZWNJ, ZWJ, word
+// joiner, soft hyphen, BOM, bidi marks) and variation selectors (`\p{Variation_Selector}`
+// — VS15/VS16, which are `\p{Mn}` and otherwise survive the diacritic strip).
+// Measured: "i​kun" and "iku️n" both passed the blocklist, while the
+// plain and full-width spellings were caught — the bypass was asymmetry, not
+// intent, and the escaped form also evaded `takedown-by-keyword`.
+const INVISIBLE_RE = /[\p{Cf}\p{Variation_Selector}]/gu;
+
+function stripInvisible(value: string): string {
+  return value.replace(INVISIBLE_RE, "");
+}
+
 function normalizeLatin(value: string): string {
-  return value
+  return stripInvisible(value)
     .normalize("NFKD")
     .replace(/\p{Diacritic}/gu, "")
     .replace(/[_\-.]+/g, " ")
@@ -91,7 +104,9 @@ export function findBlockedKeyword(
   if (!joined) return null;
 
   // Chinese pass — substring match against the raw NFKC-normalized text.
-  const nfkc = joined.normalize("NFKC");
+  // Invisibles go first for the same reason as the latin pass: a `\p{Cf}`
+  // between two characters of a phrase defeats a plain `includes`.
+  const nfkc = stripInvisible(joined).normalize("NFKC");
   for (const phrase of chinesePhrases) {
     if (nfkc.includes(phrase)) {
       return { keyword: phrase, source: "chinese" };

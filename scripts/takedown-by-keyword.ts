@@ -86,10 +86,17 @@ function buildIlikeOr(
 
 async function findMatchingPets() {
   const patterns = [...BLOCKED_LATIN_TOKENS, ...BLOCKED_CHINESE_PHRASES];
+  // `tags` is a jsonb array; cast to text so ILIKE can see it. Tags are an
+  // AI-written field — the classifier reads creator text and can be steered
+  // by a prompt-injection into emitting a blocklisted token — and they are
+  // rendered on the pet page and indexed for search, so a keyword sweep that
+  // skipped them left such a word live with nothing to catch it.
+  const tagsText = sql`${schema.submittedPets.tags}::text`;
   const condition = or(
     buildIlikeOr(sql`${schema.submittedPets.displayName}`, patterns) as never,
     buildIlikeOr(sql`${schema.submittedPets.description}`, patterns) as never,
     buildIlikeOr(sql`${schema.submittedPets.slug}`, patterns) as never,
+    buildIlikeOr(tagsText, patterns) as never,
   );
   if (!condition) return [];
   const rows = await db.select().from(schema.submittedPets).where(condition);
@@ -97,7 +104,13 @@ async function findMatchingPets() {
   // ILIKE picked something up that the latin word-boundary rule would
   // not actually trigger (e.g., "skunk").
   return rows.filter(
-    (r) => findBlockedKeyword(r.displayName, r.description, r.slug) !== null,
+    (r) =>
+      findBlockedKeyword(
+        r.displayName,
+        r.description,
+        r.slug,
+        ...((r.tags as string[] | null) ?? []),
+      ) !== null,
   );
 }
 

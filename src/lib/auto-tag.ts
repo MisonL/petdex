@@ -6,6 +6,7 @@
 
 import { generateText } from "ai";
 
+import { containsBlockedKeyword } from "@/lib/keyword-blocklist";
 import { PET_KINDS, PET_VIBES, type PetKind, type PetVibe } from "@/lib/types";
 
 const VIBE_SET = new Set<string>(PET_VIBES);
@@ -104,6 +105,16 @@ function validate(obj: unknown): Classification | null {
       (t) =>
         t.length > 0 &&
         t.length <= 30 &&
+        // The repo's abuse blocklist too, not only the fixed list below. The
+        // model reads creator-controlled displayName/description, so a
+        // prompt-injection can steer it into emitting a blocklisted token as a
+        // tag — and tags are the one field this path writes that did not
+        // already go through `containsBlockedKeyword` at submit (the text
+        // fields do; the edit path re-runs it over tags at pet-edit.ts). Tags
+        // are rendered on the pet page, indexed for search, and scanned by
+        // neither the submit-time check nor `takedown-by-keyword`, so a word
+        // that lands here has no other net.
+        !containsBlockedKeyword(t) &&
         ![
           // Generic / redundant — every pet is one of these.
           "pet",
