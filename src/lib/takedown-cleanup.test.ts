@@ -49,6 +49,23 @@ beforeAll(async () => {
       "pet_slug" text NOT NULL
     )
   `);
+  // The two tables takedownPet's newer cleanups target. Reviews hang off the
+  // pet by id and candidates by (pet_id, request_id); neither is a collection
+  // table, so the slug-keyed cleanup above never touched them, and nothing
+  // executed these statements before — a typo'd column would have passed CI.
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS "submission_reviews" (
+      "id" text PRIMARY KEY,
+      "submitted_pet_id" text NOT NULL
+    )
+  `);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS "pet_request_candidates" (
+      "pet_id" text NOT NULL,
+      "request_id" text NOT NULL,
+      "status" text NOT NULL DEFAULT 'pending'
+    )
+  `);
 });
 
 afterAll(async () => {
@@ -137,5 +154,71 @@ describe("takedown cleanup is gated on the pet row it was given", () => {
 
     expect(await cleanupItems("pet_some_other_id")).toBe(0);
     expect(await memberCount("col_gate_mismatch")).toBe(1);
+  });
+});
+
+describe("takedown cleanup of the id-keyed tables", () => {
+  // `submission_reviews` and `pet_request_candidates` are keyed by the pet's
+  // id, not its slug, so they cannot ride the slug-keyed statements above and
+  // were never executed against a real database. These run the same statement
+  // shapes takedownPet submits, against the real column names.
+  async function reviewCount(petId: string): Promise<number> {
+    const result = await db.execute(
+      sql`SELECT count(*)::int AS n FROM "submission_reviews" WHERE "submitted_pet_id" = ${petId}`,
+    );
+    const rows = (result as { rows?: Array<{ n?: unknown }> }).rows ?? [];
+    return Number(rows[0]?.n ?? 0);
+  }
+
+  async function candidateCount(petId: string): Promise<number> {
+    const result = await db.execute(
+      sql`SELECT count(*)::int AS n FROM "pet_request_candidates" WHERE "pet_id" = ${petId}`,
+    );
+    const rows = (result as { rows?: Array<{ n?: unknown }> }).rows ?? [];
+    return Number(rows[0]?.n ?? 0);
+  }
+
+  it("deletes the pet's reviews and candidates while the row matches", async () => {
+    await seedPet("pet_with_reviews");
+    await db.execute(
+      sql`INSERT INTO "submission_reviews" ("id", "submitted_pet_id") VALUES ('rev_1', 'pet_with_reviews'), ('rev_2', 'pet_with_reviews')`,
+    );
+    await db.execute(
+      sql`INSERT INTO "pet_request_candidates" ("pet_id", "request_id") VALUES ('pet_with_reviews', 'req_1')`,
+    );
+
+    await db.execute(sql`
+      DELETE FROM "submission_reviews"
+      WHERE "submitted_pet_id" = 'pet_with_reviews'
+        AND ${takedownRowStillMatches("pet_with_reviews", SLUG)}
+    `);
+    await db.execute(sql`
+      DELETE FROM "pet_request_candidates"
+      WHERE "pet_id" = 'pet_with_reviews'
+        AND ${takedownRowStillMatches("pet_with_reviews", SLUG)}
+    `);
+
+    expect(await reviewCount("pet_with_reviews")).toBe(0);
+    expect(await candidateCount("pet_with_reviews")).toBe(0);
+  });
+
+  it("leaves a stale takedown's rows alone", async () => {
+    // The pet row is gone (an earlier takedown), so the gate must hold and a
+    // newer pet's reviews/candidates must survive.
+    await seedPet("pet_stale");
+    await db.execute(
+      sql`INSERT INTO "submission_reviews" ("id", "submitted_pet_id") VALUES ('rev_keep', 'pet_stale')`,
+    );
+    await db.execute(
+      sql`DELETE FROM "submitted_pets" WHERE "id" = 'pet_stale'`,
+    );
+
+    await db.execute(sql`
+      DELETE FROM "submission_reviews"
+      WHERE "submitted_pet_id" = 'pet_stale'
+        AND ${takedownRowStillMatches("pet_stale", SLUG)}
+    `);
+
+    expect(await reviewCount("pet_stale")).toBe(1);
   });
 });

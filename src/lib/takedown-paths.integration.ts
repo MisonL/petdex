@@ -186,6 +186,35 @@ describe("takedownPet batch path", () => {
     expect(submittedSql[submittedSql.length - 1]).toContain(DELETE_MARKER);
   });
 
+  it("cleans the id-keyed tables by their real column names", async () => {
+    // `submission_reviews` (by submitted_pet_id) and `pet_request_candidates`
+    // (by pet_id) are keyed by id, so they cannot ride the slug cleanups. A
+    // typo'd column here would only surface at runtime, in production, on a
+    // takedown — this is the guard that fails first. Pinned by name on
+    // purpose: the PGlite suite runs the shapes, this pins what the module
+    // actually submits, so the two together catch a rename on either side.
+    rowsForMarkers = [{ marker: DELETE_MARKER, rows: [{ id: "pet_1" }] }];
+
+    await takedownPet({
+      pet: petFixture(),
+      source: "owner",
+      actorId: "user_owner",
+      silent: true,
+    });
+
+    const reviews = submittedSql.find((s) =>
+      s.includes('DELETE FROM "submission_reviews"'),
+    );
+    expect(reviews).toBeDefined();
+    expect(reviews).toContain('"submitted_pet_id"');
+
+    const candidates = submittedSql.find((s) =>
+      s.includes('DELETE FROM "pet_request_candidates"'),
+    );
+    expect(candidates).toBeDefined();
+    expect(candidates).toContain('"pet_id"');
+  });
+
   it("reads the affected collection slugs from the third statement", async () => {
     // If the slicing handed the wrong rows to readCollectionSlugs, the tags
     // revalidated below would be wrong or missing. This is the assertion that

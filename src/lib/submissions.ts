@@ -102,8 +102,12 @@ const SUBMISSION_ASSET_FIELDS: ReadonlyArray<{
  * the body to that declaration, so the same URL signed for a 2 MB spritesheet
  * accepts a 20 MB one. The bucket is public and the URL is stored on the row,
  * so an oversized object is a permanent liability — every later fetch, and
- * the OG/sticker renderers that pull it into sharp, pays for it. This is the
- * check that cannot be bypassed by skipping the presign route's.
+ * the OG/sticker renderers that pull it into sharp, pays for it. This check
+ * reads the object itself, so it cannot be skipped the way the presign route's
+ * can; what it cannot do is refuse when R2's HEAD fails for a transient
+ * reason, which it treats as "not oversized" (logged) rather than blocking
+ * legitimate submissions on an R2 hiccup. The pending-asset GC is the
+ * backstop for an object that slips through that way.
  */
 async function assertUploadedAssetsWithinLimit(
   body: SubmissionInput,
