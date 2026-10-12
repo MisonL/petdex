@@ -34,14 +34,14 @@ describe("findBlockedKeyword resists invisible-character escapes", () => {
 
   it("catches a variation selector inserted mid-token", () => {
     const base = BLOCKED_LATIN_TOKENS[0];
-    const sneaky = base.slice(0, 3) + "️" + base.slice(3);
+    const sneaky = `${base.slice(0, 3)}️${base.slice(3)}`;
     expect(findBlockedKeyword(sneaky)).toMatchObject({ keyword: base });
   });
 
   it("catches a chinese phrase split by an invisible character", () => {
     const phrase = BLOCKED_CHINESE_PHRASES[0];
     if (phrase.length < 2) return;
-    const sneaky = phrase.slice(0, 1) + "​" + phrase.slice(1);
+    const sneaky = `${phrase.slice(0, 1)}​${phrase.slice(1)}`;
     expect(findBlockedKeyword(sneaky)).toMatchObject({
       keyword: phrase,
       source: "chinese",
