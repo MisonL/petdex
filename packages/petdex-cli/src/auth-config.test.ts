@@ -2,7 +2,6 @@ import { describe, expect, mock, spyOn, test } from "bun:test";
 
 import {
   AUTH_CONFIG_FALLBACK_WARNING,
-  type AuthConfigFetch,
   DEFAULT_SCOPES,
   FALLBACK_CLIENT_ID,
   FALLBACK_ISSUER,
@@ -12,7 +11,7 @@ import {
 
 describe("resolveAuthConfig", () => {
   test("warns on stderr and uses built-in defaults when fetch rejects", async () => {
-    const fetchImpl: AuthConfigFetch = mock(async () => {
+    const fetchImpl = mock(async () => {
       throw new Error("offline");
     });
     const stderr = spyOn(console, "error").mockImplementation(() => {});
@@ -37,7 +36,7 @@ describe("resolveAuthConfig", () => {
   });
 
   test("does not warn when the server returns valid auth config", async () => {
-    const fetchImpl: AuthConfigFetch = mock(
+    const fetchImpl = mock(
       async () =>
         new Response(
           JSON.stringify({
@@ -68,7 +67,7 @@ describe("resolveAuthConfig", () => {
   });
 
   test("allows local-only callers to suppress the fallback warning", async () => {
-    const fetchImpl: AuthConfigFetch = mock(async () => {
+    const fetchImpl = mock(async () => {
       throw new Error("offline");
     });
     const stderr = spyOn(console, "error").mockImplementation(() => {});
@@ -96,7 +95,7 @@ describe("resolveAuthConfig", () => {
     // The issuer receives the refresh token, so a server (or a MITM on the
     // auth-config fetch) answering with http:// must not become the token
     // destination — fall back to the built-in https issuer instead.
-    const fetchImpl: AuthConfigFetch = mock(
+    const fetchImpl = mock(
       async () =>
         new Response(
           JSON.stringify({
@@ -123,7 +122,7 @@ describe("resolveAuthConfig", () => {
   });
 
   test("ignores an http CLERK_ISSUER environment override", async () => {
-    const fetchImpl: AuthConfigFetch = mock(async () => {
+    const fetchImpl = mock(async () => {
       throw new Error("offline");
     });
 

@@ -1,20 +1,28 @@
+import { fetchCapped } from "./fetch-capped.js";
+
 export type AuthConfig = {
   issuer: string;
   clientId: string;
   scopes: string[];
 };
 
+// A `fetch`-shaped seam. It resolved a `Response` before this — the tests stub
+// one — and `fetchCapped` needs the real thing to read the body under a cap.
+// Typed as the two fields those callers touch rather than `typeof fetch`, whose
+// Bun definition also carries `preconnect` a test mock has no reason to stub.
 export type AuthConfigFetch = (
   url: string,
   init?: { signal?: AbortSignal },
-) => Promise<{
-  ok: boolean;
-  json(): Promise<unknown>;
-}>;
+) => Promise<Response>;
 
 export const FALLBACK_ISSUER = "https://clerk.petdex.dev";
 export const FALLBACK_CLIENT_ID = "LcThwEayl6KAA1Qm";
 export const DEFAULT_SCOPES = ["profile", "email", "openid", "offline_access"];
+// The response is three short strings, so 64 KB is generous. The seam exists so
+// the read is bounded: every other network path in this package routes through
+// `fetchCapped`, and a bare `res.json()` has no size limit at all (measured: a
+// hostile endpoint streamed 124 MB into 218 MB of RSS before the 3s timeout).
+const AUTH_CONFIG_MAX_BYTES = 64 * 1024;
 
 // The issuer is where access/refresh tokens get exchanged and refreshed, so a
 // server (or env) that answers with `http://` or a non-URL would send refresh
@@ -70,12 +78,14 @@ export async function resolveAuthConfig({
   }
 
   try {
-    const res = await fetchImpl(`${petdexUrl}/api/cli/auth-config`, {
-      signal: AbortSignal.timeout(3000),
+    const res = await fetchCapped(`${petdexUrl}/api/cli/auth-config`, {
+      maxBytes: AUTH_CONFIG_MAX_BYTES,
+      timeoutMs: 3000,
+      fetchImpl: fetchImpl as typeof fetch | undefined,
     });
 
     if (res.ok) {
-      const data = (await res.json()) as {
+      const data = JSON.parse(res.body.toString("utf8")) as {
         issuer?: unknown;
         clientId?: unknown;
         scopes?: unknown;
