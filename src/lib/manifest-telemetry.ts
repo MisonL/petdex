@@ -3,6 +3,7 @@
 // fail silently — the manifest response should never block on a log
 // write.
 
+import { normalizeCountry } from "@/lib/country-code";
 import { db, schema } from "@/lib/db/client";
 import { publicTrafficGuardKey } from "@/lib/public-traffic-guard";
 
@@ -36,7 +37,12 @@ export async function logManifestFetch(
     const ip = publicTrafficGuardKey(h);
     const ipHash = await hashIp(ip);
     const userAgent = h.get("user-agent")?.slice(0, 200) ?? null;
-    const country = h.get("x-vercel-ip-country") ?? null;
+    // Vercel sets this header, but a self-hosted/proxied deployment can carry
+    // anything, and `normalizeCountry`'s own doc requires every endpoint that
+    // stores a country to run it. The telemetry endpoint does; this one stored
+    // the raw string, so the same dimension landed in two tables in two
+    // formats (case, whitespace, non-ISO values) and split the geo rollups.
+    const country = normalizeCountry(h.get("x-vercel-ip-country"));
     const region = h.get("x-vercel-ip-country-region") ?? null;
     const referer = h.get("referer")?.slice(0, 200) ?? null;
 
