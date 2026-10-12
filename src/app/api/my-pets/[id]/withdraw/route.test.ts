@@ -20,7 +20,7 @@ import * as schema from "@/lib/db/schema";
 
 const BUCKET = "https://assets.petdex.dev";
 const UPLOAD = "0123456789ab";
-const ROW = {
+const BASE_ROW = {
   id: "pet_1",
   ownerId: "user_1",
   slug: "boba",
@@ -29,6 +29,8 @@ const ROW = {
   petJsonUrl: `${BUCKET}/pets/boba-${UPLOAD}/petjson.json`,
   zipUrl: `${BUCKET}/pets/boba-${UPLOAD}/zip.zip`,
 };
+// Mutable per test: some cases point a field at another pet's live key.
+let row = { ...BASE_ROW };
 
 let referenced = false;
 let deleted: string[] = [];
@@ -66,7 +68,7 @@ mock.module("@/lib/ratelimit", () => ({
 }));
 mock.module("@/lib/db/client", () => ({
   db: {
-    query: { submittedPets: { findFirst: async () => ROW } },
+    query: { submittedPets: { findFirst: async () => row } },
     execute: async () => (referenced ? [{ "?column?": 1 }] : []),
   },
   schema,
@@ -74,7 +76,7 @@ mock.module("@/lib/db/client", () => ({
   // rows decide whether the withdraw took effect.
   executeAtomicReturning: async (statements: unknown[]) => {
     atomicStatements = statements.map(statementText);
-    return [petDeleted ? [{ id: ROW.id }] : [], []];
+    return [petDeleted ? [{ id: row.id }] : [], []];
   },
   rowsOf: (result: unknown) => (Array.isArray(result) ? result : []),
 }));
@@ -101,6 +103,7 @@ afterAll(() => {
 });
 
 beforeEach(() => {
+  row = { ...BASE_ROW };
   referenced = false;
   deleted = [];
   deletedBatches = 0;
@@ -117,6 +120,18 @@ async function settle(when: () => boolean): Promise<void> {
   while (!when() && Date.now() < deadline) {
     await new Promise((r) => setTimeout(r, 10));
   }
+}
+
+/**
+ * Wait for any cleanup started by the previous test to finish before the next
+ * one resets the counters. The route's cleanup is detached, so without this a
+ * delete from the prior test can land mid-way through the following test and
+ * make `deletedBatches` read 2 (or attribute a delete to the wrong case).
+ * Two extra macrotask turns cover the two awaits (dynamic import + delete)
+ * after the last observed batch.
+ */
+async function quiesce(): Promise<void> {
+  await new Promise((r) => setTimeout(r, 30));
 }
 
 async function withdraw(): Promise<Response> {
@@ -141,6 +156,9 @@ describe("withdraw asset cleanup", () => {
     expect(atomicStatements).toHaveLength(2);
     expect(atomicStatements[0]).toContain("RETURNING");
     expect(atomicStatements[0]).toContain("'pending'");
+    // Drain this test's own detached cleanup so it cannot land during the
+    // next test and inflate its `deletedBatches`.
+    await quiesce();
   });
 
   it("deletes the owner's orphaned assets when nothing references them", async () => {
@@ -158,8 +176,43 @@ describe("withdraw asset cleanup", () => {
     referenced = true;
     const res = await withdraw();
     expect(res.status).toBe(200);
-    await settle(() => false);
+    await quiesce();
     expect(deletedBatches).toBe(0);
+  });
+
+  it("does NOT delete a live pet key the row merely points at", async () => {
+    // The reference check is a second net; the guard that actually holds is
+    // the key-shape filter. A row can point its spritesheet at another pet's
+    // *live* object — `validateSubmission` only pins the host and the `/pets/`
+    // prefix — and a live object is `pets/<slug>/sprite.webp` (or the derived
+    // `thumb.webp` / `preview.webp`), which is not the submission-upload shape.
+    // Nothing in the DB references the derived thumb, so the reference check
+    // alone would pass and delete it; the shape filter is what refuses. Model
+    // the worst case: the reference check says "not referenced".
+    referenced = false;
+    row.spritesheetUrl = `${BUCKET}/pets/victim-slug/thumb.webp`;
+    row.petJsonUrl = `${BUCKET}/pets/victim-slug/petjson.json`;
+    row.zipUrl = `${BUCKET}/pets/victim-slug/zip.zip`;
+    const res = await withdraw();
+    expect(res.status).toBe(200);
+    await quiesce();
+    expect(deletedBatches).toBe(0);
+  });
+
+  it("deletes only the caller's own upload-shaped keys from a mixed row", async () => {
+    // One field points at the caller's real upload, another at a victim's live
+    // sprite. Only the caller's key goes; the victim's is left alone even
+    // though the reference check found nothing.
+    referenced = false;
+    row.spritesheetUrl = `${BUCKET}/pets/boba-${UPLOAD}/sprite.webp`;
+    row.petJsonUrl = `${BUCKET}/pets/victim-slug/petjson.json`;
+    row.zipUrl = `${BUCKET}/pets/victim-slug/zip.zip`;
+    const res = await withdraw();
+    expect(res.status).toBe(200);
+    await settle(() => deletedBatches > 0);
+    await quiesce();
+    expect(deletedBatches).toBe(1);
+    expect(deleted).toEqual([`pets/boba-${UPLOAD}/sprite.webp`]);
   });
 
   it("reports not-withdrawable and skips cleanup when the guards lost the race", async () => {
@@ -173,7 +226,7 @@ describe("withdraw asset cleanup", () => {
     expect(await res.json()).toEqual({
       error: "only_pending_can_be_withdrawn",
     });
-    await settle(() => false);
+    await quiesce();
     expect(deletedBatches).toBe(0);
   });
 });

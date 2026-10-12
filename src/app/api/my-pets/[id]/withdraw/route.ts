@@ -91,31 +91,47 @@ export async function POST(
   // failed cleanup is a cost problem, not a correctness one, so it must not
   // turn a successful withdraw into an error.
   //
-  // Before deleting, re-check that nothing references the URLs. `row` is the
-  // caller's own row, but its asset URLs are NOT pinned to the caller's
-  // namespace — `validateSubmission` only checks host and path prefix
+  // `row` is the caller's own row, but its asset URLs are NOT pinned to the
+  // caller's namespace — `validateSubmission` only checks host and path prefix
   // (`/pets/`, `/curated/`, `/community/`), so a submission can point at
-  // another pet's live spritesheet. Deleting on the row's word alone would let
-  // any user destroy an arbitrary object by referencing it and withdrawing.
-  // Keying off what the database still points at is the same guard the GC
-  // uses (`scripts/gc-pending-r2.ts`), and it is exact: an owner who replaced
-  // the asset no longer references the old URL, so their orphan still goes.
+  // another pet's live spritesheet, thumbnail or preview. Two things keep the
+  // cleanup inside the caller's own uploads:
+  //
+  //   1. Only keys of the *submission upload* shape are deleted
+  //      (`pets/<slug>-<uploadId>/<role>.<ext>`, `isGcCandidateAssetKey`).
+  //      That is exactly what a withdrawn submission leaves behind. A live
+  //      pet's stored asset is `pets/<slug>/sprite.webp` (no `<slug>-<id>`
+  //      directory) and its derived thumbnail/preview are `pets/<slug>/
+  //      thumb.webp` / `preview.webp` — none match the shape, so none can be
+  //      named here regardless of what the row's URL says. This is the guard
+  //      that actually holds: the older code deleted whatever key the row's
+  //      URL resolved to, so a row pointing at `pets/<victim>/thumb.webp`
+  //      deleted the victim's thumbnail, and a row pointing at a live
+  //      spritesheet with a `?query` on it deleted the victim's spritesheet.
+  //   2. The surviving reference check compares *normalized keys*, not raw URL
+  //      strings. `keyFromR2PublicUrl` drops the query/fragment and folds the
+  //      legacy hosts to the canonical one, so two rows naming the same object
+  //      with different spellings (`?x=1`, a legacy host) still collide here;
+  //      the raw-string `IN` missed them and deleted a referenced object.
   void (async () => {
     try {
-      const [{ deleteR2Objects }, { keyFromR2PublicUrl }] = await Promise.all([
+      const [
+        { deleteR2Objects },
+        { keyFromR2PublicUrl },
+        { isGcCandidateAssetKey },
+      ] = await Promise.all([
         import("@/lib/r2"),
         import("@/lib/r2-public-url"),
+        import("@/lib/pending-asset"),
       ]);
-      const urls = [row.spritesheetUrl, row.petJsonUrl, row.zipUrl].filter(
-        (url): url is string => Boolean(url),
-      );
-      const keys = urls
+      const keys = [row.spritesheetUrl, row.petJsonUrl, row.zipUrl]
         .map((url) => keyFromR2PublicUrl(url))
-        .filter((key): key is string => Boolean(key));
+        .filter((key): key is string => Boolean(key))
+        .filter(isGcCandidateAssetKey);
       if (keys.length === 0) return;
 
-      const urlList = sql.join(
-        urls.map((url) => sql`${url}`),
+      const keyList = sql.join(
+        keys.map((key) => sql`${key}`),
         sql`, `,
       );
       const referenced = rowsOf(
@@ -123,12 +139,12 @@ export async function POST(
           SELECT 1 FROM "submitted_pets"
           WHERE "id" <> ${id}
             AND (
-              "spritesheet_url" IN (${urlList})
-              OR "pet_json_url" IN (${urlList})
-              OR "zip_url" IN (${urlList})
-              OR "pending_spritesheet_url" IN (${urlList})
-              OR "pending_pet_json_url" IN (${urlList})
-              OR "pending_zip_url" IN (${urlList})
+              split_part(regexp_replace("spritesheet_url", '^https?://[^/]+', ''), '?', 1) IN (${keyList})
+              OR split_part(regexp_replace("pet_json_url", '^https?://[^/]+', ''), '?', 1) IN (${keyList})
+              OR split_part(regexp_replace("zip_url", '^https?://[^/]+', ''), '?', 1) IN (${keyList})
+              OR split_part(regexp_replace("pending_spritesheet_url", '^https?://[^/]+', ''), '?', 1) IN (${keyList})
+              OR split_part(regexp_replace("pending_pet_json_url", '^https?://[^/]+', ''), '?', 1) IN (${keyList})
+              OR split_part(regexp_replace("pending_zip_url", '^https?://[^/]+', ''), '?', 1) IN (${keyList})
             )
           LIMIT 1
         `),
