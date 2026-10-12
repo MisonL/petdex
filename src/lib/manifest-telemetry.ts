@@ -3,7 +3,7 @@
 // fail silently — the manifest response should never block on a log
 // write.
 
-import { normalizeCountry } from "@/lib/country-code";
+import { normalizeCountry, normalizeRegion } from "@/lib/country-code";
 import { db, schema } from "@/lib/db/client";
 import { publicTrafficGuardKey } from "@/lib/public-traffic-guard";
 
@@ -43,7 +43,12 @@ export async function logManifestFetch(
     // the raw string, so the same dimension landed in two tables in two
     // formats (case, whitespace, non-ISO values) and split the geo rollups.
     const country = normalizeCountry(h.get("x-vercel-ip-country"));
-    const region = h.get("x-vercel-ip-country-region") ?? null;
+    // The same reasoning as `country`, applied to the region dimension. Vercel
+    // sets a short code ("CA", "ENG", "13"), but a proxied deployment can carry
+    // anything and this lands in an unbounded `text` column. Unlike country
+    // there is no ISO list to check against, so bound the shape instead:
+    // a short run of letters/digits/dash, anything else stored as unknown.
+    const region = normalizeRegion(h.get("x-vercel-ip-country-region"));
     const referer = h.get("referer")?.slice(0, 200) ?? null;
 
     await db.insert(schema.manifestFetches).values({
