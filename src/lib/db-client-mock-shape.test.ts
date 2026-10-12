@@ -137,3 +137,46 @@ describe("every @/lib/db/client mock provides the module's exports", () => {
     ).toEqual([]);
   });
 });
+
+// The same hazard, for `ai`. It is the one third-party module here with a
+// large surface that several suites link: `embeddings.ts` wants `embed`,
+// `submission-review.ts`/`pet-sound.ts`/`auto-tag.ts` want `generateText`. A
+// factory that names only `generateText` made `embeddings.test.ts` — and three
+// others — die with `SyntaxError: Export named 'embed' not found`, in CI but
+// not locally, purely on file order. `ai` has ~155 exports, so the only
+// survivable factory spreads the real module and overrides the one function
+// under test; require that shape rather than enumerate the surface.
+const AI_MARKER = 'mock.module("ai"';
+
+async function aiFactories(): Promise<Array<{ file: string; body: string }>> {
+  const glob = new Glob("src/**/*.{ts,tsx}");
+  const out: Array<{ file: string; body: string }> = [];
+  for await (const file of glob.scan({ cwd: process.cwd() })) {
+    if (!/\.(test|integration)\.tsx?$/.test(file)) continue;
+    if (file === "src/lib/db-client-mock-shape.test.ts") continue;
+    const source = await Bun.file(file).text();
+    let from = source.indexOf(AI_MARKER);
+    while (from !== -1) {
+      out.push({ file, body: factoryBody(source, from) });
+      from = source.indexOf(AI_MARKER, from + AI_MARKER.length);
+    }
+  }
+  return out;
+}
+
+describe("every ai mock spreads the real module", () => {
+  test("no factory names only a few of ai's exports", async () => {
+    const offenders: string[] = [];
+    for (const { file, body } of await aiFactories()) {
+      if (!/\.\.\.\s*\w/.test(body)) offenders.push(file);
+    }
+    expect(
+      offenders,
+      'A `mock.module("ai", …)` factory that returns a bare object breaks ' +
+        "whichever suite links a different export next, as a SyntaxError in " +
+        "some file orders only. Spread the real module and override just the " +
+        "function under test: " +
+        offenders.join("; "),
+    ).toEqual([]);
+  });
+});
