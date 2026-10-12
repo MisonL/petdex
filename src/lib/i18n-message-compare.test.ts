@@ -124,6 +124,43 @@ describe("findPlaceholderMismatches", () => {
       findPlaceholderMismatches({ a: "<slug>" }, { a: "<slug>" }, "es"),
     ).toEqual([]);
   });
+
+  test("flags a renamed rich-text tag", () => {
+    // `<strong>` is supplied by the call site's `t.rich` map. A translation
+    // that renames it parses cleanly (the tag pair is still balanced) and then
+    // has no renderer, which use-intl answers by printing the key — the same
+    // failure class as a renamed `{argument}`, but the earlier checks only
+    // looked at argument names, so this read as "in sync".
+    const found = findPlaceholderMismatches(
+      { a: "read <strong>{name}</strong>" },
+      { a: "lee <fuerte>{name}</fuerte>" },
+      "es",
+    );
+    expect(found).toHaveLength(1);
+    expect(found[0]).toContain("<strong>");
+    expect(found[0]).toContain("<fuerte>");
+  });
+
+  test("flags a tag the translation dropped", () => {
+    const found = findPlaceholderMismatches(
+      { a: "read <code>{file}</code> now" },
+      { a: "lee {file} ahora" },
+      "es",
+    );
+    expect(found).toHaveLength(1);
+    expect(found[0]).toContain("tag names differ");
+  });
+
+  test("the localized docs placeholders are exempt", () => {
+    // These three mean `<slug>` as a literal and are read with `t.raw`, so
+    // they never reach ICU and are *supposed* to differ per locale.
+    const found = findPlaceholderMismatches(
+      { docsPage: { placeholders: { petName: "<slug>" } } },
+      { docsPage: { placeholders: { petName: "<宠物名>" } } },
+      "zh",
+    );
+    expect(found).toEqual([]);
+  });
 });
 
 describe("argumentNames", () => {
@@ -144,9 +181,28 @@ describe("argumentNames", () => {
     expect(all.has("name")).toBe(true);
   });
 
+  test("finds an argument nested inside a rich-text tag", () => {
+    // The old walk visited `node.value` for a tag, which is the tag's *name*
+    // string, so the tag's children were never reached: a `{name}` inside
+    // `<brand>…</brand>` was invisible to both the argument and the tag
+    // comparison.
+    const { all, tags } = argumentNames("for <brand>{name}</brand>", "en");
+    expect(all.has("name")).toBe(true);
+    expect([...tags]).toEqual(["brand"]);
+  });
+
   test("ignores a non-argument rich-text tag", () => {
-    const { all } = argumentNames("hi <b>there</b>", "en");
+    const { all, tags } = argumentNames("hi <b>there</b>", "en");
     expect([...all]).toEqual([]);
+    expect([...tags]).toEqual(["b"]);
+  });
+
+  test("collects tag names, including nested ones", () => {
+    const { tags } = argumentNames(
+      "<strong>hi <code>x</code></strong> <slug>y</slug>",
+      "en",
+    );
+    expect([...tags].sort()).toEqual(["code", "slug", "strong"]);
   });
 });
 

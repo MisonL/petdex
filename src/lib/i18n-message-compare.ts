@@ -141,20 +141,31 @@ export function findUnformattableMessages(
 export function argumentNames(
   value: string,
   locale: string,
-): { all: Set<string>; selectors: Set<string> } {
+): { all: Set<string>; selectors: Set<string>; tags: Set<string> } {
   // `getAst()`, not the `.ast` field: same value, but the field is typed
   // private and only the accessor is part of the public surface.
   const ast = new IntlMessageFormat(value, locale).getAst() as unknown[];
   const all = new Set<string>();
   const selectors = new Set<string>();
+  const tags = new Set<string>();
   const walk = (nodes: unknown): void => {
     if (!Array.isArray(nodes)) return;
     for (const node of nodes as Array<Record<string, unknown>>) {
       if (!node || typeof node !== "object") continue;
-      if (node.type === 1 && typeof node.value === "string")
+      // Node types, measured against intl-messageformat's parser output:
+      // 0 literal, 1 argument, 2 number, 3 date, 4 time, 5 select, 6 plural,
+      // 7 pound, 8 tag. The previous version had 5 labelled "tag" and walked
+      // `node.value` — which is a select's argument *name*, a string, so the
+      // walk returned immediately and the real tag node (8) was never visited:
+      // both its nested arguments and, once this collected them, its name.
+      if (node.type === 1 && typeof node.value === "string") {
         all.add(node.value);
-      // 6 is `plural`/`select`; its branches are walked for nested arguments.
-      if (node.type === 6 && typeof node.value === "string") {
+      }
+      // A `plural`/`select` selector; its branches carry nested arguments.
+      if (
+        (node.type === 5 || node.type === 6) &&
+        typeof node.value === "string"
+      ) {
         all.add(node.value);
         selectors.add(node.value);
         for (const option of Object.values(
@@ -163,19 +174,22 @@ export function argumentNames(
           walk(option.value);
         }
       }
-      if (node.type === 5) walk(node.value); // tag
-      if (
-        node.type === 2 ||
-        node.type === 3 ||
-        node.type === 4 ||
-        node.type === 8
-      ) {
-        walk(node.value);
+      if (node.type === 8 && typeof node.value === "string") {
+        // A rich-text tag. Its name is the identifier the call site's
+        // `t.rich({ ... })` map has to supply: a translation that renames
+        // `<strong>` to `<fuerte>` parses cleanly and then has no renderer,
+        // which use-intl answers by printing the key. Collected so
+        // `findPlaceholderMismatches` can compare the names across locales.
+        tags.add(node.value);
+        walk(node.children);
+      }
+      if (node.type === 2 || node.type === 3 || node.type === 4) {
+        walk(node.children);
       }
     }
   };
   walk(ast);
-  return { all, selectors };
+  return { all, selectors, tags };
 }
 
 /**
@@ -220,8 +234,8 @@ export function findPlaceholderMismatches(
     }
     if (typeof value !== "string" || typeof targetValue !== "string") continue;
 
-    let sourceArgs: { all: Set<string>; selectors: Set<string> };
-    let targetArgs: { all: Set<string>; selectors: Set<string> };
+    let sourceArgs: ReturnType<typeof argumentNames>;
+    let targetArgs: ReturnType<typeof argumentNames>;
     try {
       sourceArgs = argumentNames(value, "en");
       targetArgs = argumentNames(targetValue, locale);
@@ -248,7 +262,43 @@ export function findPlaceholderMismatches(
           "which en passes, so the rendered sentence loses it",
       );
     }
+
+    // Rich-text tag names are supplied by the call site's `t.rich` map, so a
+    // translation that renames one produces a message the caller cannot
+    // render — same failure class as a renamed `{argument}`, but on the tag
+    // identifier rather than an argument, which the comparisons above do not
+    // look at. A `t.raw` message never reaches ICU and was already skipped by
+    // the parse throw when its tags are unbalanced; the docs placeholders are
+    // balanced `<path>`-style pairs and legitimately differ per locale, so
+    // they are the one exemption — enumerated by the same set the check uses.
+    const addedTags = [...targetArgs.tags].filter(
+      (t) => !sourceArgs.tags.has(t),
+    );
+    const droppedTags = [...sourceArgs.tags].filter(
+      (t) => !targetArgs.tags.has(t),
+    );
+    if (
+      (addedTags.length > 0 || droppedTags.length > 0) &&
+      !LITERAL_TAG_PLACEHOLDER_PATHS.has(nextPath)
+    ) {
+      failures.push(
+        `${locale}: ${nextPath} — tag names differ from en ` +
+          `(en: ${[...sourceArgs.tags].map((t) => `<${t}>`).join(", ") || "none"}; ` +
+          `${locale}: ${[...targetArgs.tags].map((t) => `<${t}>`).join(", ") || "none"})`,
+      );
+    }
   }
 
   return failures;
 }
+
+// Messages whose `<name>` is a literal placeholder meant to be localized, read
+// with `t.raw` and never parsed as ICU — so their tag names are supposed to
+// differ across locales. Mirrors the `t.raw` exemption `findUnformattableMessages`
+// takes as a parameter; kept here as a small constant because these three are
+// the only ones and they always sit under `docsPage.placeholders`.
+const LITERAL_TAG_PLACEHOLDER_PATHS = new Set([
+  "docsPage.placeholders.petName",
+  "docsPage.placeholders.yourPetName",
+  "docsPage.placeholders.path",
+]);
