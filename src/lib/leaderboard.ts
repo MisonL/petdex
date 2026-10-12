@@ -9,17 +9,16 @@
 import { sql } from "drizzle-orm";
 
 import { getAdminUserIds } from "@/lib/admin";
-import { AGGREGATE_KEYS, cachedAggregate } from "@/lib/db/cached-aggregates";
+import {
+  cachedAggregate,
+  type LeaderboardMetric,
+  leaderboardCacheKey,
+} from "@/lib/db/cached-aggregates";
 import { db } from "@/lib/db/client";
 
 const LEADERBOARD_TTL_SECONDS = 300;
 
-export type LeaderboardMetric =
-  | "pets"
-  | "likes"
-  | "installs"
-  | "rising"
-  | "collectors";
+export type { LeaderboardMetric };
 
 export type LeaderboardRow = {
   ownerId: string;
@@ -54,7 +53,7 @@ export async function getRankRows(
 ): Promise<LeaderboardRow[]> {
   return cachedAggregate(
     {
-      key: `${AGGREGATE_KEYS.leaderboard}:${metric}`,
+      key: leaderboardCacheKey(metric),
       ttlSeconds: LEADERBOARD_TTL_SECONDS,
     },
     async () => {

@@ -5,6 +5,7 @@ import {
   AGGREGATE_KEYS,
   invalidateAggregates,
   invalidatePetCaches,
+  LEADERBOARD_CACHE_KEYS,
 } from "@/lib/db/cached-aggregates";
 import type { SubmittedPet } from "@/lib/db/schema";
 import * as schema from "@/lib/db/schema";
@@ -205,6 +206,11 @@ export async function applySubmissionAction(
       AGGREGATE_KEYS.metricsSummary,
       AGGREGATE_KEYS.batches,
       AGGREGATE_KEYS.variantIndex,
+      // The rank badge on /u/[handle] and the five variants on /leaderboard
+      // rank by approved count and metrics, so a status flip makes all of them
+      // stale. Missing here meant an approved pet did not appear on the
+      // leaderboard (or move its owner's badge) for up to the 5-minute TTL.
+      ...LEADERBOARD_CACHE_KEYS,
     );
     await invalidatePetCaches(current.slug, row.slug);
   } else if (current.status === "approved" && body.action === "edit") {
