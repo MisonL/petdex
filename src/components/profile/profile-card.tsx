@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 
 import { ExternalLink, Loader2, Pencil, Pin, Star, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { MAX_PINNED_PETS } from "@/lib/profiles";
+import { useFocusTrap } from "@/lib/use-focus-trap";
 
 import { useHeaderState } from "@/components/layout/header-state-provider";
 import { profileErrorKey } from "@/components/profile/profile-error-key";
@@ -30,6 +31,12 @@ export type ProfileData = {
 export function ProfileCard({ profile }: { profile: ProfileData }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  // `role="dialog"` + `aria-modal` promise assistive tech the page behind is
+  // inert, but the DOM does not enforce it: without a trap, Tab walks into the
+  // page under the overlay, and Escape only fires when focus is already inside.
+  // The two sibling hand-written modals wire the same hook.
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  useFocusTrap(open, dialogRef);
   const [displayName, setDisplayName] = useState(profile.displayName ?? "");
   const [handle, setHandle] = useState(profile.handle);
   const [bio, setBio] = useState(profile.bio ?? "");
@@ -221,6 +228,7 @@ export function ProfileCard({ profile }: { profile: ProfileData }) {
         <div
           aria-modal
           role="dialog"
+          ref={dialogRef}
           tabIndex={-1}
           className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4 dark:bg-black/60"
           onClick={(e) => {
