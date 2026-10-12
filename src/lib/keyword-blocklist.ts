@@ -54,18 +54,9 @@ export type BlockedKeywordHit = {
   source: "latin" | "chinese";
 };
 
-// Invisible characters that carry no reading but split a keyword so neither
-// pass below sees it: format characters (`\p{Cf}` — ZWSP, ZWNJ, ZWJ, word
-// joiner, soft hyphen, BOM, bidi marks) and variation selectors (`\p{Variation_Selector}`
-// — VS15/VS16, which are `\p{Mn}` and otherwise survive the diacritic strip).
-// Measured: "i​kun" and "iku️n" both passed the blocklist, while the
-// plain and full-width spellings were caught — the bypass was asymmetry, not
-// intent, and the escaped form also evaded `takedown-by-keyword`.
-const INVISIBLE_RE = /[\p{Cf}\p{Variation_Selector}]/gu;
-
-function stripInvisible(value: string): string {
-  return value.replace(INVISIBLE_RE, "");
-}
+// Invisible characters split a keyword so neither pass below sees it; the
+// shared scrubber (and the measured evasions) live in invisible-characters.ts.
+import { stripInvisible } from "@/lib/invisible-characters";
 
 function normalizeLatin(value: string): string {
   return stripInvisible(value)

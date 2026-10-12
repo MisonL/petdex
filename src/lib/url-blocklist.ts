@@ -11,6 +11,8 @@
 // result returns which pattern fired and which field it came from so
 // callers can produce precise error messages.
 
+import { stripInvisible } from "@/lib/invisible-characters";
+
 export type UrlHit = {
   hit: true;
   pattern: string;
@@ -77,9 +79,14 @@ const LEGIT_DOMAINS: ReadonlySet<string> = new Set([
   "github.com",
 ]);
 
-// Normalize text for matching: NFKD decompose + strip diacritics + lowercase.
+// Normalize text for matching: strip invisible characters, NFKD decompose +
+// strip diacritics + lowercase. The invisible scrub comes first for the same
+// reason as the keyword blocklist: a `\p{Cf}` inserted into a token — most of
+// all into `http://` itself — defeats a literal pattern. Measured before the
+// fix: "https\u200b://evil.example" and "sponsor\ufe0f.xyz" both returned null
+// while the plain spellings matched.
 function normalizeText(value: string): string {
-  return value
+  return stripInvisible(value)
     .normalize("NFKD")
     .replace(/\p{Diacritic}/gu, "")
     .toLowerCase();

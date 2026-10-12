@@ -191,3 +191,27 @@ describe("containsUrl — email addresses", () => {
     expect(URL_BLOCKED_REASON.toLowerCase()).toContain("email");
   });
 });
+
+// An invisible character inside a token defeats a literal pattern, and the URL
+// detector's patterns are literal (`https?://`, `\bwww\.`, a bare domain). The
+// normalize step now scrubs them first. Measured before the fix: a ZWSP in
+// "https\u200b://evil.example" and a VS16 in "sponsor\ufe0f.xyz" both returned
+// null, while every plain spelling matched.
+describe("containsUrl — invisible-character evasion", () => {
+  it("still flags an explicit protocol with an invisible char inside it", () => {
+    expect(
+      containsUrl(["description", "https\u200b://evil.example"])?.pattern,
+    ).toBe("protocol_prefix");
+  });
+
+  it("still flags a bare domain with a variation selector inside it", () => {
+    expect(containsUrl(["description", "sponsor\ufe0f.xyz"])?.pattern).toBe(
+      "bare_domain",
+    );
+  });
+
+  it("does not turn benign text into a hit", () => {
+    // The scrub must not create matches: this has no URL at all.
+    expect(containsUrl(["description", "a cozy\u200b round cat"])).toBeNull();
+  });
+});
