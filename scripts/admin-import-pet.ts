@@ -126,8 +126,15 @@ async function main() {
   console.log(`  - ${spriteKey}`);
   console.log(`  - ${petJsonKey}`);
   console.log(`  - ${zipKey}`);
-  console.log(`credit name  : ${args.creditName ?? "(none)"}`);
-  console.log(`credit url   : ${args.creditUrl ?? "(none)"}`);
+  // Shown as passed, with the rule that decides whether they survive: with an
+  // explicit --owner-id the pet belongs to a real account, so the insert forces
+  // both credit fields to null (the author is the owner, not a credit). Printing
+  // the flags bare read as if they would be applied.
+  const creditNote = args.ownerId?.trim()
+    ? " (ignored: --owner-id owns it)"
+    : "";
+  console.log(`credit name  : ${args.creditName ?? "(none)"}${creditNote}`);
+  console.log(`credit url   : ${args.creditUrl ?? "(none)"}${creditNote}`);
   console.log(
     `owner id     : ${args.ownerId ?? process.env.PETDEX_ADMIN_USER_IDS?.split(",")[0]?.trim() ?? "(missing)"}`,
   );

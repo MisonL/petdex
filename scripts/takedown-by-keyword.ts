@@ -21,7 +21,7 @@
 import { eq, or, sql } from "drizzle-orm";
 import { Resend } from "resend";
 
-import { db, schema } from "@/lib/db/client";
+import { db, executeAtomicReturning, schema } from "@/lib/db/client";
 import { renderSubmissionTakedownEmail } from "@/lib/email-templates/submission-takedown";
 import {
   BLOCKED_CHINESE_PHRASES,
@@ -142,44 +142,65 @@ async function findMatchingCollections() {
 async function takedownOne(pet: Pet, reason: string) {
   const slug = pet.slug;
 
-  await db.delete(schema.petLikes).where(eq(schema.petLikes.petSlug, slug));
-  await db.delete(schema.petMetrics).where(eq(schema.petMetrics.petSlug, slug));
-  await db
-    .delete(schema.petCollectionItems)
-    .where(eq(schema.petCollectionItems.petSlug, slug));
-  await db
-    .delete(schema.petCollectionRequests)
-    .where(eq(schema.petCollectionRequests.petSlug, slug));
-  // Keyed by pet_id, not slug, and no FK cascades it — see takedown.ts.
-  await db
-    .delete(schema.petRequestCandidates)
-    .where(eq(schema.petRequestCandidates.petId, pet.id));
-  // Reviews hang off the pet by id as well, and the FK that would cascade
-  // them is absent from push-built databases (see the schema declaration),
-  // so nothing may delete a pet without taking the reviews.
-  await db
-    .delete(schema.submissionReviews)
-    .where(eq(schema.submissionReviews.submittedPetId, pet.id));
-  await db
-    .update(schema.petCollections)
-    .set({ coverPetSlug: null })
-    .where(eq(schema.petCollections.coverPetSlug, slug));
-  await db
-    .update(schema.petRequests)
-    .set({ fulfilledPetSlug: null, status: "open" })
-    .where(eq(schema.petRequests.fulfilledPetSlug, slug));
-  await db.execute(sql`
-    UPDATE user_profiles
-    SET featured_pet_slugs = (
-      SELECT COALESCE(jsonb_agg(elem), '[]'::jsonb)
-      FROM jsonb_array_elements(featured_pet_slugs) AS elem
-      WHERE elem <> to_jsonb(${slug}::text)
-    )
-    WHERE featured_pet_slugs @> to_jsonb(${slug}::text)
-  `);
-  await db
-    .delete(schema.submittedPets)
-    .where(eq(schema.submittedPets.id, pet.id));
+  // Every cleanup below is keyed off the pet row, so a mid-sequence failure
+  // used to leave the pet half-removed — likes gone, candidates deleted, but
+  // the pet row still live. One transaction makes it all-or-nothing. This list
+  // mirrors `takedownPet` in scripts/takedown-pet.ts; the statements stay
+  // separate for the reason `runAtomicReturning` documents (a single CTE would
+  // share one snapshot and could not see the row it just wrote).
+  await executeAtomicReturning([
+    db
+      .delete(schema.petLikes)
+      .where(eq(schema.petLikes.petSlug, slug))
+      .getSQL(),
+    db
+      .delete(schema.petMetrics)
+      .where(eq(schema.petMetrics.petSlug, slug))
+      .getSQL(),
+    db
+      .delete(schema.petCollectionItems)
+      .where(eq(schema.petCollectionItems.petSlug, slug))
+      .getSQL(),
+    db
+      .delete(schema.petCollectionRequests)
+      .where(eq(schema.petCollectionRequests.petSlug, slug))
+      .getSQL(),
+    // Keyed by pet_id, not slug, and no FK cascades it — see takedown.ts.
+    db
+      .delete(schema.petRequestCandidates)
+      .where(eq(schema.petRequestCandidates.petId, pet.id))
+      .getSQL(),
+    // Reviews hang off the pet by id as well, and the FK that would cascade
+    // them is absent from push-built databases (see the schema declaration),
+    // so nothing may delete a pet without taking the reviews.
+    db
+      .delete(schema.submissionReviews)
+      .where(eq(schema.submissionReviews.submittedPetId, pet.id))
+      .getSQL(),
+    db
+      .update(schema.petCollections)
+      .set({ coverPetSlug: null })
+      .where(eq(schema.petCollections.coverPetSlug, slug))
+      .getSQL(),
+    db
+      .update(schema.petRequests)
+      .set({ fulfilledPetSlug: null, status: "open" })
+      .where(eq(schema.petRequests.fulfilledPetSlug, slug))
+      .getSQL(),
+    sql`
+      UPDATE user_profiles
+      SET featured_pet_slugs = (
+        SELECT COALESCE(jsonb_agg(elem), '[]'::jsonb)
+        FROM jsonb_array_elements(featured_pet_slugs) AS elem
+        WHERE elem <> to_jsonb(${slug}::text)
+      )
+      WHERE featured_pet_slugs @> to_jsonb(${slug}::text)
+    `,
+    db
+      .delete(schema.submittedPets)
+      .where(eq(schema.submittedPets.id, pet.id))
+      .getSQL(),
+  ]);
 
   const keys = [
     keyFromR2Url(pet.spritesheetUrl),
