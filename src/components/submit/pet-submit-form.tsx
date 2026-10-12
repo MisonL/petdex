@@ -497,9 +497,14 @@ export function PetSubmitForm() {
       ] as const
     ).find(([, size]) => size > MAX_UPLOAD_BYTES);
     if (oversized) {
-      const [role, size] = oversized;
-      const mb = (n: number) => `${(n / (1024 * 1024)).toFixed(1)} MB`;
-      const message = `Your ${role} is ${mb(size)}, over the ${mb(MAX_UPLOAD_BYTES)} limit.`;
+      const [role] = oversized;
+      // `role` is the wire role ("zip"/"sprite"), which is also a readable
+      // filename noun; keep it, and localize the sentence around it rather
+      // than building an English one here.
+      const message = t("errors.assetTooLarge", {
+        role,
+        max: `${(MAX_UPLOAD_BYTES / (1024 * 1024)).toFixed(1)} MB`,
+      });
       uploadErrorRef.current = message;
       setUploadError(message);
       setSubmission({ kind: "error", message });
