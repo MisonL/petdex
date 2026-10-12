@@ -9,6 +9,12 @@
 //   blocklist; "https\u200b://evil.example" slipped past the URL detector's
 //   protocol pattern. The plain and full-width spellings were caught in every
 //   case — the escape was the easy path, not the hard one.
+//
+// MATCHING ONLY. Apply this to the haystack, never to text that is stored or
+// rendered: ZWJ is `\p{Cf}`, so a ZWJ-sequence emoji (👨\u200d👩\u200d👧)
+// decomposes to three separate glyphs. That is harmless for a substring match
+// and wrong for display, so the callers here use it only on the copy they
+// compare against a pattern.
 
 const INVISIBLE_RE = /[\p{Cf}\p{Variation_Selector}]/gu;
 
