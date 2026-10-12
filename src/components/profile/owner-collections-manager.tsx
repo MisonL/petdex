@@ -12,24 +12,7 @@ import {
   MAX_COLLECTION_PETS,
 } from "@/lib/collection-constants";
 
-// Server error code → localized key (all at the `ownerCollections` root). An
-// unmapped code keeps the route's raw code in the fallback sentence, matching
-// the reorder grids, so a new server code is visible rather than swallowed.
-const COLLECTION_ERROR_KEYS: Record<string, string> = {
-  forbidden: "forbidden",
-  not_found: "notFound",
-  featured_not_editable: "featuredNotEditable",
-  invalid_url: "invalidUrl",
-  collection_pet_limit: "collectionPetLimit",
-  pet_not_owned_or_approved: "petNotOwnedOrApproved",
-  collection_cap_reached: "collectionCapReached",
-  collection_slug_conflict: "collectionSlugConflict",
-  empty_pet_slugs: "emptyPetSlugs",
-};
-
-function collectionErrorKey(code: string | undefined): string | null {
-  return code ? (COLLECTION_ERROR_KEYS[code] ?? null) : null;
-}
+import { collectionErrorKey } from "@/components/collections/collection-error-key";
 
 type ApprovedPet = {
   slug: string;

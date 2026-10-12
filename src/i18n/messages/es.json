@@ -450,6 +450,7 @@
         "rateLimited": "Llegaste al límite: 10 envíos cada 24 horas. Inténtalo mañana.",
         "missingField": "Al paquete le faltan datos requeridos para el envío.",
         "invalidSpritesheet": "El spritesheet es muy pequeño o tiene dimensiones inválidas.",
+        "assetTooLarge": "El archivo {role} supera el límite de {max}. Redúcelo e inténtalo de nuevo.",
         "invalidAssetUrl": "Los assets subidos no pasaron la revisión de hosting.",
         "invalidSlug": "El id de la mascota no pudo convertirse en una URL válida.",
         "unauthorized": "Inicia sesión antes de enviar.",
@@ -1626,6 +1627,7 @@
     "cancel": "Cancelar",
     "create": "Crear",
     "save": "Guardar",
+    "unauthorized": "Tu sesión ha caducado. Vuelve a iniciar sesión e inténtalo de nuevo.",
     "forbidden": "Esa colección no es tuya.",
     "notFound": "Esa colección ya no existe.",
     "featuredNotEditable": "Las colecciones destacadas no se pueden editar ni eliminar.",
@@ -1638,8 +1640,7 @@
   "collectionEditor": {
     "selectPetsFirst": "Selecciona mascotas primero",
     "petLimit": "Las colecciones pueden incluir hasta {max} mascotas. Quita miembros hasta quedar por debajo de {max} para añadir otra.",
-    "petLimitHint": "Tienes más mascotas aprobadas de las que caben en una colección. Elige hasta {max}.",
-    "emptyPetSlugs": "Eso quitaría todas las mascotas de esta colección. Añade una o elimina la colección."
+    "petLimitHint": "Tienes más mascotas aprobadas de las que caben en una colección. Elige hasta {max}."
   },
   "onboarding": {
     "skip": "Saltar tour"

@@ -450,6 +450,7 @@
         "rateLimited": "Limit reached: 10 submissions per 24 hours. Try again tomorrow.",
         "missingField": "The package is missing required submission data.",
         "invalidSpritesheet": "The spritesheet is too small or has invalid dimensions.",
+        "assetTooLarge": "The {role} is over the {max} upload limit. Reduce it and try again.",
         "invalidAssetUrl": "The uploaded assets did not pass the hosting check.",
         "invalidSlug": "Pet id could not become a valid URL slug.",
         "unauthorized": "Sign in before submitting.",
@@ -1626,6 +1627,7 @@
     "cancel": "Cancel",
     "create": "Create",
     "save": "Save",
+    "unauthorized": "Your session expired. Sign in again and retry.",
     "forbidden": "That collection is not yours.",
     "notFound": "That collection no longer exists.",
     "featuredNotEditable": "Featured collections cannot be edited or deleted.",
@@ -1638,8 +1640,7 @@
   "collectionEditor": {
     "selectPetsFirst": "Select pets first",
     "petLimit": "Collections can include up to {max} pets. Remove members until you are below {max} to add another.",
-    "petLimitHint": "You have more approved pets than fit in one collection. Pick up to {max}.",
-    "emptyPetSlugs": "That would remove every pet from this collection. Add a pet, or delete the collection instead."
+    "petLimitHint": "You have more approved pets than fit in one collection. Pick up to {max}."
   },
   "onboarding": {
     "skip": "Skip tour"

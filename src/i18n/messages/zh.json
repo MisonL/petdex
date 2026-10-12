@@ -477,6 +477,7 @@
         "rateLimited": "已达到限制：每 24 小时最多提交 10 次。请明天再试。",
         "missingField": "这个包缺少提交所需的数据。",
         "invalidSpritesheet": "精灵图集太小，或尺寸无效。",
+        "assetTooLarge": "{role} 超过了 {max} 的上传上限。请压缩后重试。",
         "invalidAssetUrl": "上传的资源没有通过托管检查。",
         "invalidSlug": "宠物 id 无法转换成有效的 URL slug。",
         "unauthorized": "请先登录再提交。",
@@ -1890,6 +1891,7 @@
     "cancel": "取消",
     "create": "创建",
     "save": "保存",
+    "unauthorized": "登录状态已过期，请重新登录后再试。",
     "forbidden": "该合集不属于你。",
     "notFound": "该合集已不存在。",
     "featuredNotEditable": "精选合集无法编辑或删除。",
@@ -1902,8 +1904,7 @@
   "collectionEditor": {
     "selectPetsFirst": "请先选择宠物",
     "petLimit": "每个合集最多包含 {max} 个宠物。请先移除成员，降到 {max} 个以下才能再添加。",
-    "petLimitHint": "你已批准的宠物超过单个合集的上限，最多可选择 {max} 个。",
-    "emptyPetSlugs": "这样会移除该合集中的全部宠物。请添加一个，或改为删除该合集。"
+    "petLimitHint": "你已批准的宠物超过单个合集的上限，最多可选择 {max} 个。"
   },
   "onboarding": {
     "skip": "跳过引导"
