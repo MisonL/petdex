@@ -226,6 +226,32 @@ async function handleRequest(req: JsonRpcRequest): Promise<void> {
       const toolName = params?.name as string | undefined;
       const args = (params?.arguments ?? {}) as Record<string, unknown>;
 
+      // A malformed client can send a non-string name (or non-object
+      // arguments); without this, a missing name reports "-32601 Unknown
+      // tool: undefined" instead of an invalid-params error, and a string
+      // `arguments` is read as an object and silently produces garbage.
+      if (typeof params?.name !== "string") {
+        sendMessage(
+          errorResponse(id, -32602, "Invalid params: name must be a string"),
+        );
+        return;
+      }
+      if (
+        params?.arguments !== undefined &&
+        (typeof params.arguments !== "object" ||
+          params.arguments === null ||
+          Array.isArray(params.arguments))
+      ) {
+        sendMessage(
+          errorResponse(
+            id,
+            -32602,
+            "Invalid params: arguments must be an object",
+          ),
+        );
+        return;
+      }
+
       if (await killswitchActive()) {
         sendMessage({
           jsonrpc: "2.0",
@@ -449,6 +475,22 @@ export async function runMcpServer(): Promise<void> {
   function dispatchRequest(bodyStr: string) {
     try {
       const req = JSON.parse(bodyStr) as JsonRpcRequest;
+      // `JSON.parse("null")` succeeds and yields null, so the `.catch` below
+      // would read `req.id` off it and throw a second time — inside the
+      // handler, where the `finally` no longer runs, leaving `pending` stuck
+      // at 1 and tearing the process down as an unhandled rejection. Reject
+      // any non-object root the same way a parse error is rejected.
+      if (!req || typeof req !== "object" || Array.isArray(req)) {
+        sendMessage({
+          jsonrpc: "2.0",
+          id: null,
+          error: {
+            code: -32600,
+            message: "Invalid Request: not an object",
+          },
+        });
+        return;
+      }
       pending++;
       handleRequest(req)
         .catch((err) => {

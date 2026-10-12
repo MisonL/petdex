@@ -62,7 +62,13 @@ async function runServer(input: string, beforeInputDelay = 0) {
   const code = await new Promise<number | null>((resolve) => {
     child.on("close", resolve);
   });
-  return { beforeInputStdout, code, frames: parseFrames(stdout), stderr };
+  return {
+    beforeInputStdout,
+    code,
+    frames: parseFrames(stdout),
+    stderr,
+    stdout,
+  };
 }
 
 describe("Petdex MCP server stdio", () => {
@@ -192,6 +198,56 @@ describe("Petdex MCP server stdio", () => {
       id: null,
       error: { code: -32700 },
     });
+  });
+
+  test("answers a framed null body instead of crashing", async () => {
+    // `JSON.parse("null")` succeeds, so a framed body of `null` used to reach
+    // `handleRequest(null)`, whose rejection handler read `req.id` off null and
+    // threw again — inside the handler, so the finally never ran and the
+    // process died with an unhandled rejection, dropping any buffered sibling
+    // frame. It must instead answer an invalid-request error and keep serving.
+    const initialize = frame({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+      params: { protocolVersion: "2025-03-26" },
+    });
+    const result = await runServer(frame(null) + initialize);
+
+    expect(result.code).toBe(0);
+    expect(result.stderr).not.toContain("null is not an object");
+    // The refusal comes first, then the initialize is still answered.
+    expect(result.frames[0]).toMatchObject({
+      id: null,
+      error: { code: -32600 },
+    });
+    expect(result.frames[1]).toMatchObject({
+      id: 1,
+      result: { serverInfo: { name: "petdex-mcp-server" } },
+    });
+  });
+
+  test("rejects a tools/call whose name is not a string", async () => {
+    const initialize = frame({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+      params: { protocolVersion: "2025-03-26" },
+    });
+    const badCall = frame({
+      jsonrpc: "2.0",
+      id: 2,
+      method: "tools/call",
+      params: { name: 123, arguments: {} },
+    });
+
+    const result = await runServer(initialize + badCall);
+
+    expect(result.code).toBe(0);
+    const call = result.frames.find((f) => (f as { id?: unknown }).id === 2) as
+      | { error?: { code?: number } }
+      | undefined;
+    expect(call?.error?.code).toBe(-32602);
   });
 
   test("accepts Antigravity JSONL initialize request", async () => {
