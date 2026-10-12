@@ -9,7 +9,16 @@ import { describe, expect, it, mock } from "bun:test";
 
 let modelReply = "";
 
+// `mock.module` is process-wide and first-registration-wins, so this factory
+// hands its shape to every later suite in the run. `ai` is imported by
+// `embeddings.ts` (`embed`), `submission-review.ts`, `pet-sound.ts`, and
+// `auto-tag.ts` (`generateText`), and a stub that names only `generateText`
+// makes those others fail with `Export named 'embed' not found` — not here, in
+// whichever file loads next. Spread the real module and override only the one
+// function under test, so the partial shape cannot leak.
+const realAi = await import("ai");
 mock.module("ai", () => ({
+  ...realAi,
   generateText: async () => ({ text: modelReply }),
 }));
 
