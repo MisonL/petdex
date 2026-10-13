@@ -70,11 +70,14 @@ Both work without editing the file.
 - Outbound emails: `RESEND_API_KEY` is empty, so notification emails
   are skipped. In-app notifications still fire.
 - AI features (auto-tag, vibe search, pet sound): these need
-  `OPENAI_API_KEY` / `ELEVENLABS_API_KEY` in your `.env.local`.
+  `AI_GATEWAY_API_KEY` / `ELEVENLABS_API_KEY` in your `.env.local`. The
+  model calls go through Vercel AI Gateway, which reads
+  `AI_GATEWAY_API_KEY` specifically — a bare `OPENAI_API_KEY` does not
+  make them work.
 
 ### Becoming a dev admin
 
-Some routes (`/admin`, takedown, manual approval) require your Clerk
+Review actions (takedown, manual approval) require your Clerk
 user id to be in `PETDEX_ADMIN_USER_IDS`. After signing in:
 
 1. Open <http://localhost:3000/u/your-handle> while signed in
