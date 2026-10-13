@@ -47,11 +47,30 @@ const URL_PATTERNS: Array<{ name: string; re: RegExp }> = [
     name: "obfuscated_protocol",
     re: /\bh\s*t\s*t\s*p\s*s?\s*[:;]/i,
   },
-  // "example dot com" style obfuscation — common in manual spam.
+  // "example dot com" style obfuscation — common in manual spam. The dot
+  // placeholder may carry whitespace on either side ("evil (dot) com"), the
+  // bracketed forms keep their exact delimiters ("evil[dot]com"), and the
+  // word form ("evil dot com") is the same sentence-shaped dodge — gated on
+  // the left token not being an everyday English word ("the dot com chapter"
+  // is prose, not an obfuscated domain).
   {
     name: "dot_obfuscation",
     re: new RegExp(
-      `[a-z0-9-]+\\s*(\\(dot\\)|\\[dot\\]|\\(\\.\\)|\\.\\.|,\\s*dot\\s*,)\\s*(${COMMON_TLDS})\\b`,
+      `[a-z0-9-]+\\s*(\\(\\s*dot\\s*\\)|\\[\\s*dot\\s*\\]|\\.\\.|,\\s*dot\\s*,|dot)\\s*(${COMMON_TLDS})\\b`,
+      "i",
+    ),
+  },
+  // Whitespace-torn domain: "evil. com", "evil . com". The space defeats the
+  // bare_domain regex, whose \b requires the dot to sit against the TLD, and
+  // the dotted forms above only fire when the separator reads as the word
+  // "dot". Matching "domain ␣·␣ TLD" directly keeps the version-string guard:
+  // "1.0 io" does not match because the left token must end in [a-z0-9-]
+  // without a digit-dot pair ("1.0" is <digit>.<digit>, its tail after the
+  // dot is not [a-z0-9-]).
+  {
+    name: "spaced_tld",
+    re: new RegExp(
+      `\\b[a-z0-9][a-z0-9-]{1,63}\\s*\\.\\s+(${COMMON_TLDS})\\b`,
       "i",
     ),
   },
@@ -103,6 +122,40 @@ function stripLegitDomains(value: string): string {
   return stripped;
 }
 
+// Words that legitimately sit next to "com" in prose ("read the dot com
+// intro chapter", "dot com bubble"). When the token before the dot
+// placeholder is one of these, the bare word-dot form is prose, not a
+// scrambled domain. Bracketed/parenthesized forms never consult this list —
+// "(dot)"/"[dot]" is already deliberate obfuscation.
+const DOT_PROSE_WORDS: ReadonlySet<string> = new Set([
+  "a",
+  "an",
+  "and",
+  "bubble",
+  "era",
+  "for",
+  "from",
+  "in",
+  "is",
+  "it",
+  "like",
+  "my",
+  "of",
+  "on",
+  "or",
+  "read",
+  "that",
+  "the",
+  "this",
+  "to",
+  "with",
+]);
+
+// The word-dot left token is prose, not part of a scrambled domain.
+function isDotProseWord(value: string): boolean {
+  return DOT_PROSE_WORDS.has(value);
+}
+
 /**
  * Check one or more labeled fields for URL patterns.
  *
@@ -123,9 +176,22 @@ export function containsUrl(
     for (const { name, re } of URL_PATTERNS) {
       const haystack =
         name === "bare_domain" ? stripLegitDomains(normalized) : normalized;
-      if (re.test(haystack)) {
-        return { hit: true, pattern: name, field: fieldName };
+      const match = re.exec(haystack);
+      if (!match) continue;
+      // A bare word "dot" between a prose word and a TLD reads as a phrase,
+      // not a domain: "read the dot com intro". Delimited placeholders
+      // ((dot)/[dot]) and punctuation forms (.., ", dot,") are always
+      // obfuscation, so only the delimiter-free branch is prose-gated.
+      // match[0] opens with the left token, and a delimiter-free match is
+      // exactly "<token> dot <tld>", so its first word is that token.
+      if (
+        name === "dot_obfuscation" &&
+        match[1].trim().toLowerCase() === "dot" &&
+        isDotProseWord(match[0].split(/\s/)[0])
+      ) {
+        continue;
       }
+      return { hit: true, pattern: name, field: fieldName };
     }
   }
   return null;
