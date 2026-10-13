@@ -43,6 +43,17 @@ export function viewerIdForFallbackHandle(
 
 // Forward: userId -> handle. Used to build /u/<handle> URLs from a
 // pet's ownerId (e.g. credit chip, /my-pets header).
+//
+// The fallback suffix is a best-effort link, not a reserved name: nothing
+// stops another user from registering a profile handle that equals someone
+// else's id tail, and that registration wins (profile/Clerk lookups run
+// before the suffix sweep). The displaced user's fallback link 404s until
+// they set a real handle. Closing this would mean reserving every current
+// suffix across registrations — a full-table check per handle save — which
+// the fallback's purpose (a link for users who never picked a handle) does
+// not justify. `userIdForHandle`'s ambiguity refusal keeps one squatted
+// name from hijacking resolution to the wrong user when several ids share
+// a tail.
 export async function handleForUser(userId: string): Promise<string> {
   const cached = await cachedAggregate(
     {
