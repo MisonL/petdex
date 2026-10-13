@@ -128,4 +128,43 @@ describe("publishPetPublicArtifacts source gate", () => {
       storedSourceSha = SOURCE_SHA;
     }
   });
+
+  test("an oversized-header spritesheet is refused with a dimension reason", async () => {
+    // The real attack shape: a 972KB PNG declaring 16000x16000 (256MP) sits
+    // under the 8MB byte cap AND under sharp's default ~268MP limit — sharp
+    // accepts the metadata and a resize decodes ~200MB of RGBA (measured).
+    // The pipeline's own ceiling is 31.6MP (4608x6864), enforced at this
+    // gate before any renderer sees the bytes, so the gate is the only line
+    // of defense for this shape, and the reason names the refused
+    // dimensions. (Above the default limit, sharp itself rejects with
+    // "exceeds pixel limit" — that path lands in spritesheet_unreadable.)
+    const png = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAPoAAAD6ACAYAAABBft/eAAABD0lEQVR4nO3BMQEAAADCoPVPbQhfoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAfgPoMQABcaRUcgAAAABJRU5ErkJggg==",
+      "base64",
+    );
+    const pngSha = createHash("sha256").update(png).digest("hex");
+    const originalGet = client.send;
+    client.send = async (command: unknown) => {
+      if (command instanceof GetObjectCommand) {
+        return {
+          Body: { transformToByteArray: async () => new Uint8Array(png) },
+        };
+      }
+      return originalGet(command);
+    };
+    try {
+      const result = await publishPetPublicArtifacts({
+        slug: "byte-bunny",
+        spritesheetUrl: "https://assets.petdex.dev/pets/abc/sprite.webp",
+      });
+      expect(result.ok).toBe(false);
+      expect(result.failed[0]?.reason).toBe(
+        "spritesheet_dimensions_out_of_range:16000x16000",
+      );
+      expect(result.published).toEqual([]);
+      expect(pngSha).toHaveLength(64);
+    } finally {
+      client.send = originalGet;
+    }
+  });
 });
