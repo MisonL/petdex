@@ -31,6 +31,7 @@ import { R2_BUCKET, r2 } from "@/lib/r2";
 import { keyFromR2PublicUrl, toCurrentR2PublicUrl } from "@/lib/r2-public-url";
 import { isDecodableSpriteSize } from "@/lib/sprite-atlas";
 import { renderSticker } from "@/lib/sticker-renderer";
+import { PET_ASSET_MAX_BYTES } from "@/lib/upload-limits";
 import { isAllowedAssetUrl } from "@/lib/url-allowlist";
 
 export type PetPublicArtifactResult = {
@@ -279,6 +280,17 @@ async function getR2ObjectBuffer(key: string): Promise<Buffer> {
     new GetObjectCommand({ Bucket: R2_BUCKET, Key: key }),
   );
   if (!response.Body) throw new Error("missing body");
+  // The presign-time 8MB cap binds uploads, but objects written by other
+  // paths (rescues, legacy imports) are not bound by it. Enforce it here so
+  // one oversized object cannot decide how much this process buffers.
+  if (
+    typeof response.ContentLength === "number" &&
+    response.ContentLength > PET_ASSET_MAX_BYTES
+  ) {
+    throw new Error(
+      `spritesheet_too_large:${response.ContentLength}>${PET_ASSET_MAX_BYTES}`,
+    );
+  }
   return Buffer.from(await response.Body.transformToByteArray());
 }
 

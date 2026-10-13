@@ -20,6 +20,7 @@ import { petThumbnailKey } from "@/lib/pet-thumbnail";
 import { getAllApprovedPets } from "@/lib/pets";
 import { R2_BUCKET, r2 } from "@/lib/r2";
 import { keyFromR2PublicUrl, R2_PUBLIC_BASE } from "@/lib/r2-public-url";
+import { PET_ASSET_MAX_BYTES } from "@/lib/upload-limits";
 import { isAllowedAssetUrl } from "@/lib/url-allowlist";
 
 type Mode = "check" | "apply";
@@ -283,6 +284,16 @@ async function getR2ObjectBuffer(key: string): Promise<Buffer> {
     new GetObjectCommand({ Bucket: R2_BUCKET, Key: key }),
   );
   if (!response.Body) throw new Error("missing body");
+  // Same cap as the presign path: objects written outside it (rescues,
+  // legacy imports) still must not decide how much this run buffers.
+  if (
+    typeof response.ContentLength === "number" &&
+    response.ContentLength > PET_ASSET_MAX_BYTES
+  ) {
+    throw new Error(
+      `spritesheet_too_large:${response.ContentLength}>${PET_ASSET_MAX_BYTES}`,
+    );
+  }
   return Buffer.from(await response.Body.transformToByteArray());
 }
 
