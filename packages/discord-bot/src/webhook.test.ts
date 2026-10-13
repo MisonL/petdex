@@ -146,6 +146,7 @@ describe("embed escaping matches where Discord renders markdown", () => {
     const sent: Array<{
       content?: string;
       embeds: Array<Record<string, unknown>>;
+      allowedMentions?: { parse: string[] };
     }> = [];
     const channel = {
       isTextBased: () => true,
@@ -153,10 +154,12 @@ describe("embed escaping matches where Discord renders markdown", () => {
       send: async (msg: {
         content?: string;
         embeds: Array<{ toJSON: () => Record<string, unknown> }>;
+        allowedMentions?: { parse: string[] };
       }) => {
         sent.push({
           content: msg.content,
           embeds: msg.embeds.map((e) => e.toJSON()),
+          allowedMentions: msg.allowedMentions,
         });
       },
     };
@@ -218,6 +221,28 @@ describe("embed escaping matches where Discord renders markdown", () => {
       | undefined;
     expect(embed?.title).toBe("Cozy *Deck*");
     expect(embed?.description).toContain("\\[win](");
+  });
+
+  it("suppresses mentions when posting a featured collection", async () => {
+    // The collection's title/description are owner-supplied and only
+    // length-checked upstream, so a `Cozy <@everyone>` title must not be able
+    // to ping. `postPetApproved` sets `allowedMentions` on its send for the
+    // same reason; this poster had no guard and its producer does not exist
+    // yet, so the gap would have shipped with the producer. The assertion
+    // reads the payload the stub captured — the same shape the live send
+    // passes to `channel.send`.
+    const { client, sent } = capturingClient("ip-spotlight");
+    await postCollectionFeatured(client, {
+      event: "collection_featured",
+      collection: {
+        slug: "cozy-deck",
+        title: "Cozy <@&12345> <@everyone>",
+        description: "say hi @everyone",
+      },
+    });
+    expect(
+      (sent[0] as { allowedMentions?: { parse: string[] } }).allowedMentions,
+    ).toEqual({ parse: [] });
   });
 
   it("neutralizes every masked link, not just the first on a line", async () => {

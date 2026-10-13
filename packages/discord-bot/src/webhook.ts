@@ -186,7 +186,8 @@ export async function postCollectionFeatured(
   const channel = await findChannel(client, "ip-spotlight");
   if (!channel) return;
   const embed = new EmbedBuilder()
-    // Title: not escaped, for the same reason as postPetApproved.
+    // Title: not escaped, for the same reason as postPetApproved — a title
+    // renders literally, and only markdown is at issue there.
     .setTitle(ev.collection.title)
     .setURL(`${PETDEX_API_BASE}/collections/${ev.collection.slug}`)
     // Description: escaped — a collection description is owner-supplied free
@@ -201,6 +202,11 @@ export async function postCollectionFeatured(
   await channel.send({
     content: "✨ New featured collection on Petdex.",
     embeds: [embed],
+    // Same reasoning as postPetApproved: the embed's title and description are
+    // owner-supplied, and mention suppression should never depend on the
+    // renderer's treatment of embed text. `parse: []` allows no mention type
+    // anywhere in the message.
+    allowedMentions: { parse: [] },
   });
 }
 
