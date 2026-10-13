@@ -66,11 +66,16 @@ const URL_PATTERNS: Array<{ name: string; re: RegExp }> = [
   // "dot". Matching "domain ␣·␣ TLD" directly keeps the version-string guard:
   // "1.0 io" does not match because the left token must end in [a-z0-9-]
   // without a digit-dot pair ("1.0" is <digit>.<digit>, its tail after the
-  // dot is not [a-z0-9-]).
+  // dot is not [a-z0-9-]). The left token also has to look like a domain
+  // label — at least 4 characters — because a sentence boundary ("yes. me
+  // too", "no. app here") puts short words and sentence-final words before
+  // any TLD, and a torn domain's left half is a hostname someone wanted to
+  // keep whole enough to read: measured false positives at 1-3 characters
+  // were every ordinary short sentence ending in a TLD word.
   {
     name: "spaced_tld",
     re: new RegExp(
-      `\\b[a-z0-9][a-z0-9-]{1,63}\\s*\\.\\s+(${COMMON_TLDS})\\b`,
+      `\\b[a-z0-9][a-z0-9-]{3,63}\\s*\\.\\s+(${COMMON_TLDS})\\b`,
       "i",
     ),
   },
@@ -151,6 +156,71 @@ const DOT_PROSE_WORDS: ReadonlySet<string> = new Set([
   "with",
 ]);
 
+// Sentence-final words that precede a TLD word across a sentence boundary:
+// "wait. io games are fun" is prose, not a torn domain. A torn domain's left
+// half is a hostname the writer wanted recognizable, so common short words
+// before the dot are prose. Kept small and word-based rather than trying to
+// model English: a real torn domain uses a label nobody would otherwise
+// write before a period.
+const SPACED_TLD_PROSE_WORDS: ReadonlySet<string> = new Set([
+  "and",
+  "as",
+  "do",
+  "fun",
+  "had",
+  "has",
+  "have",
+  "he",
+  "here",
+  "hi",
+  "i",
+  "in",
+  "is",
+  "it",
+  "me",
+  "my",
+  "no",
+  "not",
+  "now",
+  "of",
+  "ok",
+  "on",
+  "one",
+  "or",
+  "said",
+  "she",
+  "so",
+  "than",
+  "that",
+  "the",
+  "their",
+  "them",
+  "then",
+  "there",
+  "they",
+  "this",
+  "to",
+  "too",
+  "us",
+  "wait",
+  "was",
+  "we",
+  "well",
+  "went",
+  "were",
+  "what",
+  "when",
+  "where",
+  "which",
+  "who",
+  "why",
+  "will",
+  "with",
+  "would",
+  "you",
+  "your",
+]);
+
 // The word-dot left token is prose, not part of a scrambled domain.
 function isDotProseWord(value: string): boolean {
   return DOT_PROSE_WORDS.has(value);
@@ -188,6 +258,18 @@ export function containsUrl(
         name === "dot_obfuscation" &&
         match[1].trim().toLowerCase() === "dot" &&
         isDotProseWord(match[0].split(/\s/)[0])
+      ) {
+        continue;
+      }
+      // A sentence boundary reads the same shape as a torn domain
+      // ("wait. io games are fun"). The left token before the space-dot is
+      // the sentence's last word; when that is an everyday word, this is
+      // prose. Genuine tears use a hostname as the left half. match[0] is
+      // "<left>. <tld>", so its first word — minus the trailing dot — is the
+      // left token.
+      if (
+        name === "spaced_tld" &&
+        SPACED_TLD_PROSE_WORDS.has(match[0].split(/\s/)[0].replace(/\.$/, ""))
       ) {
         continue;
       }

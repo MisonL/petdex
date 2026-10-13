@@ -258,3 +258,29 @@ describe("containsUrl — whitespace-torn and word-dot obfuscation", () => {
     ).not.toBeNull();
   });
 });
+
+describe("containsUrl — spaced_tld sentence-boundary guard", () => {
+  // A sentence boundary ("yes. me too") has the same shape as a torn domain:
+  // word, period, space, TLD word. The prose gate keys on the sentence's
+  // last word; these pin the ordinary sentences measured as false positives
+  // before the gate existed.
+  it("keeps ordinary sentences that end before a TLD word", () => {
+    for (const text of [
+      "yes. me too",
+      "wait. io games are fun",
+      "he said no. app developers know",
+      "do. co ops fail",
+      "no. app here",
+      "number one. xyz site",
+      "i was. com pletely wrong",
+    ]) {
+      expect(containsUrl(["description", text])).toBeNull();
+    }
+  });
+
+  it("still catches a torn domain whose left half is a hostname", () => {
+    for (const text of ["evil. com", "spam. net", "site. info", "evil. me"]) {
+      expect(containsUrl(["description", text])).not.toBeNull();
+    }
+  });
+});
