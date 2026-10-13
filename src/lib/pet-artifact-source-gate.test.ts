@@ -35,8 +35,16 @@ if (!legacyHost) {
   );
 }
 
-const SOURCE = Buffer.from([1, 2, 3, 4]);
-const SOURCE_SHA = createHash("sha256").update(SOURCE).digest("hex");
+// A real (tiny) spritesheet-shaped image. The decode-dimension gate added
+// after this suite was written reads metadata before anything else, so the
+// stub's source has to survive `sharp(...).metadata()` — arbitrary bytes do
+// not, and the gate would answer `spritesheet_unreadable` before the URL
+// assertions below could run.
+const SOURCE_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAFklEQVR4nGP8z8Dwn4GKgImahoEACNonD3aGmKcAAAAASUVORK5CYII=",
+  "base64",
+);
+const SOURCE_SHA = createHash("sha256").update(SOURCE_PNG).digest("hex");
 
 // Mutable so a test can prove that art rendered from an older spritesheet is
 // NOT skipped (the #590 staleness fix). Default: every artifact is current.
@@ -50,7 +58,7 @@ const originalSend = client.send;
 client.send = async (command: unknown) => {
   if (command instanceof GetObjectCommand) {
     return {
-      Body: { transformToByteArray: async () => new Uint8Array(SOURCE) },
+      Body: { transformToByteArray: async () => new Uint8Array(SOURCE_PNG) },
     };
   }
   return { Metadata: { "petdex-source-sha256": storedSourceSha } };
@@ -112,7 +120,8 @@ describe("publishPetPublicArtifacts source gate", () => {
         slug: "byte-bunny",
         spritesheetUrl: "https://assets.petdex.dev/pets/abc/sprite.webp",
       });
-      // The source is not a real image, so rendering fails — the point is that
+      // The source decodes (it must, to pass the dimension gate) but is not a
+      // real spritesheet, so rendering the artifacts fails — the point is that
       // the stale objects were NOT taken as a reason to skip.
       expect(result.skipped.length).toBe(0);
     } finally {

@@ -29,6 +29,7 @@ import {
 } from "@/lib/pet-thumbnail";
 import { R2_BUCKET, r2 } from "@/lib/r2";
 import { keyFromR2PublicUrl, toCurrentR2PublicUrl } from "@/lib/r2-public-url";
+import { isDecodableSpriteSize } from "@/lib/sprite-atlas";
 import { renderSticker } from "@/lib/sticker-renderer";
 import { isAllowedAssetUrl } from "@/lib/url-allowlist";
 
@@ -78,6 +79,41 @@ export async function publishPetPublicArtifacts(input: {
   // preview/thumb/sticker live forever (#590) because existence was the only
   // check — republish planned by `planPublicArtifacts` then no-opped here.
   const source = await getR2ObjectBuffer(sourceKey);
+  // The decode ceiling the audit pipeline shares with color-extract and the
+  // dHash: an 8MB-capped object can still declare 16000x16000 (256MP), which
+  // sharp's default ~268MP limit accepts and decodes to ~200MB of RGBA
+  // (measured). `sharp(source)` below never checks dimensions on its own, so
+  // gate the bytes once here, before any renderer in this file or
+  // sticker-renderer.ts sees them. Every later decode in the pipeline is
+  // bounded by this single check.
+  try {
+    const metadata = await sharp(source).metadata();
+    if (!isDecodableSpriteSize(metadata.width, metadata.height)) {
+      return {
+        ok: false,
+        published: [],
+        skipped: [],
+        failed: [
+          {
+            key: input.spritesheetUrl,
+            reason: `spritesheet_dimensions_out_of_range:${metadata.width}x${metadata.height}`,
+          },
+        ],
+      };
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      published: [],
+      skipped: [],
+      failed: [
+        {
+          key: input.spritesheetUrl,
+          reason: `spritesheet_unreadable:${errorReason(error)}`,
+        },
+      ],
+    };
+  }
   const sourceSha256 = createHash("sha256").update(source).digest("hex");
 
   const pending = [];
