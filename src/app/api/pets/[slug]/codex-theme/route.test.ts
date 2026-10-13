@@ -86,3 +86,22 @@ describe("GET /api/pets/[slug]/codex-theme cache headers", () => {
     );
   });
 });
+
+describe("codex-theme malformed color fallback", () => {
+  it("answers the neutral theme for a hand-edited non-hex color", async () => {
+    // parseHex used to accept any 6-char string ("GGHHII") and let
+    // parseInt's NaN reach toHex, which serialized "#NaNNaNNaN". A row
+    // color is normally Vibrant's `#rrggbb` output, so this guards the
+    // hand-edited row, not the pipeline.
+    row = {
+      slug: "boba",
+      displayName: "Boba",
+      dominantColor: "GGHHII",
+      status: "approved",
+    };
+    const res = await get("boba");
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { light?: { background?: string } };
+    expect(JSON.stringify(body)).not.toContain("NaN");
+  });
+});

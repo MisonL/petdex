@@ -107,14 +107,18 @@ export async function persistPetEmbedding(
   vec: number[],
 ): Promise<void> {
   if (!process.env.DATABASE_URL) return;
-  // Drizzle doesn't model pgvector yet; raw SQL via the neon-http driver.
+  // Drizzle doesn't model pgvector yet; raw SQL through the shared db
+  // client (the same escape hatch dex.ts uses). The bare neon() this
+  // replaced opened a second connection pool that skipped the local-driver
+  // detection and the postgres-js `.rows` normalization, so a local run
+  // wrote through a different path than production — same statement, two
+  // code paths, one of them untested.
   const literal = embeddingVectorLiteral(vec);
-  const { neon } = await import("@neondatabase/serverless");
-  const sql = neon(process.env.DATABASE_URL);
-  await sql`
+  const { sql } = await import("drizzle-orm");
+  await db.execute(sql`
     UPDATE submitted_pets
     SET embedding = ${literal}::vector,
         embedding_model = ${PETDEX_EMBEDDING_MODEL}
     WHERE id = ${petId}
-  `;
+  `);
 }

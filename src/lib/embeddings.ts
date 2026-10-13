@@ -54,7 +54,7 @@ export function buildPetEmbeddingText(args: {
 }
 
 export function embeddingVectorLiteral(vec: number[]): string {
-  return `[${vec.join(",")}]`;
+  return `[${vec.map((n) => (Number.isFinite(n) ? n : 0)).join(",")}]`;
 }
 
 export function hasCurrentEmbeddingDimensions(
