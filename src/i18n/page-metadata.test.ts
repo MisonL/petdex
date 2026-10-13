@@ -22,7 +22,7 @@ const FIELDS = [
   "twitterTitle",
 ];
 
-/** Every `page.tsx` under `[locale]`, at any depth. */
+/** Every `page.tsx` and `not-found.tsx` under `[locale]`, at any depth. */
 async function pageFiles(): Promise<string[]> {
   const { readdir } = await import("node:fs/promises");
   const found: string[] = [];
@@ -30,7 +30,8 @@ async function pageFiles(): Promise<string[]> {
     for (const entry of await readdir(dir, { withFileTypes: true })) {
       const path = join(dir, entry.name);
       if (entry.isDirectory()) await walk(path);
-      else if (entry.name === "page.tsx") found.push(path);
+      else if (entry.name === "page.tsx" || entry.name === "not-found.tsx")
+        found.push(path);
     }
   }
   await walk(LOCALE_DIR);

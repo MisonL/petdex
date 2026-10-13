@@ -47,7 +47,6 @@ export const CLIENT_MESSAGE_PATHS = [
   "profileShare",
   "profileTabs",
   "requests.view",
-  "sticker",
   "stickers",
   "submit.form",
   "submit.form.copy",
