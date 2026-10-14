@@ -87,8 +87,11 @@ export async function POST(
   // collections — the community surface might let users vote on
   // unofficial sets later, and this endpoint already gates on
   // ownership of the pet.
+  // Stored slugs are lowercase; the read path lowercases too, so a mixed-case
+  // URL like /collections/Franchise-Pokemon/request must match or the page
+  // works while its request action 404s.
   const collection = await db.query.petCollections.findFirst({
-    where: eq(schema.petCollections.slug, slug),
+    where: eq(schema.petCollections.slug, slug.toLowerCase()),
   });
   if (!collection) {
     return NextResponse.json(
