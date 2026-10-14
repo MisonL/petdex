@@ -15,6 +15,7 @@ import { drizzle } from "drizzle-orm/pglite";
 
 import { rowsOf, runAtomicReturning } from "@/lib/db/atomic";
 import * as schema from "@/lib/db/schema";
+import * as realR2 from "@/lib/r2";
 import * as realRatelimit from "@/lib/ratelimit";
 
 const client = new PGlite();
@@ -54,6 +55,13 @@ mock.module("@/lib/ratelimit", () => ({
 }));
 mock.module("@/lib/same-origin", () => ({ requireSameOrigin: () => null }));
 mock.module("@/lib/query-embed", () => ({ embedQuery: async () => null }));
+// The image-ownership specs POST an imageUrl, and the route now HEADs the
+// R2 object before writing the row — a real R2 handshake here fails offline.
+// ok:true with a byte count reads as "present, within limit".
+mock.module("@/lib/r2", () => ({
+  ...realR2,
+  checkR2ObjectSize: async () => ({ ok: true as const, bytes: 1024 }),
+}));
 mock.module("@neondatabase/serverless", () => ({
   // Spread the real module: a bare replacement drops `neonConfig`, `Pool`, and
   // the rest, and `mock.module` is process-wide, so the next suite to link one

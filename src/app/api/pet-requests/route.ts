@@ -14,7 +14,7 @@ import {
   containsBlockedKeyword,
 } from "@/lib/keyword-blocklist";
 import { embedQuery } from "@/lib/query-embed";
-import { R2_PUBLIC_BASE } from "@/lib/r2";
+import { checkR2ObjectSize, keyFromR2Url, R2_PUBLIC_BASE } from "@/lib/r2";
 import { petRequestRatelimit } from "@/lib/ratelimit";
 import { requireSameOrigin } from "@/lib/same-origin";
 import { containsUrl, URL_BLOCKED_REASON } from "@/lib/url-blocklist";
@@ -371,6 +371,21 @@ export async function POST(req: Request): Promise<Response> {
       { error: "invalid_image_url" },
       { status: 400, headers: PRIVATE_HEADERS },
     );
+  }
+  // The presign endpoint only checks the client-declared size; the actual
+  // object is whatever the caller PUT to the signed URL. Head it before the
+  // row lands so a replayed-or-oversized upload cannot become a permanent,
+  // un-gc'd public object — the requests/ prefix is outside every GC
+  // candidate shape, so nothing else would ever reclaim it.
+  if (imageUrl) {
+    const key = keyFromR2Url(imageUrl);
+    const check = key ? await checkR2ObjectSize(key, 4 * 1024 * 1024) : null;
+    if (!check || check.ok === false) {
+      return NextResponse.json(
+        { error: "image_not_verifiable" },
+        { status: 422, headers: PRIVATE_HEADERS },
+      );
+    }
   }
 
   const id = `req_${crypto.randomUUID().replace(/-/g, "").slice(0, 18)}`;
