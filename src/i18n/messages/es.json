@@ -1965,7 +1965,7 @@
           "verify": {
             "title": "Verifica la configuración",
             "body": "Si la mascota no aparece, vuelve a ejecutar el comando de instalación y revisa las carpetas mostradas. Petdex Desktop lee <code>~/.petdex/pets/</code>; Codex Desktop lee <code>~/.codex/pets/</code>.",
-            "result": ""
+            "result": "Ambas carpetas se muestran al terminar; vuelve a ejecutar el comando si falta alguna."
           }
         },
         "callout": "¿Aún no tienes una idea de mascota? <link>Crea la tuya</link> con el skill Hatch Pet y vuelve para ejecutar <code>petdex submit</code>."

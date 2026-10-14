@@ -1965,7 +1965,7 @@
           "verify": {
             "title": "Verify the setup",
             "body": "If the pet does not appear, re-run the install command and check the printed folders. Petdex Desktop reads <code>~/.petdex/pets/</code>; Codex Desktop reads <code>~/.codex/pets/</code>.",
-            "result": ""
+            "result": "Both folders print on success — re-run the install command if one is missing."
           }
         },
         "callout": "Don't have a pet idea yet? <link>Hatch your own</link> with the Hatch Pet skill, then come back to <code>petdex submit</code>."

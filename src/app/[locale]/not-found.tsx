@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { ArrowRight, Search, Sparkles } from "lucide-react";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 
 import { withLocale } from "@/lib/locale-routing";
 
@@ -9,7 +9,7 @@ import { StaticCommandLine } from "@/components/download/static-command-line";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 
-import { hasLocale } from "@/i18n/config";
+import { hasLocale, type Locale } from "@/i18n/config";
 
 export async function generateMetadata({
   params,
@@ -26,16 +26,21 @@ export async function generateMetadata({
   };
 }
 
-export default async function NotFound({
-  params,
-}: {
-  params: Promise<{ locale: string }>;
-}) {
-  const { locale: localeParam } = await params;
+export default async function NotFound() {
+  // Next constructs the not-found element with no props — a params
+  // declaration made every 404 a 500 (the await destructure threw). The
+  // locale comes from the request scope instead: getLocale reads the same
+  // [locale] segment the i18n request config does.
   // Bare paths resolve to the default locale under `localePrefix: as-needed`,
-  // so on /es or /zh these three CTAs dropped the visitor back into English.
-  // Route every link through the same withLocale the rest of the tree uses.
-  const locale = hasLocale(localeParam) ? localeParam : "en";
+  // so on /es or /zh these three CTAs would otherwise drop the visitor back
+  // into English; route every link through withLocale.
+  let locale: Locale = "en";
+  try {
+    const requested = await getLocale();
+    if (hasLocale(requested)) locale = requested;
+  } catch {
+    /* no request scope (e.g. root-level 404) — stay on the default */
+  }
   const t = await getTranslations("notFound");
   const localized = (path: string) => withLocale(path, locale);
 

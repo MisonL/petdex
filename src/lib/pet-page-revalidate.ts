@@ -23,15 +23,3 @@ export async function revalidatePetPagePaths(
     /* next/cache unavailable in some runtime contexts (tests, scripts) */
   }
 }
-
-export async function revalidateGalleryPagePaths(): Promise<void> {
-  try {
-    const { revalidatePath } = await import("next/cache");
-    revalidatePath("/");
-    for (const locale of locales) {
-      revalidatePath(`/${locale}`);
-    }
-  } catch {
-    /* as above */
-  }
-}

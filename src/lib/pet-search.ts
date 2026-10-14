@@ -335,6 +335,10 @@ async function vibeSearch(args: {
 }): Promise<SearchPageOutput | null> {
   const vec = await embedQuery(args.q);
   if (!vec) return null;
+  // Clamp once at the entry: LIMIT and slice below must agree, and a raw
+  // cursor past the cap made nextCursor walk past it and serve a repeat page
+  // before the hasNext check cut off.
+  const cursor = Math.min(args.cursor, VIBE_MAX_CURSOR);
   const literal = `[${vec.join(",")}]`;
 
   // pgvector cosine distance: <=> returns 0 (identical) -> 2 (opposite).
@@ -367,15 +371,12 @@ async function vibeSearch(args: {
       AND sp.embedding IS NOT NULL
       AND sp.embedding_model = ${PETDEX_EMBEDDING_MODEL}
     ORDER BY sp.embedding <=> ${literal}::vector
-    LIMIT ${args.limit + Math.min(args.cursor, VIBE_MAX_CURSOR) + 1}
+    LIMIT ${args.limit + cursor + 1}
   `) as Array<Record<string, unknown> & { similarity: number }>;
 
   const ranked = rows.filter((r) => r.similarity >= MIN_VIBE_SCORE);
-  const slice = ranked.slice(
-    Math.min(args.cursor, VIBE_MAX_CURSOR),
-    Math.min(args.cursor, VIBE_MAX_CURSOR) + args.limit,
-  );
-  const hasNext = ranked.length > args.cursor + args.limit;
+  const slice = ranked.slice(cursor, cursor + args.limit);
+  const hasNext = ranked.length > cursor + args.limit;
 
   const pets = slice.map((row) =>
     toSearchPet(rowToPet(rowToSchema(row)), {
@@ -388,7 +389,7 @@ async function vibeSearch(args: {
 
   const out: SearchPageOutput = {
     pets,
-    nextCursor: hasNext ? args.cursor + args.limit : null,
+    nextCursor: hasNext ? cursor + args.limit : null,
     searchMode: "vibe",
   };
   // ranked is a window, not the match universe: LIMIT = cursor + limit + 1,
@@ -396,7 +397,7 @@ async function vibeSearch(args: {
   // consumers the match count rose as they scrolled. The gallery treats a
   // missing total as "pets.length" and only surfaces it while filters are
   // active, so vibe omits it past the first window rather than lie.
-  if (args.includeTotal && args.cursor === 0) out.total = ranked.length;
+  if (args.includeTotal && cursor === 0) out.total = ranked.length;
   if (args.includeFacets) out.facets = await loadFacets();
   return out;
 }

@@ -2266,7 +2266,7 @@
           "verify": {
             "title": "验证配置是否正常",
             "body": "如果宠物没有出现，重新运行安装命令并检查输出的目录。Petdex Desktop 读取 <code>~/.petdex/pets/</code>；Codex Desktop 读取 <code>~/.codex/pets/</code>。",
-            "result": ""
+            "result": "成功时会打印两个目录——如果缺少哪个，重新运行安装命令。"
           }
         },
         "callout": "还没有宠物点子？用 Hatch Pet 技能<link>孵化你自己的</link>，然后回来运行 <code>petdex submit</code>。",

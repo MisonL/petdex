@@ -102,25 +102,56 @@ export async function POST(
   // idempotent, so running them unconditionally makes the answer true by
   // construction: insert-then-report-true and delete-then-report-false are
   // each correct no matter what the other request did.
+  // Write and recount ride one executeAtomicReturning batch: the recount
+  // used to run as a second standalone statement, so a concurrent flip's
+  // recount could read a pre-write snapshot and overwrite ours with a stale
+  // like_count that persisted until the next like. One transaction gives the
+  // count the write's own snapshot — the separate-statements rule
+  // executeAtomicReturning enforces everywhere else. setLikeCount's cache
+  // invalidations stay outside the batch: they touch Upstash/Next caches,
+  // not this database.
   let liked: boolean;
   if (desiredLiked === false) {
-    await db
-      .delete(schema.petLikes)
-      .where(
-        and(
-          eq(schema.petLikes.userId, userId),
-          eq(schema.petLikes.petSlug, slug),
-        ),
-      );
+    const results = await executeAtomicReturning([
+      sql`
+        DELETE FROM "pet_likes"
+        WHERE "user_id" = ${userId} AND "pet_slug" = ${slug}
+      `,
+      sql`
+        SELECT count(*)::int AS "count"
+        FROM "pet_likes"
+        WHERE "pet_slug" = ${slug}
+      `,
+    ]);
     liked = false;
+    return finishLike(
+      slug,
+      liked,
+      Number(
+        (rowsOf(results[1])[0] as { count?: number } | undefined)?.count ?? 0,
+      ),
+    );
   } else if (desiredLiked === true) {
-    await db
-      .insert(schema.petLikes)
-      .values({ userId, petSlug: slug })
-      .onConflictDoNothing({
-        target: [schema.petLikes.userId, schema.petLikes.petSlug],
-      });
+    const results = await executeAtomicReturning([
+      sql`
+        INSERT INTO "pet_likes" ("user_id", "pet_slug")
+        VALUES (${userId}, ${slug})
+        ON CONFLICT DO NOTHING
+      `,
+      sql`
+        SELECT count(*)::int AS "count"
+        FROM "pet_likes"
+        WHERE "pet_slug" = ${slug}
+      `,
+    ]);
     liked = true;
+    return finishLike(
+      slug,
+      liked,
+      Number(
+        (rowsOf(results[1])[0] as { count?: number } | undefined)?.count ?? 0,
+      ),
+    );
   } else {
     // No explicit target: flip whatever is there, in one statement — a read
     // followed by a write cannot be atomic here, and the delete's own result
@@ -135,44 +166,51 @@ export async function POST(
     // no RETURNING row, which the old shape reported as "unliked" while the
     // row was in fact present. Measured on Postgres, every concurrent round
     // had a caller report the wrong final state.
-    const flipped = await db.execute(sql`
-      WITH removed AS (
-        DELETE FROM "pet_likes"
-        WHERE "user_id" = ${userId} AND "pet_slug" = ${slug}
-        RETURNING 1
-      ),
-      ins AS (
-        INSERT INTO "pet_likes" ("user_id", "pet_slug")
-        SELECT ${userId}, ${slug}
-        WHERE NOT EXISTS (SELECT 1 FROM removed)
-        ON CONFLICT DO NOTHING
-        RETURNING 1
-      )
-      SELECT (SELECT count(*)::int FROM removed) = 0 AS "liked"
-    `);
+    const results = await executeAtomicReturning([
+      sql`
+        WITH removed AS (
+          DELETE FROM "pet_likes"
+          WHERE "user_id" = ${userId} AND "pet_slug" = ${slug}
+          RETURNING 1
+        ),
+        ins AS (
+          INSERT INTO "pet_likes" ("user_id", "pet_slug")
+          SELECT ${userId}, ${slug}
+          WHERE NOT EXISTS (SELECT 1 FROM removed)
+          ON CONFLICT DO NOTHING
+          RETURNING 1
+        )
+        SELECT (SELECT count(*)::int FROM removed) = 0 AS "liked"
+      `,
+      sql`
+        SELECT count(*)::int AS "count"
+        FROM "pet_likes"
+        WHERE "pet_slug" = ${slug}
+      `,
+    ]);
     liked =
-      (rowsOf(flipped)[0] as { liked?: boolean } | undefined)?.liked === true;
+      (rowsOf(results[0])[0] as { liked?: boolean } | undefined)?.liked ===
+      true;
+    return finishLike(
+      slug,
+      liked,
+      Number(
+        (rowsOf(results[1])[0] as { count?: number } | undefined)?.count ?? 0,
+      ),
+    );
   }
+}
 
-  // Recompute the denormalized count in the same transaction as the write:
-  // two independent statements let a concurrent flip's recount read a
-  // pre-write snapshot and overwrite ours with a stale count that persisted
-  // until the next like. READ COMMITTED per-statement snapshots inside one
-  // transaction give the recount the write's own snapshot — the same
-  // separate-statements rule executeAtomicReturning enforces everywhere else.
-  const results = await executeAtomicReturning([
-    sql`
-      SELECT count(*)::int AS "count"
-      FROM "pet_likes"
-      WHERE "pet_slug" = ${slug}
-    `,
-  ]);
-  const count =
-    (rowsOf(results[0])[0] as { count?: number } | undefined)?.count ?? 0;
-  await setLikeCount(slug, Number(count));
-
+async function finishLike(
+  slug: string,
+  liked: boolean,
+  count: number,
+): Promise<Response> {
+  // Cache invalidation rides the response path, outside the transaction:
+  // it touches Upstash/Next caches, not this database.
+  await setLikeCount(slug, count);
   return NextResponse.json(
-    { ok: true, liked, count: Number(count) },
+    { ok: true, liked, count },
     { headers: PRIVATE_HEADERS },
   );
 }

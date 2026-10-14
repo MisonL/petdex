@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { Resend } from "resend";
 
 import {
@@ -166,29 +166,40 @@ export async function applySubmissionAction(
     return { ok: false, status: 404, body: { error: "not_found" } };
   }
 
-  // A rename frees the old slug for the next submitter. Collection member
-  // rows and covers key on the slug, so they must move with the pet in the
-  // same breath — otherwise the pet silently vanishes from every collection
-  // it belongs to, the cover dangles, and a new pet taking the freed slug
-  // inherits the membership rows (a pet that was never added appearing in
-  // collections it does not belong to).
+  // A rename frees the old slug for the next submitter. Every table keyed by
+  // pet_slug — collection items, covers, likes, metrics, collection
+  // requests, featured lists — must move with the pet in one transaction,
+  // otherwise the pet silently vanishes from each of them and a submitter
+  // claiming the freed slug inherits the rows (a pet that was never added
+  // appearing in collections it does not belong to, likes reset to zero).
+  // Separate statements in one batch, per the executeAtomicReturning
+  // invariant; the cache revalidations below read the post-rename state.
   if (editPatch.slug && current.slug !== updated.slug) {
-    await db
-      .update(schema.petCollectionItems)
-      .set({ petSlug: updated.slug })
-      .where(eq(schema.petCollectionItems.petSlug, current.slug));
-    await db
-      .update(schema.petCollections)
-      .set({ coverPetSlug: updated.slug })
-      .where(eq(schema.petCollections.coverPetSlug, current.slug));
+    const { executeAtomicReturning } = await import("@/lib/db/client");
+    const oldSlug = current.slug;
+    const newSlug = updated.slug;
+    await executeAtomicReturning([
+      sql`UPDATE "pet_collection_items" SET "pet_slug" = ${newSlug} WHERE "pet_slug" = ${oldSlug}`,
+      sql`UPDATE "pet_collections" SET "cover_pet_slug" = ${newSlug} WHERE "cover_pet_slug" = ${oldSlug}`,
+      sql`UPDATE "pet_likes" SET "pet_slug" = ${newSlug} WHERE "pet_slug" = ${oldSlug}`,
+      sql`UPDATE "pet_metrics" SET "pet_slug" = ${newSlug} WHERE "pet_slug" = ${oldSlug}`,
+      sql`UPDATE "pet_collection_requests" SET "pet_slug" = ${newSlug} WHERE "pet_slug" = ${oldSlug}`,
+      sql`UPDATE "user_profiles" SET "featured_pet_slugs" = (
+        SELECT COALESCE(jsonb_agg(
+          CASE WHEN elem = to_jsonb(${oldSlug}::text) THEN to_jsonb(${newSlug}::text) ELSE elem END
+        ), '[]'::jsonb)
+        FROM jsonb_array_elements("featured_pet_slugs") AS elem
+      ) WHERE "featured_pet_slugs" @> to_jsonb(${oldSlug}::text)`,
+    ]);
     const { revalidateCollectionTags } = await import(
       "@/lib/db/cached-aggregates"
     );
     const covered = await db
       .select({ slug: schema.petCollections.slug })
       .from(schema.petCollections)
-      .where(eq(schema.petCollections.coverPetSlug, updated.slug));
+      .where(eq(schema.petCollections.coverPetSlug, newSlug));
     await revalidateCollectionTags(...covered.map((c) => c.slug));
+    await invalidatePetCaches(oldSlug, newSlug);
   }
 
   let row = updated;
