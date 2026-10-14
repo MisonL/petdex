@@ -5,7 +5,8 @@ import { and, eq, sql } from "drizzle-orm";
 
 import { db, rowsOf, schema } from "@/lib/db/client";
 import { setLikeCount } from "@/lib/db/metrics";
-import { likeRatelimit } from "@/lib/ratelimit";
+import { publicTrafficGuardKey } from "@/lib/public-traffic-guard";
+import { likeRatelimit, publicCatalogRatelimit } from "@/lib/ratelimit";
 import { requireSameOrigin } from "@/lib/same-origin";
 
 export const runtime = "nodejs";
@@ -168,11 +169,28 @@ export async function POST(
 }
 
 export async function GET(
-  _req: Request,
+  req: Request,
   ctx: { params: Promise<Params> },
 ): Promise<Response> {
+  // Anonymous counter read: without an IP cap a bash loop drives a
+  // per-request COUNT(*) into Postgres. Same shape as track-zip's public
+  // POST — the POST branch below authenticates, this one anyone can call.
+  const { success } = await publicCatalogRatelimit.limit(
+    publicTrafficGuardKey(req.headers),
+  );
+  if (!success) {
+    return NextResponse.json(
+      { error: "rate_limited" },
+      { status: 429, headers: PRIVATE_HEADERS },
+    );
+  }
+  const { slug: rawSlug } = await ctx.params;
+  if (!/^[a-z0-9-]{1,60}$/.test(rawSlug)) {
+    return NextResponse.json({ error: "invalid_slug" }, { status: 400 });
+  }
+  const slug = rawSlug;
+
   const { userId } = await auth();
-  const { slug } = await ctx.params;
 
   const countRow = await db
     .select({ c: sql<number>`count(*)` })

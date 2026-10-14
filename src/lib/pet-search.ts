@@ -367,11 +367,14 @@ async function vibeSearch(args: {
       AND sp.embedding IS NOT NULL
       AND sp.embedding_model = ${PETDEX_EMBEDDING_MODEL}
     ORDER BY sp.embedding <=> ${literal}::vector
-    LIMIT ${args.limit + args.cursor + 1}
+    LIMIT ${args.limit + Math.min(args.cursor, VIBE_MAX_CURSOR) + 1}
   `) as Array<Record<string, unknown> & { similarity: number }>;
 
   const ranked = rows.filter((r) => r.similarity >= MIN_VIBE_SCORE);
-  const slice = ranked.slice(args.cursor, args.cursor + args.limit);
+  const slice = ranked.slice(
+    Math.min(args.cursor, VIBE_MAX_CURSOR),
+    Math.min(args.cursor, VIBE_MAX_CURSOR) + args.limit,
+  );
   const hasNext = ranked.length > args.cursor + args.limit;
 
   const pets = slice.map((row) =>
@@ -732,5 +735,12 @@ export function stripNulBytes(raw: string): string {
 function clamp(n: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, n));
 }
+
+// The vibe path materializes LIMIT = cursor + limit rows (a similarity
+// ranking has no seekable offset, so it over-fetches and slices), and
+// clampCursor alone still let a hand-set cursor of 1e9 through — one request
+// asking Postgres to produce a billion-row result. A cosine ranking is only
+// meaningful for the first few pages, so the offset caps here.
+const VIBE_MAX_CURSOR = 600;
 
 export { SEARCH_LIMITS } from "./pet-search-cursor";

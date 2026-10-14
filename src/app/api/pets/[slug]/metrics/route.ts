@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 
+import { and, eq } from "drizzle-orm";
+
+import { db, schema } from "@/lib/db/client";
 import { getMetricsForSlug, getMetricsSummary } from "@/lib/db/metrics";
 import { PET_METRICS_CACHE_CONTROL } from "@/lib/pet-metrics-cache";
 import { publicTrafficGuardKey } from "@/lib/public-traffic-guard";
@@ -48,6 +51,27 @@ export async function GET(
     return NextResponse.json(
       { error: "invalid_slug" },
       { status: 400, headers: NO_STORE },
+    );
+  }
+
+  // Withdrawn, rejected, or never-approved pets answer 404 like the page
+  // and /variants do. Without this, /pets/<slug> 404s while /metrics kept
+  // returning 200 with counters — a "404 page but live metrics" signal a
+  // slug dictionary could use to confirm a pet existed and was taken down.
+  const pet = await db
+    .select({ slug: schema.submittedPets.slug })
+    .from(schema.submittedPets)
+    .where(
+      and(
+        eq(schema.submittedPets.slug, slug),
+        eq(schema.submittedPets.status, "approved"),
+      ),
+    )
+    .limit(1);
+  if (pet.length === 0) {
+    return NextResponse.json(
+      { error: "not_found" },
+      { status: 404, headers: NO_STORE },
     );
   }
 

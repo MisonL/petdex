@@ -43,13 +43,17 @@ mock.module("@/lib/db/metrics", () => ({
 // process already stubbed — `bun run test a b` then fails with "Export named
 // 'xRatelimit' not found". Spreading the real module keeps every other
 // limiter intact and only overrides the one this route reads.
+let publicCatalogAllowed = true;
 mock.module("@/lib/ratelimit", () => ({
   ...realRatelimit,
   likeRatelimit: { limit: async () => ({ success: true }) },
+  publicCatalogRatelimit: {
+    limit: async () => ({ success: publicCatalogAllowed }),
+  },
 }));
 mock.module("@/lib/same-origin", () => ({ requireSameOrigin: () => null }));
 
-const { POST } = await import("@/app/api/pets/[slug]/like/route");
+const { GET, POST } = await import("@/app/api/pets/[slug]/like/route");
 
 beforeAll(async () => {
   await testDb.execute(sql`
@@ -201,5 +205,41 @@ describe("POST /api/pets/[slug]/like", () => {
     const again = await toggle(false);
     expect(((await again.json()) as { liked: boolean }).liked).toBe(false);
     expect(await likeCount()).toBe(0);
+  });
+});
+
+describe("GET /api/pets/[slug]/like", () => {
+  it("returns the count for a valid slug", async () => {
+    publicCatalogAllowed = true;
+    const res = await GET(
+      new Request("https://petdex.dev/api/pets/boba/like"),
+      {
+        params: Promise.resolve({ slug: "boba" }),
+      },
+    );
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { count: number }).count).toBe(0);
+  });
+
+  it("rejects an invalid slug with 400 before any DB work", async () => {
+    publicCatalogAllowed = true;
+    const res = await GET(
+      new Request("https://petdex.dev/api/pets/..%2F/like"),
+      { params: Promise.resolve({ slug: "../etc" }) },
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("answers 429 when the public catalog limiter refuses", async () => {
+    publicCatalogAllowed = false;
+    const res = await GET(
+      new Request("https://petdex.dev/api/pets/boba/like"),
+      {
+        params: Promise.resolve({ slug: "boba" }),
+      },
+    );
+    expect(res.status).toBe(429);
+    expect(res.headers.get("Cache-Control")).toBe("private, no-store");
+    publicCatalogAllowed = true;
   });
 });
