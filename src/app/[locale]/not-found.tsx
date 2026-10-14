@@ -3,9 +3,13 @@ import Link from "next/link";
 import { ArrowRight, Search, Sparkles } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 
+import { withLocale } from "@/lib/locale-routing";
+
 import { StaticCommandLine } from "@/components/download/static-command-line";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+
+import { hasLocale } from "@/i18n/config";
 
 export async function generateMetadata({
   params,
@@ -22,8 +26,18 @@ export async function generateMetadata({
   };
 }
 
-export default async function NotFound() {
+export default async function NotFound({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale: localeParam } = await params;
+  // Bare paths resolve to the default locale under `localePrefix: as-needed`,
+  // so on /es or /zh these three CTAs dropped the visitor back into English.
+  // Route every link through the same withLocale the rest of the tree uses.
+  const locale = hasLocale(localeParam) ? localeParam : "en";
   const t = await getTranslations("notFound");
+  const localized = (path: string) => withLocale(path, locale);
 
   return (
     <>
@@ -47,21 +61,21 @@ export default async function NotFound() {
 
             <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
               <Link
-                href="/#gallery"
+                href={localized("/#gallery")}
                 className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-inverse px-6 text-sm font-medium text-on-inverse transition hover:bg-inverse-hover"
               >
                 <Search className="size-4" />
                 {t("browseGallery")}
               </Link>
               <Link
-                href="/about"
+                href={localized("/about")}
                 className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-border-base bg-surface/70 px-6 text-sm font-medium text-foreground backdrop-blur transition hover:bg-white dark:hover:bg-stone-800"
               >
                 <Sparkles className="size-4" />
                 {t("about")}
               </Link>
               <Link
-                href="/submit"
+                href={localized("/submit")}
                 className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-border-base bg-surface/70 px-6 text-sm font-medium text-foreground backdrop-blur transition hover:bg-white dark:hover:bg-stone-800"
               >
                 {t("submit")}

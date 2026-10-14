@@ -4,7 +4,11 @@ import Link from "next/link";
 import { useEffect } from "react";
 
 import { RotateCcw, Search } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
+
+import { withLocale } from "@/lib/locale-routing";
+
+import { hasLocale, type Locale } from "@/i18n/config";
 
 // Route-level error boundary for every page under /[locale]. Without it a
 // server-side failure in any of the data-fetching pages (collections,
@@ -19,6 +23,8 @@ export default function LocaleError({
   reset: () => void;
 }) {
   const t = useTranslations("errorPage");
+  const rawLocale = useLocale();
+  const currentLocale: Locale = hasLocale(rawLocale) ? rawLocale : "en";
 
   useEffect(() => {
     console.error("[route] unhandled error in /[locale]", error);
@@ -40,7 +46,7 @@ export default function LocaleError({
           {t("retry")}
         </button>
         <Link
-          href="/"
+          href={withLocale("/", currentLocale)}
           className="inline-flex h-11 items-center gap-2 rounded-full border border-border-base bg-surface px-5 text-sm font-medium text-foreground transition hover:border-border-strong"
         >
           <Search className="size-4" />

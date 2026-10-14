@@ -71,8 +71,12 @@ function LocaleSwitcherInner() {
 
     const basePath = stripLocalePrefix(pathname);
     const query = searchParams.toString();
+    // Hash survives the switch the way query does — /docs#install and
+    // /#gallery are real navigation targets here, and dropping the visitor
+    // back to the top of the localized page loses their place.
+    const hash = typeof window === "undefined" ? "" : window.location.hash;
     const nextPath = withLocale(basePath, nextLocale);
-    const href = query ? `${nextPath}?${query}` : nextPath;
+    const href = `${nextPath}${query ? `?${query}` : ""}${hash}`;
 
     setOpen(false);
     startTransition(() => {

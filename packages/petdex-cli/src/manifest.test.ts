@@ -6,6 +6,7 @@ import {
   parseCompactManifest,
   parseLegacyManifest,
   parseManifestPayload,
+  stripControlChars,
 } from "./manifest";
 
 const compact = {
@@ -51,6 +52,25 @@ const legacy = {
     },
   ],
 };
+
+describe("stripControlChars", () => {
+  it("drops control characters that would execute against the terminal", () => {
+    // Escapes come from submitter-controlled manifest fields echoed to the
+    // console: title rewrite (OSC), cursor hiding (CSI), bell, C1, DEL. The
+    // strip removes only the control bytes, so an OSC's leftover payload
+    // prints as inert text — the point is that no escape can execute.
+    expect(stripControlChars("\u001b]0;pwned\u0007plain")).toBe(
+      "]0;pwnedplain",
+    );
+    expect(stripControlChars("a\u001b[?25lb")).toBe("a[?25lb");
+    expect(stripControlChars("ok\u009bdark\u007f")).toBe("okdark");
+  });
+
+  it("leaves ordinary display names untouched", () => {
+    expect(stripControlChars("Boba · 波巴")).toBe("Boba · 波巴");
+    expect(stripControlChars("")).toBe("");
+  });
+});
 
 describe("manifest parsing", () => {
   it("parses compact v2 rows and resolves asset references", () => {

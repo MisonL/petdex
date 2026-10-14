@@ -124,9 +124,9 @@ export function parseCompactManifest(input: unknown): ManifestPet[] {
     }
     return {
       slug: rawPet[0],
-      displayName: rawPet[1],
+      displayName: stripControlChars(rawPet[1]),
       kind: rawPet[2],
-      submittedBy: rawPet[3],
+      submittedBy: rawPet[3] === null ? null : stripControlChars(rawPet[3]),
       spritesheetUrl: requireTrustedAssetUrl(rawPet[4], assetBase),
       petJsonUrl: requireTrustedAssetUrl(rawPet[5], assetBase),
       zipUrl: rawPet[6] ? requireTrustedAssetUrl(rawPet[6], assetBase) : null,
@@ -158,9 +158,12 @@ export function parseLegacyManifest(input: unknown): ManifestPet[] {
     }
     return {
       slug: rawPet.slug,
-      displayName: rawPet.displayName,
+      displayName: stripControlChars(rawPet.displayName),
       kind: rawPet.kind,
-      submittedBy: rawPet.submittedBy,
+      submittedBy:
+        rawPet.submittedBy === null
+          ? null
+          : stripControlChars(rawPet.submittedBy),
       spritesheetUrl: requireTrustedAssetUrl(rawPet.spritesheetUrl),
       petJsonUrl: requireTrustedAssetUrl(rawPet.petJsonUrl),
       zipUrl: rawPet.zipUrl ? requireTrustedAssetUrl(rawPet.zipUrl) : null,
@@ -172,6 +175,18 @@ export function parseLegacyManifest(input: unknown): ManifestPet[] {
 export function parseManifestPayload(input: unknown): ManifestPet[] {
   if (isRecord(input) && input.v === 2) return parseCompactManifest(input);
   return parseLegacyManifest(input);
+}
+
+// displayName and submittedBy come from submitter profiles and are echoed
+// straight back to the terminal (`petdex list`, install notes). A field
+// holding `\x1b]0;pwned\x07` (title rewrite) or cursor-mode escapes would
+// execute against whichever display width the terminal applies — strip every
+// C0/C1 control character and the DEL before the text can reach a console.
+// Printable Unicode survives; only controls are dropped.
+const CONTROL_CHARS = /[\p{Cc}]/gu;
+
+export function stripControlChars(raw: string): string {
+  return raw.replace(CONTROL_CHARS, "");
 }
 
 async function requestJson(
