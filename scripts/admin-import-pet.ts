@@ -25,7 +25,9 @@ import sharp from "sharp";
 
 import { invalidatePetCaches } from "@/lib/db/cached-aggregates";
 import { db, schema } from "@/lib/db/client";
+import { findBlockedKeyword } from "@/lib/keyword-blocklist";
 import { R2_BUCKET, R2_PUBLIC_BASE, r2 } from "@/lib/r2";
+import { containsUrl, URL_BLOCKED_REASON } from "@/lib/url-blocklist";
 
 type Args = {
   folder?: string;
@@ -33,11 +35,12 @@ type Args = {
   creditUrl?: string;
   ownerId?: string;
   apply: boolean;
+  skipBlocklist: boolean;
   approve: boolean;
 };
 
 function parseArgs(): Args {
-  const out: Args = { apply: false, approve: false };
+  const out: Args = { apply: false, approve: false, skipBlocklist: false };
   const argv = process.argv.slice(2);
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -46,11 +49,12 @@ function parseArgs(): Args {
     else if (a === "--credit-url") out.creditUrl = argv[++i];
     else if (a === "--owner-id") out.ownerId = argv[++i];
     else if (a === "--apply") out.apply = true;
+    else if (a === "--skip-blocklist") out.skipBlocklist = true;
     else if (a === "--approve") out.approve = true;
   }
   if (!out.folder) {
     console.error(
-      "usage: --folder <dir> [--credit-name X --credit-url Y] [--owner-id user_xxx] [--apply] [--approve]",
+      "usage: --folder <dir> [--credit-name X --credit-url Y] [--owner-id user_xxx] [--apply] [--approve] [--skip-blocklist]",
     );
     process.exit(2);
   }
@@ -162,6 +166,41 @@ async function main() {
   const source: "submit" | "discover" = importedAsRealOwner
     ? "submit"
     : "discover";
+
+  // The submission path runs every pet through the keyword and URL
+  // blocklists; an admin import skipped both, so content the normal path
+  // would reject went live pre-approved from one command. The check is not
+  // an approval step — --approve still skips human review — but the
+  // blocklists are the security baseline the keyword-sweep script later
+  // re-runs, so bypassing them needs the explicit escape hatch.
+  if (!args.skipBlocklist) {
+    const displayName = petJson.displayName.trim().slice(0, 60);
+    const description = petJson.description.trim().slice(0, 280);
+    const keywordHit = findBlockedKeyword(
+      displayName,
+      description,
+      args.creditName,
+    );
+    if (keywordHit) {
+      console.error(
+        `blocked keyword "${keywordHit.keyword}"; ` +
+          "import refused. Pass --skip-blocklist to override.",
+      );
+      process.exit(1);
+    }
+    const urlHit = containsUrl(
+      ["description", description],
+      ["creditUrl", args.creditUrl],
+      ["creditName", args.creditName],
+    );
+    if (urlHit) {
+      console.error(
+        `URL-like content in ${urlHit.field} (${URL_BLOCKED_REASON}); ` +
+          "import refused. Pass --skip-blocklist to override.",
+      );
+      process.exit(1);
+    }
+  }
 
   console.log("\nUploading to R2…");
   await r2.send(

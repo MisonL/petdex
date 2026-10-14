@@ -18,6 +18,7 @@ import { userIdForHandle } from "@/lib/handles";
 import { fetchR2AssetBuffer } from "@/lib/r2-fetch";
 import { toCurrentR2PublicUrl } from "@/lib/r2-public-url";
 import { readResponseBodyBounded } from "@/lib/response-body";
+import { isDecodableSpriteSize } from "@/lib/sprite-atlas";
 import { isAllowedAssetUrl, isAllowedAvatarUrl } from "@/lib/url-allowlist";
 
 import { defaultLocale, hasLocale } from "@/i18n/config";
@@ -368,6 +369,17 @@ async function loadFirstFrameAsDataUrl(url: string): Promise<string | null> {
   try {
     const buf = await fetchR2AssetBuffer(url);
     if (!buf) return null;
+    // Same decode-dimension gate as the pet OG route: these buffers come
+    // from DB rows the current submit flow no longer produces.
+    const meta = await sharp(buf).metadata();
+    if (
+      !meta.width ||
+      !meta.height ||
+      !isDecodableSpriteSize(meta.width, meta.height)
+    ) {
+      return null;
+    }
+
     const png = await sharp(buf)
       .extract({ left: 0, top: 0, width: FRAME_W, height: FRAME_H })
       .resize(SPRITE_DISPLAY - 24, SPRITE_DISPLAY - 24, { kernel: "nearest" })

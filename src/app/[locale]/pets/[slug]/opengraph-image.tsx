@@ -10,6 +10,7 @@ import sharp from "sharp";
 
 import { getPet } from "@/lib/pets";
 import { fetchR2AssetBuffer } from "@/lib/r2-fetch";
+import { isDecodableSpriteSize } from "@/lib/sprite-atlas";
 import { isAllowedAssetUrl } from "@/lib/url-allowlist";
 
 import { defaultLocale, hasLocale } from "@/i18n/config";
@@ -321,6 +322,20 @@ async function loadFirstFrameAsDataUrl(url: string): Promise<string | null> {
     // bounded helper adds a deadline and the 8MB upload ceiling on top.
     const buf = await fetchR2AssetBuffer(url);
     if (!buf) return null;
+
+    // Decode-dimension gate: an 8MB flat-color PNG can declare ~16000x16000
+    // (inside sharp's default ~268MP ceiling), and these routes are public,
+    // cache-miss-refreshable URLs — the same gate pet-public-artifacts and
+    // the dhash path already apply, applied to the last four request paths
+    // that reached the decoder without it.
+    const meta = await sharp(buf).metadata();
+    if (
+      !meta.width ||
+      !meta.height ||
+      !isDecodableSpriteSize(meta.width, meta.height)
+    ) {
+      return null;
+    }
 
     // Crop the first idle frame (top-left cell of the 6×9 grid), upscale
     // with nearest-neighbor to keep crisp pixels, and encode as PNG so
