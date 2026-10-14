@@ -166,6 +166,31 @@ export async function applySubmissionAction(
     return { ok: false, status: 404, body: { error: "not_found" } };
   }
 
+  // A rename frees the old slug for the next submitter. Collection member
+  // rows and covers key on the slug, so they must move with the pet in the
+  // same breath — otherwise the pet silently vanishes from every collection
+  // it belongs to, the cover dangles, and a new pet taking the freed slug
+  // inherits the membership rows (a pet that was never added appearing in
+  // collections it does not belong to).
+  if (editPatch.slug && current.slug !== updated.slug) {
+    await db
+      .update(schema.petCollectionItems)
+      .set({ petSlug: updated.slug })
+      .where(eq(schema.petCollectionItems.petSlug, current.slug));
+    await db
+      .update(schema.petCollections)
+      .set({ coverPetSlug: updated.slug })
+      .where(eq(schema.petCollections.coverPetSlug, current.slug));
+    const { revalidateCollectionTags } = await import(
+      "@/lib/db/cached-aggregates"
+    );
+    const covered = await db
+      .select({ slug: schema.petCollections.slug })
+      .from(schema.petCollections)
+      .where(eq(schema.petCollections.coverPetSlug, updated.slug));
+    await revalidateCollectionTags(...covered.map((c) => c.slug));
+  }
+
   let row = updated;
   if (body.action === "approve" && !options.skipSideEffects) {
     row = await runPostApprovalEffects(row, actor, db);
