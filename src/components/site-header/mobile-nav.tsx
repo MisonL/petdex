@@ -40,10 +40,23 @@ export function MobileNav({
     details.querySelector("summary")?.focus();
   }
 
+  // HeaderNavLink navigates with next/link, which re-renders the page in
+  // place — the layout (and this <details>) survives, so the menu stayed
+  // open over the new page. Clicking anything inside the menu means
+  // "leave", so close it on capture before the router takes over.
+  function closeOnNavigate(event: React.MouseEvent<HTMLDetailsElement>) {
+    const details = detailsRef.current;
+    if (!details?.open) return;
+    const target = event.target as HTMLElement;
+    if (!target.closest("a[href]")) return;
+    details.open = false;
+  }
+
   return (
     <details
       ref={detailsRef}
       onKeyDown={closeOnEscape}
+      onClickCapture={closeOnNavigate}
       className="group relative xl:hidden"
     >
       <summary

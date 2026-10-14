@@ -305,7 +305,11 @@ export function PetGallery({
         setSearchMode(mode);
       } catch (error) {
         if (isAbortError(error)) return;
-        // soft-fail: keep whatever's already on screen
+        // soft-fail: keep whatever's already on screen. The stale cursor
+        // must go with it — loadMore builds params from the CURRENT filters
+        // plus this cursor, so keeping the old filter's cursor would append
+        // the new filter's page 2 onto the old filter's page 1.
+        setNextCursor(null);
       } finally {
         if (!cancelled && seq === requestSeq.current) setLoadingPage(false);
       }
