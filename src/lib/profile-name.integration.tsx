@@ -4,6 +4,8 @@ import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
 import { renderToStaticMarkup } from "react-dom/server";
 
+import * as realR2Module from "@/lib/r2";
+
 import * as schema from "./db/schema";
 import { type HeaderState, normalizeHeaderState } from "./header-state";
 import * as realRatelimit from "./ratelimit";
@@ -80,7 +82,13 @@ mock.module("@/lib/db/cached-aggregates", () => ({
   invalidatePublicHandleCaches: async () => {},
 }));
 mock.module("@/lib/query-embed", () => ({ embedQuery: async () => [] }));
+// Spread the real module: a bare { R2_PUBLIC_BASE } replacement starves
+// whichever later module in this suite's import chain (submissions pulls
+// asset-size-guard, which needs checkR2ObjectSize) fails with
+// "Export named '...' not found" — mock.module is process-wide and first
+// registration wins.
 mock.module("@/lib/r2", () => ({
+  ...realR2Module,
   R2_PUBLIC_BASE: "https://assets.petdex.dev",
 }));
 mock.module("next-intl/server", () => ({
