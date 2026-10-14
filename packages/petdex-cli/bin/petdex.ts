@@ -42,6 +42,7 @@ import {
   isInstallSlug,
   type ManifestPet,
 } from "../src/manifest.js";
+import { checkPetdexUrl } from "../src/petdex-url.js";
 import {
   emit,
   getStatus,
@@ -60,27 +61,14 @@ import {
 // silently shipped the token in cleartext.
 function resolvePetdexUrl(): string {
   const raw = process.env.PETDEX_URL ?? "https://petdex.dev";
-  let url: URL;
-  try {
-    url = new URL(raw);
-  } catch {
-    console.error(`petdex: PETDEX_URL is not a valid URL: ${raw}`);
+  const resolved = checkPetdexUrl(raw);
+  if (!resolved.ok) {
+    // Module-evaluation failure: main().catch never runs yet, so print and
+    // exit here instead of throwing into a raw stack trace.
+    console.error(`petdex: ${resolved.reason}`);
     process.exit(1);
   }
-  if (url.protocol !== "https:") {
-    const isLoopback =
-      url.protocol === "http:" &&
-      ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
-    if (!isLoopback) {
-      // Module-evaluation throw: main().catch never runs yet, so the user
-      // would get a raw stack trace. Print and exit here instead.
-      console.error(
-        "petdex: PETDEX_URL must use https (http is allowed only for localhost)",
-      );
-      process.exit(1);
-    }
-  }
-  return raw.replace(/\/+$/, "");
+  return resolved.url;
 }
 const PETDEX_URL = resolvePetdexUrl();
 const PETDEX_REFERER = `${PETDEX_URL.replace(/\/+$/, "")}/`;

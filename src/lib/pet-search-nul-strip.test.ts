@@ -22,7 +22,7 @@ mock.module("@/lib/db/client", () => ({
   rowsOf: () => [],
 }));
 
-const { stripNulBytes } = await import("./pet-search");
+const { stripNulBytes, VIBE_MAX_CURSOR } = await import("./pet-search");
 
 describe("stripNulBytes", () => {
   test("removes NUL bytes anywhere in the query", () => {
@@ -36,5 +36,16 @@ describe("stripNulBytes", () => {
     expect(stripNulBytes("cozy cat")).toBe("cozy cat");
     expect(stripNulBytes("%00")).toBe("%00");
     expect(stripNulBytes("")).toBe("");
+  });
+});
+// The vibe branch materializes LIMIT = cursor + limit + 1 rows (a cosine
+// ranking has no seekable offset), so the cap is a resource guard: without
+// it one request asks Postgres to produce a billion-row result. Pinning the
+// export keeps a refactor from silently dropping the Math.min.
+describe("VIBE_MAX_CURSOR", () => {
+  test("stays a small, finite bound", () => {
+    expect(Number.isFinite(VIBE_MAX_CURSOR)).toBe(true);
+    expect(VIBE_MAX_CURSOR).toBeLessThan(10_000);
+    expect(VIBE_MAX_CURSOR).toBeGreaterThan(0);
   });
 });

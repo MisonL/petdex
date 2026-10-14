@@ -25,9 +25,8 @@ import sharp from "sharp";
 
 import { invalidatePetCaches } from "@/lib/db/cached-aggregates";
 import { db, schema } from "@/lib/db/client";
-import { findBlockedKeyword } from "@/lib/keyword-blocklist";
+import { gateImportText } from "@/lib/import-gate";
 import { R2_BUCKET, R2_PUBLIC_BASE, r2 } from "@/lib/r2";
-import { containsUrl, URL_BLOCKED_REASON } from "@/lib/url-blocklist";
 
 type Args = {
   folder?: string;
@@ -174,29 +173,19 @@ async function main() {
   // blocklists are the security baseline the keyword-sweep script later
   // re-runs, so bypassing them needs the explicit escape hatch.
   if (!args.skipBlocklist) {
-    const displayName = petJson.displayName.trim().slice(0, 60);
-    const description = petJson.description.trim().slice(0, 280);
-    const keywordHit = findBlockedKeyword(
-      displayName,
-      description,
-      args.creditName,
-    );
-    if (keywordHit) {
+    const rejection = gateImportText({
+      displayName: petJson.displayName.trim().slice(0, 60),
+      description: petJson.description.trim().slice(0, 280),
+      creditName: args.creditName,
+      creditUrl: args.creditUrl,
+    });
+    if (rejection) {
       console.error(
-        `blocked keyword "${keywordHit.keyword}"; ` +
-          "import refused. Pass --skip-blocklist to override.",
-      );
-      process.exit(1);
-    }
-    const urlHit = containsUrl(
-      ["description", description],
-      ["creditUrl", args.creditUrl],
-      ["creditName", args.creditName],
-    );
-    if (urlHit) {
-      console.error(
-        `URL-like content in ${urlHit.field} (${URL_BLOCKED_REASON}); ` +
-          "import refused. Pass --skip-blocklist to override.",
+        rejection.kind === "keyword"
+          ? `blocked keyword "${rejection.keyword}"; ` +
+              "import refused. Pass --skip-blocklist to override."
+          : `URL-like content in ${rejection.field}; ` +
+              "import refused. Pass --skip-blocklist to override.",
       );
       process.exit(1);
     }

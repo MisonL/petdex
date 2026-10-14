@@ -305,7 +305,11 @@ async function getOgImageCopy(locale: string) {
   };
 }
 
-async function loadFirstFrameAsDataUrl(url: string): Promise<string | null> {
+// Exported for the gate test: the sprite-decode gate lives here, and a
+// refactor that drops the metadata check must turn this test red.
+export async function loadFirstFrameAsDataUrl(
+  url: string,
+): Promise<string | null> {
   // Defensive SSRF guard. Even though pet.spritesheetPath comes from the DB,
   // the row was originally populated from a user submission. A row predating
   // the validateSubmission allowlist could still have an external URL, and

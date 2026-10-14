@@ -51,6 +51,18 @@ describe("isSameOrigin", () => {
     expect(isSameOrigin(post("https://petdex.vercel.app"))).toBe(true);
   });
 
+  test("mangled origins follow URL normalization, not string matching", () => {
+    // The suffix-match regression came from trusting string shapes; pin the
+    // mangled forms so a future refactor back toward string comparison turns
+    // these red. URL parsing lowercases the host, strips a default port, and
+    // resolves userinfo into the host — all of these lean on that behavior.
+    expect(isSameOrigin(post("https://PETDEX.DEV"))).toBe(true);
+    expect(isSameOrigin(post("https://petdex.dev:443"))).toBe(true);
+    expect(isSameOrigin(post("https://petdex.dev:8443"))).toBe(false);
+    expect(isSameOrigin(post("https://petdex.dev@evil.com"))).toBe(false);
+    expect(isSameOrigin(post("https://xn--ptdex-9ua.dev"))).toBe(false);
+  });
+
   test("rejects an attacker's vercel.app deployment", () => {
     // The regression: a bare suffix match trusted any *.vercel.app origin.
     process.env.VERCEL_URL = "petdex-git-main-acme.vercel.app";

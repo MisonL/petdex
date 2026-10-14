@@ -747,6 +747,6 @@ function clamp(n: number, lo: number, hi: number): number {
 // clampCursor alone still let a hand-set cursor of 1e9 through — one request
 // asking Postgres to produce a billion-row result. A cosine ranking is only
 // meaningful for the first few pages, so the offset caps here.
-const VIBE_MAX_CURSOR = 600;
+export const VIBE_MAX_CURSOR = 600;
 
 export { SEARCH_LIMITS } from "./pet-search-cursor";
