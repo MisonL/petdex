@@ -49,7 +49,10 @@ function corsHeaders(request: Request): Headers {
   if (origin && ALLOWED_ORIGINS.has(origin)) {
     headers.set("Access-Control-Allow-Origin", origin);
     headers.set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
-    headers.set("Access-Control-Allow-Headers", "Range");
+    // No Allow-Headers for Range: get() reads the whole object, so a Range
+    // request gets 200 with the full body, not 206. Advertising the header
+    // invited clients into resumable downloads this endpoint does not
+    // implement — re-advertise it if range support lands.
     headers.set("Vary", "Origin, Referer");
   } else {
     headers.set("Vary", "Referer");

@@ -235,6 +235,24 @@ async function processIssue(issue: IssueRow): Promise<{
 }
 
 async function main() {
+  // Every other write script in this directory is dry by default; this one
+  // had no gate at all — a bare run uploaded to R2 and inserted pending
+  // rows for every issue whose title matches. Preview is now the default.
+  if (!process.argv.includes("--apply")) {
+    const all = listIssues();
+    const submitFails = all.filter((i) =>
+      i.title.toLowerCase().includes("[submit fail]"),
+    );
+    console.log(
+      `(dry run) ${submitFails.length} submit-fail issues would be rescued:`,
+    );
+    for (const issue of submitFails) {
+      console.log(`  #${issue.number} ${issue.title}`);
+    }
+    console.log("pass --apply to upload assets and insert rows");
+    return;
+  }
+
   const all = listIssues();
   const submitFails = all.filter((i) =>
     i.title.toLowerCase().includes("[submit fail]"),
