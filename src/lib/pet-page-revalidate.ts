@@ -1,3 +1,5 @@
+import { withLocale } from "@/lib/locale-routing";
+
 import { locales } from "@/i18n/config";
 
 // Full-route ISR entries are not linked to data-cache tags: a pre-approval
@@ -16,7 +18,7 @@ export async function revalidatePetPagePaths(
       // while the rest serve prefixed. Purge every public shape.
       revalidatePath(`/pets/${slug}`);
       for (const locale of locales) {
-        revalidatePath(`/${locale}/pets/${slug}`);
+        revalidatePath(withLocale(`/pets/${slug}`, locale));
       }
     }
   } catch {

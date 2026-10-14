@@ -1877,7 +1877,10 @@ fn resolveInitialPet(io: std.Io, allocator: std.mem.Allocator, environ_map: *std
                 initial_update_checks = false;
             }
             if (hook_server.jsonNumberPub(json, "last_update_check_ms")) |v| {
-                if (v >= 0 and v <= std.math.maxInt(i64)) {
+                // Any finite f64 in [0, 2^63) casts losslessly to i64 — f64
+                // cannot represent maxInt(i64) exactly, so the float bound
+                // is the largest power of two it can express.
+                if (v >= 0 and v < 9223372036854775808.0) {
                     initial_last_update_check_ms = @intFromFloat(v);
                 }
             }

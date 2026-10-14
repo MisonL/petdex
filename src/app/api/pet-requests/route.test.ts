@@ -56,12 +56,22 @@ mock.module("@/lib/ratelimit", () => ({
 mock.module("@/lib/same-origin", () => ({ requireSameOrigin: () => null }));
 mock.module("@/lib/query-embed", () => ({ embedQuery: async () => null }));
 // The image-ownership specs POST an imageUrl, and the route now HEADs the
-// R2 object before writing the row — a real R2 handshake here fails offline.
-// ok:true with a byte count reads as "present, within limit".
-mock.module("@/lib/r2", () => ({
-  ...realR2,
-  checkR2ObjectSize: async () => ({ ok: true as const, bytes: 1024 }),
-}));
+// R2 object before writing the row — a real R2 handshake fails offline.
+// Patch the singleton client's `send` (the same shape asset-size-guard.test
+// uses) instead of mock.module-ing @/lib/r2: that mock is process-wide and
+// its undo is not reliable across files on Bun 1.4.2, so the spread
+// replacement leaked into asset-size-guard.test.ts in CI's file order and
+// drove its real checkR2ObjectSize assertions with this suite's stub.
+const r2Client = realR2.r2 as unknown as {
+  send: (command: unknown) => Promise<unknown>;
+};
+const originalSend = r2Client.send;
+beforeAll(() => {
+  r2Client.send = async () => ({ ContentLength: 1024 });
+});
+afterAll(() => {
+  r2Client.send = originalSend;
+});
 mock.module("@neondatabase/serverless", () => ({
   // Spread the real module: a bare replacement drops `neonConfig`, `Pool`, and
   // the rest, and `mock.module` is process-wide, so the next suite to link one
