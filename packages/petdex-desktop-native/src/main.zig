@@ -1866,13 +1866,20 @@ fn resolveInitialPet(io: std.Io, allocator: std.mem.Allocator, environ_map: *std
                 initial_rotate_pets = true;
             }
             if (hook_server.jsonNumberPub(json, "rotation_day")) |v| {
-                if (v >= 0) initial_rotation_day = @intFromFloat(v);
+                // jsonNumberPub only promises finite; @intFromFloat out of
+                // the target range is UB in ReleaseFast, and this file is
+                // user-writable — a persisted 1e300 would crash every start.
+                if (v >= 0 and v <= std.math.maxInt(u32)) {
+                    initial_rotation_day = @intFromFloat(v);
+                }
             }
             if (std.mem.indexOf(u8, json, "\"update_checks\":false") != null) {
                 initial_update_checks = false;
             }
             if (hook_server.jsonNumberPub(json, "last_update_check_ms")) |v| {
-                if (v >= 0) initial_last_update_check_ms = @intFromFloat(v);
+                if (v >= 0 and v <= std.math.maxInt(i64)) {
+                    initial_last_update_check_ms = @intFromFloat(v);
+                }
             }
             if (hook_server.jsonStringPub(json, "latest_desktop_version")) |version| {
                 if (version.len <= initial_latest_version.len and updates.isValidVersion(version)) {

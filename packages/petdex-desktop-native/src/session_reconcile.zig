@@ -1676,7 +1676,12 @@ fn hermesBubbleUpdate(event: *const ProviderEvent) hook_server.BubbleUpdate {
 
 fn sqliteMillis(value: f64) i64 {
     if (!std.math.isFinite(value) or value <= 0) return 0;
-    return if (value < 10_000_000_000) @intFromFloat(value * 1000) else @intFromFloat(value);
+    // The branch choice guarantees the * 1000 form stays in range below 1e10;
+    // cap the passthrough branch too — a finite 1e300 from a corrupt journal
+    // would otherwise be UB in ReleaseFast, not a clamp.
+    return if (value < 10_000_000_000)
+        @intFromFloat(value * 1000)
+    else if (value <= std.math.maxInt(i64)) @intFromFloat(value) else 0;
 }
 
 fn hermesSessionStatus(ended: bool, needs_input: bool, end_reason: []const u8) Status {
