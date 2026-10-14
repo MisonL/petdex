@@ -27,6 +27,7 @@ import { invalidatePetCaches } from "@/lib/db/cached-aggregates";
 import { db, schema } from "@/lib/db/client";
 import { gateImportText } from "@/lib/import-gate";
 import { R2_BUCKET, R2_PUBLIC_BASE, r2 } from "@/lib/r2";
+import { URL_BLOCKED_REASON } from "@/lib/url-blocklist";
 
 type Args = {
   folder?: string;
@@ -184,8 +185,8 @@ async function main() {
         rejection.kind === "keyword"
           ? `blocked keyword "${rejection.keyword}"; ` +
               "import refused. Pass --skip-blocklist to override."
-          : `URL-like content in ${rejection.field}; ` +
-              "import refused. Pass --skip-blocklist to override.",
+          : `URL-like content in ${rejection.field}; import refused. ` +
+              `Pass --skip-blocklist to override. ${URL_BLOCKED_REASON}`,
       );
       process.exit(1);
     }

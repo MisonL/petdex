@@ -21,11 +21,25 @@ mock.module("@/lib/db/client", () => ({
   executeAtomicReturning: async () => [],
   rowsOf: () => [],
 }));
+// Every factory spreads the real module: a bare replacement is process-wide
+// and starves whichever suite loads next (measured — like and withdraw both
+// died on missing exports when this file ran first). The spreads resolve via
+// dynamic import *after* the server-only stub registers — a static import
+// hoists above the mocks and the real module tree throws on server-only.
+const realRatelimit = await import("@/lib/ratelimit");
+const realSameOrigin = await import("@/lib/same-origin");
+const realMetrics = await import("@/lib/db/metrics");
+
 mock.module("@/lib/ratelimit", () => ({
+  ...realRatelimit,
   metricsReadRatelimit: { limit: async () => ({ success: true }) },
 }));
-mock.module("@/lib/same-origin", () => ({ requireSameOrigin: () => null }));
+mock.module("@/lib/same-origin", () => ({
+  ...realSameOrigin,
+  requireSameOrigin: () => null,
+}));
 mock.module("@/lib/db/metrics", () => ({
+  ...realMetrics,
   getMetricsForSlug: async () => ({
     installCount: 3,
     zipDownloadCount: 1,
