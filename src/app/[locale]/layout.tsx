@@ -35,6 +35,14 @@ type Props = {
 
 const SITE_URL = "https://petdex.dev";
 
+// og:locale uses underscore language_TERRITORY and zh needs the territory to
+// read as Simplified Chinese; mirrors the hreflang codes in locale-routing.
+const LOCALE_OG: Record<string, string> = {
+  en: "en_US",
+  es: "es_ES",
+  zh: "zh_CN",
+};
+
 export function generateStaticParams() {
   return locales.map((locale) => ({ locale }));
 }
@@ -78,6 +86,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     openGraph: {
       title: t("ogTitle"),
       description: t("description"),
+      // OG-only scrapers (WeChat, Slack) never read hreflang, so the locale
+      // has to ride the OG tags themselves.
+      locale: LOCALE_OG[locale] ?? "en_US",
+      alternateLocale: ["en_US", "es_ES", "zh_CN"].filter(
+        (l) => l !== (LOCALE_OG[locale] ?? "en_US"),
+      ),
       // No `url` here: this layout is the metadata *base* for every route
       // under it, and a hardcoded `SITE_URL` overrode each page's own og:url
       // (a /zh page shared as the site root). Next omits og:url when unset,

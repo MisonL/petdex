@@ -408,7 +408,7 @@ export function SubmissionCard({ submission }: { submission: Submission }) {
         </p>
         <p className="font-mono text-[10px] tracking-[0.12em] text-muted-4 uppercase">
           {statusConfig.timeLabel}{" "}
-          {new Date(statusConfig.time).toLocaleDateString(undefined, {
+          {new Date(statusConfig.time).toLocaleDateString(locale, {
             year: "numeric",
             month: "short",
             day: "numeric",

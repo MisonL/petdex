@@ -1193,7 +1193,7 @@
   "petStateViewer": {
     "eyebrow": "Visor de estados",
     "frames": "{count} fotogramas",
-    "rowFrames": "Fila {row} - {count} frames",
+    "rowFrames": "Fila {row} - {count} fotogramas",
     "animationLabel": "{petName} animación {state}",
     "spriteLabel": "{petName} {state}",
     "states": {

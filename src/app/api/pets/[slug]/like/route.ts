@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { and, eq, sql } from "drizzle-orm";
 
-import { db, rowsOf, schema } from "@/lib/db/client";
+import { db, executeAtomicReturning, rowsOf, schema } from "@/lib/db/client";
 import { setLikeCount } from "@/lib/db/metrics";
 import { publicTrafficGuardKey } from "@/lib/public-traffic-guard";
 import { likeRatelimit, publicCatalogRatelimit } from "@/lib/ratelimit";
@@ -154,16 +154,25 @@ export async function POST(
       (rowsOf(flipped)[0] as { liked?: boolean } | undefined)?.liked === true;
   }
 
-  // Recompute count to avoid drift
-  const countRow = await db
-    .select({ c: sql<number>`count(*)` })
-    .from(schema.petLikes)
-    .where(eq(schema.petLikes.petSlug, slug));
-  const count = Number(countRow[0]?.c ?? 0);
-  await setLikeCount(slug, count);
+  // Recompute the denormalized count in the same transaction as the write:
+  // two independent statements let a concurrent flip's recount read a
+  // pre-write snapshot and overwrite ours with a stale count that persisted
+  // until the next like. READ COMMITTED per-statement snapshots inside one
+  // transaction give the recount the write's own snapshot — the same
+  // separate-statements rule executeAtomicReturning enforces everywhere else.
+  const results = await executeAtomicReturning([
+    sql`
+      SELECT count(*)::int AS "count"
+      FROM "pet_likes"
+      WHERE "pet_slug" = ${slug}
+    `,
+  ]);
+  const count =
+    (rowsOf(results[0])[0] as { count?: number } | undefined)?.count ?? 0;
+  await setLikeCount(slug, Number(count));
 
   return NextResponse.json(
-    { ok: true, liked, count },
+    { ok: true, liked, count: Number(count) },
     { headers: PRIVATE_HEADERS },
   );
 }

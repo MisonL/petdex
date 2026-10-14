@@ -15,7 +15,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";
 
-import { rowsOf } from "@/lib/db/atomic";
+import { rowsOf, runAtomicReturning } from "@/lib/db/atomic";
 import * as schema from "@/lib/db/schema";
 import * as realRatelimit from "@/lib/ratelimit";
 
@@ -29,7 +29,11 @@ mock.module("@clerk/nextjs/server", () => ({
 mock.module("@/lib/db/client", () => ({
   db: testDb,
   schema,
-  executeAtomicReturning: async () => [],
+  // The real runner over the suite's PGlite: the POST path now recounts the
+  // like count inside executeAtomicReturning, and a stub returning [] would
+  // drive every count assertion to 0 for the wrong reason.
+  executeAtomicReturning: (queries: never) =>
+    runAtomicReturning(testDb as never, queries),
   // The real `rowsOf`, not a stand-in: the toggle branch decides `liked` from
   // what this reads off the DELETE/INSERT statement, so a stub returning `[]`
   // would make the assertion below pass for the wrong reason.

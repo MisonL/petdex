@@ -391,7 +391,12 @@ async function vibeSearch(args: {
     nextCursor: hasNext ? args.cursor + args.limit : null,
     searchMode: "vibe",
   };
-  if (args.includeTotal) out.total = ranked.length;
+  // ranked is a window, not the match universe: LIMIT = cursor + limit + 1,
+  // so its length grows with paging and publishing it as `total` told API
+  // consumers the match count rose as they scrolled. The gallery treats a
+  // missing total as "pets.length" and only surfaces it while filters are
+  // active, so vibe omits it past the first window rather than lie.
+  if (args.includeTotal && args.cursor === 0) out.total = ranked.length;
   if (args.includeFacets) out.facets = await loadFacets();
   return out;
 }
