@@ -234,6 +234,20 @@ describe("GET /api/pets/[slug]/like", () => {
     expect(res.status).toBe(400);
   });
 
+  it("answers 404 for a slug that is not approved", async () => {
+    publicCatalogAllowed = true;
+    await testDb.execute(
+      sql`INSERT INTO "submitted_pets" ("slug", "status") VALUES ('gone', 'rejected') ON CONFLICT DO NOTHING`,
+    );
+    const res = await GET(
+      new Request("https://petdex.dev/api/pets/gone/like"),
+      {
+        params: Promise.resolve({ slug: "gone" }),
+      },
+    );
+    expect(res.status).toBe(404);
+  });
+
   it("answers 429 when the public catalog limiter refuses", async () => {
     publicCatalogAllowed = false;
     const res = await GET(

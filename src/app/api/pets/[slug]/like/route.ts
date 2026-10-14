@@ -239,6 +239,26 @@ export async function GET(
 
   const { userId } = await auth();
 
+  // Same visibility contract the metrics route enforces: a withdrawn or
+  // rejected pet answers 404 like its page does, so a slug dictionary
+  // cannot use a live counter to confirm a takedown.
+  const pet = await db
+    .select({ slug: schema.submittedPets.slug })
+    .from(schema.submittedPets)
+    .where(
+      and(
+        eq(schema.submittedPets.slug, slug),
+        eq(schema.submittedPets.status, "approved"),
+      ),
+    )
+    .limit(1);
+  if (pet.length === 0) {
+    return NextResponse.json(
+      { error: "not_found" },
+      { status: 404, headers: PRIVATE_HEADERS },
+    );
+  }
+
   const countRow = await db
     .select({ c: sql<number>`count(*)` })
     .from(schema.petLikes)
