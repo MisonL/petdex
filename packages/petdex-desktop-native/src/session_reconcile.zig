@@ -1681,7 +1681,9 @@ fn sqliteMillis(value: f64) i64 {
     // would otherwise be UB in ReleaseFast, not a clamp.
     return if (value < 10_000_000_000)
         @intFromFloat(value * 1000)
-    else if (value <= std.math.maxInt(i64)) @intFromFloat(value) else 0;
+        // f64 cannot represent maxInt(i64) exactly; 2^63 is the float-expressible
+        // ceiling and every finite value below it casts to i64 losslessly.
+    else if (value < 9223372036854775808.0) @intFromFloat(value) else 0;
 }
 
 fn hermesSessionStatus(ended: bool, needs_input: bool, end_reason: []const u8) Status {
