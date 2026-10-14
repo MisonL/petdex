@@ -79,6 +79,11 @@ await client.login(token);
 // Bind loopback explicitly: relying on the platform's default bind made
 // the "only listens locally" comment a hope rather than a guarantee.
 const PORT = Number(process.env.PORT ?? 8086);
+if (!Number.isInteger(PORT) || PORT <= 0 || PORT > 65535) {
+  // Fail with a message naming the variable, not a bare RangeError from
+  // .listen(NaN) that looks like an internal bug.
+  throw new Error("PORT must be an integer between 1 and 65535");
+}
 createServer((req, res) => {
   // Belt and suspenders: handleWebhook is written not to reject, but an
   // unhandled rejection from this callback kills the whole process.

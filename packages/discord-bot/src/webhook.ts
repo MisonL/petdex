@@ -12,6 +12,8 @@ import {
   type TextChannel,
 } from "discord.js";
 
+import { plainEmbedText } from "./embed-text";
+
 const SECRET = process.env.PETDEX_WEBHOOK_SECRET;
 const PETDEX_API_BASE = process.env.PETDEX_API_BASE ?? "https://petdex.dev";
 // Runtime guild scope. With it, an invite to a second guild cannot redirect
@@ -55,30 +57,8 @@ type Event = PetApprovedEvent | CollectionFeaturedEvent;
 
 class PayloadTooLargeError extends Error {}
 
-// Discord renders markdown in an embed's description and field values, so
-// creator text must not be able to form a link under the bot's name.
-// `escapeMarkdown(…, { maskedLink: true })` neutralizes only the FIRST masked
-// link on each line — its `\[.+]\(.+\)` pattern is greedy, so on
-// `[a](u) [b](u)` it matches the whole span once and leaves `[b](u)` live
-// (measured against @discordjs/formatters). After it runs, escape any `[`
-// that is not already escaped, counting backslash runs so a literal `\\`
-// the library itself wrote is not double-escaped. Ordinary text renders
-// unchanged (`\[x]` displays as `[x]`); it just can no longer become a link.
-function plainEmbedText(text: string): string {
-  const escaped = escapeMarkdown(text, { maskedLink: true });
-  let out = "";
-  let slashes = 0;
-  for (const ch of escaped) {
-    if (ch === "\\") {
-      slashes += 1;
-      out += ch;
-      continue;
-    }
-    out += ch === "[" && slashes % 2 === 0 ? "\\[" : ch;
-    slashes = 0;
-  }
-  return out;
-}
+// plainEmbedText moved to embed-text.ts so commands.ts can import it
+// without pulling this module's load-time env reads into the test order.
 
 async function readBody(
   req: IncomingMessage,
