@@ -158,6 +158,10 @@ export async function revalidateCollectionTags(
       revalidateTag(`collection:${slug}`, "max");
     }
     revalidateTag("collection:list", "max");
+    // The sticker sitemap reads under this tag too (getStickerSitemapEntries);
+    // without it a taken-down publication stayed advertised in sitemap.xml for
+    // its 24h revalidate window after the page itself already answered 404.
+    revalidateTag("sticker:collections", "max");
   } catch {
     /* next/cache unavailable in some runtime contexts (tests, scripts) */
   }

@@ -227,6 +227,11 @@ export async function takedownPet(
   await revalidateCollectionTags(...collectionSlugs);
   await invalidateAggregates(AGGREGATE_KEYS.metricsIndex);
   await invalidateMetricCaches(pet.slug);
+  // Data-cache tags alone leave the force-static /pets/<slug> shell serving
+  // deleted sprite references for the page's 24h ISR window. Purge the
+  // full-route entries the way /api/revalidate does.
+  const { revalidatePetPagePaths } = await import("@/lib/pet-page-revalidate");
+  await revalidatePetPagePaths(pet.slug);
 
   // 6. Best-effort R2 cleanup. Stored source URLs and deterministic
   //    public derivatives are removed together. Anything off-host is
