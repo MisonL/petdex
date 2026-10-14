@@ -112,7 +112,7 @@ Per submission the CLI:
 3. PUTs the three files to Cloudflare R2 directly. No body passes through Petdex servers.
 4. Calls `POST /api/cli/submit/register` to record the submission as `pending`. Identity comes from the verified token, never from the body.
 
-A spinner shows progress per pet; a summary lists failures with reasons. Slugs auto-deduplicate (`boba` → `boba-2` → `boba-3` → …) so submissions never rebote on collisions.
+A spinner shows progress per pet; a summary lists failures with reasons. Slugs auto-deduplicate (`boba` → `boba-2` → `boba-3` → …) so submissions never collide.
 
 ## Validation rules
 
@@ -169,9 +169,10 @@ The full step-by-step (with tips on what makes a great pet) lives at <https://pe
 
 ## Common install issues
 
-The CLI is a single bundled JS file with no native dependencies.
-install path is just `fetch a JSON manifest, write two files to
-~/.petdex/pets/<slug>/`. Most "stuck" reports trace to one of these:
+The CLI is a single bundled JS file with no native dependencies, and the
+install path is just `fetch a JSON manifest, write files to
+~/.petdex/pets/<slug>/ and ~/.codex/pets/<slug>/`. Most "stuck" reports
+trace to one of these:
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |

@@ -1520,9 +1520,9 @@
   "download": {
     "metadata": {
       "title": "下载 Petdex Desktop",
-      "description": "下载适用于 macOS 的 Petdex Desktop。你的宠物漂浮在每个编程智能体旁边。",
+      "description": "下载适用于 macOS、Windows 和 Linux 的 Petdex Desktop。你的宠物，陪伴每个编程助手。",
       "ogTitle": "Petdex Desktop",
-      "ogDescription": "你的宠物漂浮在每个编程智能体旁边。macOS 原生。"
+      "ogDescription": "macOS、Windows 和 Linux 免费桌面宠物——陪伴每个编程助手。"
     },
     "eyebrow": "终端优先安装",
     "eyebrow__fixme": true,
@@ -2230,7 +2230,7 @@
       "contribute": "参与贡献"
     },
     "hero": {
-      "eyebrow": "Petdex CLI · v0.1",
+      "eyebrow": "Petdex CLI · v1",
       "title": "文档",
       "description": "Petdex CLI 让你在终端里安装、浏览并提交宠物。认证通过 Clerk 走 OAuth 2.0 + PKCE，令牌保存在系统钥匙串中。",
       "description__fixme": true,
@@ -2265,8 +2265,8 @@
           },
           "verify": {
             "title": "验证配置是否正常",
-            "body": "如果宠物没有出现，运行诊断命令；安装 hooks 后，也可以在支持的 agent 里输入 <code>/petdex status</code>。",
-            "result": "doctor 会指出缺失的 binary、hook、token 或宠物目录，并给出具体修复提示。"
+            "body": "如果宠物没有出现，重新运行安装命令并检查输出的目录。Petdex Desktop 读取 <code>~/.petdex/pets/</code>；Codex Desktop 读取 <code>~/.codex/pets/</code>。",
+            "result": ""
           }
         },
         "callout": "还没有宠物点子？用 Hatch Pet 技能<link>孵化你自己的</link>，然后回来运行 <code>petdex submit</code>。",
@@ -2289,9 +2289,9 @@
       },
       "commands": {
         "title": "命令",
-        "intro": "CLI 覆盖完整流程：发现、安装、孵化、发布，以及桌面应用和 Agent hooks。所有命令都支持 <code>--help</code>。",
+        "intro": "CLI 覆盖完整流程：发现、安装、发布，以及桌面应用和 Agent hooks。所有命令都支持 <code>--help</code>。",
         "listBody": "列出所有已通过审核的宠物和署名信息。安装前用它来浏览很方便。",
-        "installBody": "把宠物放到 <code>~/.codex/pets/{petName}/</code>。效果等同于 <code>curl -sSf https://petdex.dev/install/{petName} | sh</code>。",
+        "installBody": "把宠物放进 <code>~/.codex/pets/{petName}/</code> 和 <code>~/.petdex/pets/{petName}/</code>。<code>petdex install</code> CLI 会写入两个位置；<code>curl</code> 一行命令只写 <code>~/.codex/pets/</code>，Codex Desktop 能识别，Petdex Desktop 不会。",
         "submitIntro": "把你的宠物发布到图库。CLI 支持三种提交形式：",
         "submitSingle": "<strong>单个文件夹</strong>：<code>petdex submit ~/.codex/pets/boba</code>",
         "submitZip": "<strong>单个 zip</strong>：<code>petdex submit ~/Downloads/boba.zip</code>",
@@ -2321,7 +2321,7 @@
         "settingsAgents": "<strong>Agent。</strong>显示这台机器上装了哪些编程 Agent，以及它们的 hook 是否接好。一键安装或断开任意一个；hook 文件由应用自己写入，不需要碰终端。",
         "settingsAppearance": "<strong>外观。</strong>调整精灵图缩放，也可以关闭活动气泡，让宠物安静待着。",
         "chatgptTitle": "ChatGPT 宠物",
-        "chatgptBody": "ChatGPT 导出的宠物是一张 1536x2288 的精灵图，正好就是 Petdex 已经在读的图集：同样的九行状态、同样的帧数。在那边做好的宠物，拿到这里不用转换就能用。",
+        "chatgptBody": "ChatGPT 导出的宠物是一张 1536x2288 的精灵图，正好就是 Petdex 已经在读的图集：相同的 8×9 或 8×11 状态行网格、相同的帧数。在那边做好的宠物，拿到这里不用转换就能用。",
         "chatgptImport": "<strong>导入。</strong>从 ChatGPT 下载精灵图，把 PNG 拖到 <submit>/submit</submit>。Petdex 会测量网格、生成导出文件里没有的 pet.json，并在你命名之前先给出动画预览。",
         "chatgptExport": "<strong>导出。</strong>每个宠物页面都有一个 Open in Codex 按钮，可以把它装进 ChatGPT 桌面应用。无法直接从 ChatGPT 分享链接导入：那些链接锁定在创建它们的浏览器会话上。"
       },

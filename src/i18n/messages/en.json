@@ -1315,9 +1315,9 @@
   "download": {
     "metadata": {
       "title": "Download Petdex Desktop",
-      "description": "Download Petdex Desktop for macOS. Your pet, floating beside every coding agent.",
+      "description": "Download Petdex Desktop for macOS, Windows, and Linux. Your pet, floating beside every coding agent.",
       "ogTitle": "Petdex Desktop",
-      "ogDescription": "Your pet, floating beside every coding agent. macOS native."
+      "ogDescription": "Free desktop pet for macOS, Windows, and Linux — floating beside every coding agent."
     },
     "eyebrow": "Terminal-first setup",
     "title": "Run one command. Petdex does the rest.",
@@ -1935,7 +1935,7 @@
       "contribute": "Contribute"
     },
     "hero": {
-      "eyebrow": "Petdex CLI · v0.1",
+      "eyebrow": "Petdex CLI · v1",
       "title": "Docs",
       "description": "The Petdex CLI lets you install, browse, and submit pets from your terminal. Authentication uses OAuth 2.0 + PKCE through Clerk, and tokens persist in your OS keychain.",
       "npmCta": "npmjs.com/petdex",
@@ -1964,8 +1964,8 @@
           },
           "verify": {
             "title": "Verify the setup",
-            "body": "Run diagnostics if the pet does not appear, or type <code>/petdex status</code> inside a supported agent after hooks are installed.",
-            "result": "The doctor reports any missing binary, hook, token, or pet folder with a concrete fix."
+            "body": "If the pet does not appear, re-run the install command and check the printed folders. Petdex Desktop reads <code>~/.petdex/pets/</code>; Codex Desktop reads <code>~/.codex/pets/</code>.",
+            "result": ""
           }
         },
         "callout": "Don't have a pet idea yet? <link>Hatch your own</link> with the Hatch Pet skill, then come back to <code>petdex submit</code>."
@@ -1987,9 +1987,9 @@
       },
       "commands": {
         "title": "Commands",
-        "intro": "The CLI covers the full lifecycle: discover, install, hatch, publish, plus the desktop app and agent hooks. All commands accept <code>--help</code>.",
+        "intro": "The CLI covers the full lifecycle: discover, install, and publish — the desktop app and agent hooks live in the desktop download. All commands accept <code>--help</code>.",
         "listBody": "Print every approved pet with credit. Useful for discovery before installing.",
-        "installBody": "Drop a pet into <code>~/.codex/pets/{petName}/</code>. Equivalent to <code>curl -sSf https://petdex.dev/install/{petName} | sh</code>.",
+        "installBody": "Drop a pet into <code>~/.codex/pets/{petName}/</code> and <code>~/.petdex/pets/{petName}/</code>. The <code>petdex install</code> CLI writes both locations; the <code>curl</code> one-liner only writes <code>~/.codex/pets/</code>, which the Codex Desktop picks up but the Petdex Desktop does not.",
         "submitIntro": "Publish your pet(s) to the gallery. The CLI accepts three shapes:",
         "submitSingle": "<strong>Single folder</strong>: <code>petdex submit ~/.codex/pets/boba</code>",
         "submitZip": "<strong>Single zip</strong>: <code>petdex submit ~/Downloads/boba.zip</code>",
@@ -2019,7 +2019,7 @@
         "settingsAgents": "<strong>Agents.</strong> Shows which coding agents are on this machine and whether their hooks are wired. Install or disconnect any of them in one click; the app writes the hook files itself, no terminal involved.",
         "settingsAppearance": "<strong>Appearance.</strong> Scale the sprite, and turn the activity bubble on or off if you would rather have the pet stay quiet.",
         "chatgptTitle": "ChatGPT pets",
-        "chatgptBody": "ChatGPT exports pets as a 1536x2288 spritesheet, which is exactly the atlas Petdex already reads: same nine state rows, same frame counts. A pet made there works here with no conversion.",
+        "chatgptBody": "ChatGPT exports pets as a 1536x2288 spritesheet, which is exactly the atlas Petdex already reads: the same 8×9 or 8×11 state-row grid, same frame counts. A pet made there works here with no conversion.",
         "chatgptImport": "<strong>Bringing one in.</strong> Download the spritesheet from ChatGPT, then drop the PNG on <submit>/submit</submit>. Petdex measures the grid, generates the pet.json the export does not include, and shows an animated preview before you name it.",
         "chatgptExport": "<strong>Taking one out.</strong> Every pet page has an Open in Codex button that installs it into the ChatGPT desktop app. Importing straight from a ChatGPT share link is not possible: those URLs are locked to the browser session that created them."
       },

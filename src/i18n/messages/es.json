@@ -1315,9 +1315,9 @@
   "download": {
     "metadata": {
       "title": "Descargar Petdex Desktop",
-      "description": "Descarga Petdex Desktop para macOS. Tu mascota, flotando junto a cada agente de código.",
+      "description": "Descarga Petdex Desktop para macOS, Windows y Linux. Tu mascota, junto a cada agente de código.",
       "ogTitle": "Petdex Desktop",
-      "ogDescription": "Tu mascota, flotando junto a cada agente de código. Nativo para macOS."
+      "ogDescription": "Mascota de escritorio gratis para macOS, Windows y Linux, junto a cada agente de código."
     },
     "eyebrow": "Setup desde la terminal",
     "title": "Corre un comando. Petdex hace el resto.",
@@ -1935,7 +1935,7 @@
       "contribute": "Contribuir"
     },
     "hero": {
-      "eyebrow": "Petdex CLI · v0.1",
+      "eyebrow": "Petdex CLI · v1",
       "title": "Documentación",
       "description": "La CLI de Petdex te permite instalar, explorar y enviar mascotas desde tu terminal. La autenticación usa OAuth 2.0 + PKCE a través de Clerk, y los tokens se guardan en el llavero de tu sistema operativo.",
       "npmCta": "npmjs.com/petdex",
@@ -1964,8 +1964,8 @@
           },
           "verify": {
             "title": "Verifica la configuración",
-            "body": "Ejecuta el diagnóstico si la mascota no aparece, o escribe <code>/petdex status</code> dentro de un agente compatible después de instalar los hooks.",
-            "result": "Doctor informa cualquier binario, hook, token o carpeta de mascota faltante con una corrección concreta."
+            "body": "Si la mascota no aparece, vuelve a ejecutar el comando de instalación y revisa las carpetas mostradas. Petdex Desktop lee <code>~/.petdex/pets/</code>; Codex Desktop lee <code>~/.codex/pets/</code>.",
+            "result": ""
           }
         },
         "callout": "¿Aún no tienes una idea de mascota? <link>Crea la tuya</link> con el skill Hatch Pet y vuelve para ejecutar <code>petdex submit</code>."
@@ -1989,7 +1989,7 @@
         "title": "Comandos",
         "intro": "La CLI cubre todo el ciclo de vida: descubrir, instalar, crear, publicar, además de la app de escritorio y los hooks de agentes. Todos los comandos aceptan <code>--help</code>.",
         "listBody": "Muestra todas las mascotas aprobadas con su crédito. Útil para descubrir antes de instalar.",
-        "installBody": "Coloca una mascota en <code>~/.codex/pets/{petName}/</code>. Equivale a <code>curl -sSf https://petdex.dev/install/{petName} | sh</code>.",
+        "installBody": "Deja la mascota en <code>~/.codex/pets/{petName}/</code> y <code>~/.petdex/pets/{petName}/</code>. El CLI <code>petdex install</code> escribe ambas ubicaciones; el comando <code>curl</code> solo escribe <code>~/.codex/pets/</code>, que Codex Desktop detecta pero Petdex Desktop no.",
         "submitIntro": "Publica tu mascota o mascotas en la galería. La CLI acepta tres formas:",
         "submitSingle": "<strong>Una carpeta</strong>: <code>petdex submit ~/.codex/pets/boba</code>",
         "submitZip": "<strong>Un zip</strong>: <code>petdex submit ~/Downloads/boba.zip</code>",
@@ -2019,7 +2019,7 @@
         "settingsAgents": "<strong>Agentes.</strong> Muestra qué agentes de código hay en la máquina y si sus hooks están conectados. Instala o desconecta cualquiera con un clic; la app escribe los hooks sola, sin terminal.",
         "settingsAppearance": "<strong>Apariencia.</strong> Ajusta el tamaño del sprite y apaga la burbuja de actividad si prefieres que la mascota esté callada.",
         "chatgptTitle": "Mascotas de ChatGPT",
-        "chatgptBody": "ChatGPT exporta mascotas como spritesheet de 1536x2288, que es exactamente el atlas que Petdex ya lee: las mismas nueve filas de estados, los mismos conteos de frames. Una mascota hecha allá funciona acá sin conversión.",
+        "chatgptBody": "ChatGPT exporta mascotas como spritesheet de 1536x2288, que es exactamente el atlas que Petdex ya lee: la misma cuadrícula de estados de 8×9 u 8×11, los mismos conteos de frames. Una mascota hecha allá funciona acá sin conversión.",
         "chatgptImport": "<strong>Traer una.</strong> Descarga la spritesheet desde ChatGPT y suelta el PNG en <submit>/submit</submit>. Petdex mide la grilla, genera el pet.json que la exportación no trae, y te muestra una vista previa animada antes de ponerle nombre.",
         "chatgptExport": "<strong>Llevarte una.</strong> Cada página de mascota tiene un botón Open in Codex que la instala en la app de escritorio de ChatGPT. Importar directo desde un link para compartir de ChatGPT no se puede: esas URLs están atadas a la sesión del navegador que las creó."
       },
