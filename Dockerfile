@@ -13,7 +13,7 @@
 
 # syntax=docker/dockerfile:1
 
-FROM oven/bun:1-slim AS deps
+FROM oven/bun@sha256:cb3bbbb08e13a4a2ff400f24c7a2a1d5efa83f6ef8544d52d95a519631e2fc61 AS deps
 WORKDIR /app
 # The lockfile is the contract; `--frozen-lockfile` fails the build rather
 # than silently resolving a different tree.
@@ -26,7 +26,7 @@ RUN bun install --frozen-lockfile
 # `builder` instead would make BuildKit evaluate the whole builder stage twice
 # — once per distinct set of build args — and run `next build` a second time
 # for a container that never serves a page.
-FROM oven/bun:1-slim AS source
+FROM oven/bun@sha256:cb3bbbb08e13a4a2ff400f24c7a2a1d5efa83f6ef8544d52d95a519631e2fc61 AS source
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -138,7 +138,7 @@ RUN set -eux; \
     bun run build; \
     su postgres -c "$PGBIN/pg_ctl -D /var/lib/pg/data -m immediate stop"
 
-FROM oven/bun:1-slim AS runner
+FROM oven/bun@sha256:cb3bbbb08e13a4a2ff400f24c7a2a1d5efa83f6ef8544d52d95a519631e2fc61 AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production \

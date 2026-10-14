@@ -25,7 +25,7 @@ services:
     # to create and semantic search / exact-hash dedup were silently absent
     # from this stack. The app's push-built schema cannot carry the vector
     # columns on its own (see that script's header).
-    image: pgvector/pgvector:pg16
+    image: pgvector/pgvector@sha256:7b822b0aac60967beb1ea5e576b8602c94c300a157d187f385ae3e0da199b90a
     restart: unless-stopped
     environment:
       POSTGRES_USER: petdex
@@ -40,7 +40,7 @@ services:
       retries: 30
 
   redis:
-    image: redis:7-alpine
+    image: redis@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499
     restart: unless-stopped
     command: ["redis-server", "--save", "", "--appendonly", "no"]
     healthcheck:
@@ -52,7 +52,7 @@ services:
   # Upstash's client speaks REST; local Redis speaks the plain protocol. srh
   # bridges them so `@upstash/redis` works unchanged.
   redis-rest:
-    image: hiett/serverless-redis-http:latest
+    image: hiett/serverless-redis-http@sha256:5b0bb9239fce53abf87b2018a7a0deb9ec7bd900c5360738fe5fbeeb426f9150
     restart: unless-stopped
     environment:
       SRH_MODE: env
