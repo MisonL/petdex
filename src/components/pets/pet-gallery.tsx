@@ -93,7 +93,6 @@ type InitialSearchPayload = SearchPayload & {
 type PetGalleryProps = {
   initial: InitialSearchPayload;
   totalPets: number;
-  caughtSlugs?: string[];
 };
 
 type SortKey = "curated" | "popular" | "installed" | "alpha" | "recent";
@@ -136,11 +135,7 @@ const FAMILY_DOT: Record<ColorFamily, string> = {
   neutral: "#737373",
 };
 
-export function PetGallery({
-  initial,
-  totalPets,
-  caughtSlugs,
-}: PetGalleryProps) {
+export function PetGallery({ initial, totalPets }: PetGalleryProps) {
   const locale = useLocale();
   const isZh = locale === "zh";
   const t = useTranslations("gallery");
@@ -171,14 +166,10 @@ export function PetGallery({
   const [loadingMore, setLoadingMore] = useState(false);
 
   // Which pets the viewer has already liked. The set is polled into the
-  // header state; the `caughtSlugs` prop stays as a server-supplied override
   // (no caller passes it today, so without the state the set was always
   // empty and every heart rendered unfilled).
   const { state } = useHeaderState();
-  const caughtSet = useMemo(
-    () => new Set(caughtSlugs ?? state.caught),
-    [caughtSlugs, state.caught],
-  );
+  const caughtSet = useMemo(() => new Set(state.caught), [state.caught]);
 
   const requestSeq = useRef(0);
   const hasMountedSearchEffect = useRef(false);
