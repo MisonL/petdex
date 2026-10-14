@@ -34,7 +34,8 @@ beforeAll(async () => {
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS "submitted_pets" (
       "id" text PRIMARY KEY,
-      "slug" text NOT NULL
+      "slug" text NOT NULL,
+      "owner_id" text
     )
   `);
   await db.execute(sql`
@@ -154,6 +155,31 @@ describe("takedown cleanup is gated on the pet row it was given", () => {
 
     expect(await cleanupItems("pet_some_other_id")).toBe(0);
     expect(await memberCount("col_gate_mismatch")).toBe(1);
+  });
+
+  it("owner-scoped gate refuses rows whose owner_id no longer matches", async () => {
+    // The owner self-service path restates ownership inside the statements
+    // (ownerScoped: true) so a claim racing the takedown — owner_id rewritten
+    // after the route's 403 check read its snapshot — cannot delete a pet the
+    // caller no longer owns. Null ownerId keeps the unscoped gate.
+    await seedPet("pet_owned");
+    await db.execute(
+      sql`UPDATE "submitted_pets" SET "owner_id" = 'user_new' WHERE "id" = 'pet_owned'`,
+    );
+
+    const gate = takedownRowStillMatches("pet_owned", SLUG, "user_old");
+    const result = await db.execute(sql`
+      SELECT EXISTS (SELECT 1 FROM "submitted_pets" WHERE "id" = 'pet_owned' AND ${gate}) AS ok
+    `);
+    const rows = (result as { rows?: Array<{ ok?: unknown }> }).rows ?? [];
+    expect(rows[0]?.ok).toBe(false);
+
+    const matching = takedownRowStillMatches("pet_owned", SLUG, "user_new");
+    const ok = await db.execute(sql`
+      SELECT EXISTS (SELECT 1 FROM "submitted_pets" WHERE "id" = 'pet_owned' AND ${matching}) AS ok
+    `);
+    const okRows = (ok as { rows?: Array<{ ok?: unknown }> }).rows ?? [];
+    expect(okRows[0]?.ok).toBe(true);
   });
 });
 

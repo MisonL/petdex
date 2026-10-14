@@ -203,7 +203,8 @@ export async function searchPets(
   }
 
   if (q) {
-    const like = `%${q}%`;
+    const cleanQ = stripNulBytes(q);
+    const like = `%${cleanQ}%`;
     // Tags are jsonb — cast to text so ILIKE can scan them. The substring
     // search on display_name + description is small enough to live without
     // a trigram index at our current scale.
@@ -719,6 +720,14 @@ const loadFacets = (): Promise<SearchFacets> =>
  */
 export const loadFacetsForSitemap = (): Promise<SearchFacets> =>
   computeFacets();
+
+// A NUL byte in a query parameter makes Postgres reject the statement
+// outright (5F000), so `?q=%00` was a deterministic 500. Postgres text
+// cannot represent NUL, so no legitimate search term contains one — strip
+// rather than reject. Exported for the route contract test.
+export function stripNulBytes(raw: string): string {
+  return raw.replaceAll("\0", "");
+}
 
 function clamp(n: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, n));

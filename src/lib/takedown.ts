@@ -56,6 +56,15 @@ export type TakedownContext = {
    * doing a self-delete know what they did; no need to ping them.
    */
   silent?: boolean;
+  /**
+   * Confines every statement to the owner's row: the row lock, the cleanup
+   * gate, and the DELETE all additionally require owner_id = actorId, the
+   * same in-statement restatement withdraw uses. Without it a takedown
+   * racing a claim (which rewrites owner_id) would still delete the row the
+   * caller no longer owns — the pre-flight 403 check reads a snapshot the
+   * batch cannot see. Only the owner self-service path may set this.
+   */
+  ownerScoped?: boolean;
 };
 
 export type TakedownResult = {
@@ -67,7 +76,7 @@ export type TakedownResult = {
 export async function takedownPet(
   ctx: TakedownContext,
 ): Promise<TakedownResult> {
-  const { pet, reason, source, actorId, silent } = ctx;
+  const { pet, reason, source, actorId, silent, ownerScoped } = ctx;
   const slug = pet.slug;
 
   // 1-5. Hold a slug-scoped transaction lock and the exact pet row lock
@@ -96,9 +105,14 @@ export async function takedownPet(
     FROM "submitted_pets"
     WHERE "id" = ${pet.id}
       AND "slug" = ${slug}
+      ${ownerScoped ? sql`AND "owner_id" = ${actorId}` : sql``}
     FOR UPDATE
   `;
-  const oldPetExists = takedownRowStillMatches(pet.id, slug);
+  const oldPetExists = takedownRowStillMatches(
+    pet.id,
+    slug,
+    ownerScoped ? actorId : null,
+  );
   const cleanupQueries = [
     sql`
       DELETE FROM "pet_likes"
@@ -166,6 +180,7 @@ export async function takedownPet(
     DELETE FROM "submitted_pets"
     WHERE "id" = ${pet.id}
       AND "slug" = ${slug}
+      ${ownerScoped ? sql`AND "owner_id" = ${actorId}` : sql``}
     RETURNING "id"
   `;
   const batch = getTakedownBatchRunner();
@@ -304,13 +319,18 @@ export async function takedownPet(
  * takedown-cleanup.test.ts — an assertion on the statement text would keep
  * passing if the condition were dropped from the statements that use it.
  */
-export function takedownRowStillMatches(petId: string, slug: string) {
+export function takedownRowStillMatches(
+  petId: string,
+  slug: string,
+  ownerId: string | null = null,
+) {
   return sql`
     EXISTS (
       SELECT 1
       FROM "submitted_pets"
       WHERE "id" = ${petId}
         AND "slug" = ${slug}
+        ${ownerId ? sql`AND "owner_id" = ${ownerId}` : sql``}
     )
   `;
 }

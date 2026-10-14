@@ -61,7 +61,13 @@ export async function POST(req: Request): Promise<Response> {
   // `?.` only guards null/undefined; a number or object here threw
   // `.trim is not a function` and 500'd this anonymous endpoint. Coerce
   // like `message`/`kind` above, then validate the coerced string.
-  const email = String(body.email ?? "").trim() || null;
+  // Bounded like its siblings: RFC 5321 caps an email at 254 octets, and
+  // the regex below would happily pass a megabyte-long otherwise-valid
+  // single block straight into the row.
+  const email =
+    String(body.email ?? "")
+      .trim()
+      .slice(0, 254) || null;
   const pageUrl =
     String(body.pageUrl ?? "")
       .trim()

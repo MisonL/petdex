@@ -66,8 +66,13 @@ export async function DELETE(
   if (body === null || typeof body !== "object" || Array.isArray(body)) {
     body = {};
   }
+  // Owner-triggered, so it lands in the audit log only (silent below) —
+  // still bounded: sibling fields (bio 280, feedback 4000, note 500) all
+  // cap their free text, and this one flows into structured log lines.
   const reason =
-    typeof body.reason === "string" ? body.reason.trim() || null : null;
+    typeof body.reason === "string"
+      ? body.reason.trim().slice(0, 500) || null
+      : null;
 
   const pet = await db.query.submittedPets.findFirst({
     where: eq(schema.submittedPets.slug, slug),
@@ -96,6 +101,10 @@ export async function DELETE(
     actorId: userId,
     // Owner triggered it — no need to email/notify themselves.
     silent: true,
+    // Restate ownership inside every statement: the 403 check above read a
+    // snapshot, and a claim racing this request rewrites owner_id between
+    // the read and the batch. Withdraw carries the same in-statement guard.
+    ownerScoped: true,
   });
 
   return NextResponse.json({ ok: true });
