@@ -414,12 +414,14 @@ export function PetSubmitForm() {
       });
       setEditedDisplayName(displayName);
       setEditedDescription(description);
-    } catch (err) {
+    } catch (_err) {
       // Every caller does `void handleFiles(...)`, so a rejection here was an
       // unhandled promise rejection and an empty prompt. Surface it instead.
       if (seq !== parseSeqRef.current) return;
-      const reason = err instanceof Error ? err.message : String(err);
-      setReadError(t("issues.unreadable", { reason }));
+      // Third-party parse errors (zip stream, image decode) can carry file
+      // paths or browser-internal text; the generic copy keeps that off the
+      // user's screen the way every other error path here does.
+      setReadError(t("issues.unreadableGeneric"));
     } finally {
       // Only the still-current parse may flip this: an abandoned earlier
       // attempt finishing late would otherwise hide the newer one's spinner.
@@ -466,10 +468,11 @@ export function PetSubmitForm() {
         compression: "DEFLATE",
       });
     } catch (err) {
-      const reason = (err as Error).message || "zip";
+      // Zip-library messages can embed file paths; keep them out of the copy.
+      void err;
       setSubmission({
         kind: "error",
-        message: t("errors.uploadFailed", { reason }),
+        message: t("errors.uploadFailedGeneric"),
       });
       return;
     }
@@ -607,10 +610,12 @@ export function PetSubmitForm() {
       spritesheetUrl = spriteSlot.publicUrl;
       petJsonUrl = petJsonSlot.publicUrl;
     } catch (err) {
-      const reason = (err as Error).message ?? "unknown";
+      // Presign/upload failures surface as the generic copy: S3 and fetch
+      // errors carry URLs and protocol detail users can't act on.
+      void err;
       setSubmission({
         kind: "error",
-        message: t("errors.uploadFailed", { reason }),
+        message: t("errors.uploadFailedGeneric"),
       });
       return;
     }
@@ -641,10 +646,11 @@ export function PetSubmitForm() {
         }),
       });
     } catch (err) {
-      const reason = (err as Error).message ?? "network";
+      // Same boundary as the presign block above: no raw fetch text.
+      void err;
       setSubmission({
         kind: "error",
-        message: t("errors.uploadFailed", { reason }),
+        message: t("errors.uploadFailedGeneric"),
       });
       return;
     }

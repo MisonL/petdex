@@ -472,6 +472,7 @@
       },
       "errors": {
         "uploadFailed": "上传失败：{reason}",
+        "uploadFailedGeneric": "上传失败。请检查文件后重试。",
         "submissionFailed": "提交失败",
         "submissionFailedWithCode": "提交失败：{code}",
         "rateLimited": "已达到限制：每 24 小时最多提交 10 次。请明天再试。",
@@ -498,7 +499,8 @@
         "badGrid": "精灵图集网格为 {width}×{height}，不符合 8×9（1536×1872）或 v2 8×11（1536×2288）帧网格，帧会错位显示。",
         "spriteVersionMismatch": "精灵图集尺寸使用 v{detected}，但 pet.json 声明为 v{declared}。请先更新 spriteVersionNumber 再提交。",
         "spritesheetMissingPetInfo": "此精灵图集旁未找到 pet.json，已生成占位名称/描述。请在下方填写宠物名称和描述后再提交。",
-        "unreadable": "无法读取该文件包：{reason}"
+        "unreadable": "无法读取该文件包：{reason}",
+        "unreadableGeneric": "无法读取该文件包。请检查文件后重试。"
       }
     }
   },

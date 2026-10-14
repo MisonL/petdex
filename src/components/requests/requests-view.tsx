@@ -210,11 +210,15 @@ export function RequestsView({ initial }: { initial: RequestRow[] }) {
   });
 
   async function uploadImage(file: File): Promise<string> {
+    // Localized error markers: fetch itself can also throw (offline, CORS),
+    // and its raw message ("Failed to fetch") must not leak into formError —
+    // the outer catch falls back to the generic retry copy for anything that
+    // does not start with this prefix.
     if (!["image/png", "image/webp", "image/jpeg"].includes(file.type)) {
-      throw new Error(t("errors.imageType"));
+      throw new Error(`localized:${t("errors.imageType")}`);
     }
     if (file.size > 4 * 1024 * 1024) {
-      throw new Error(t("errors.imageTooLarge"));
+      throw new Error(`localized:${t("errors.imageTooLarge")}`);
     }
     const presign = await fetch("/api/pet-requests/image", {
       method: "POST",
@@ -222,7 +226,7 @@ export function RequestsView({ initial }: { initial: RequestRow[] }) {
       body: JSON.stringify({ contentType: file.type, size: file.size }),
     });
     if (!presign.ok) {
-      throw new Error(t("errors.imageUpload"));
+      throw new Error(`localized:${t("errors.imageUpload")}`);
     }
     const data = (await presign.json()) as {
       uploadUrl: string;
@@ -234,7 +238,7 @@ export function RequestsView({ initial }: { initial: RequestRow[] }) {
       body: file,
     });
     if (!upload.ok) {
-      throw new Error(t("errors.imageUpload"));
+      throw new Error(`localized:${t("errors.imageUpload")}`);
     }
     return data.publicUrl;
   }
@@ -297,8 +301,14 @@ export function RequestsView({ initial }: { initial: RequestRow[] }) {
         /* ignore */
       }
     } catch (err) {
+      // Only uploadImage's `localized:`-prefixed throws carry user-facing
+      // copy; every other error here (network, abort) reads like "Failed
+      // to fetch" and falls back to the generic retry text.
+      const message = err instanceof Error ? err.message : null;
       setFormError(
-        err instanceof Error ? err.message : t("errors.networkRetry"),
+        message?.startsWith("localized:")
+          ? message.slice("localized:".length)
+          : t("errors.networkRetry"),
       );
     } finally {
       setSubmitting(false);

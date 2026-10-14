@@ -445,6 +445,7 @@
       },
       "errors": {
         "uploadFailed": "Upload failed: {reason}",
+        "uploadFailedGeneric": "Upload failed. Check the file and try again.",
         "submissionFailed": "Submission failed",
         "submissionFailedWithCode": "Submission failed: {code}",
         "rateLimited": "Limit reached: 10 submissions per 24 hours. Try again tomorrow.",
@@ -471,7 +472,8 @@
         "badGrid": "Spritesheet grid is {width}×{height}, which doesn't match the 8×9 (1536×1872) or v2 8×11 (1536×2288) frame grid, so frames would render misaligned.",
         "spriteVersionMismatch": "Spritesheet dimensions use v{detected}, but pet.json declares v{declared}. Update spriteVersionNumber before submitting.",
         "spritesheetMissingPetInfo": "No pet.json found next to this spritesheet, so a placeholder name/description was generated. Fill in the pet name and description below before submitting.",
-        "unreadable": "That package could not be read: {reason}"
+        "unreadable": "That package could not be read: {reason}",
+        "unreadableGeneric": "That package could not be read. Check the file and try again."
       }
     }
   },
