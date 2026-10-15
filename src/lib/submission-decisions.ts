@@ -206,9 +206,9 @@ export async function applySubmissionAction(
   await executeAtomicReturning(renameStatements);
   // Re-read the row after the batch: RETURNING * yields snake_case keys the
   // downstream code (and runPostApprovalEffects) cannot consume, and the
-  // update's rows are the only trustworthy existence signal inside the
-  // batch. A fresh read is safe here — the batch has committed, so this
-  // snapshot sees the post-rename state.
+  // batch's rows go unread — existence is decided by this fresh read. It is
+  // safe here: the batch has committed, so this snapshot sees the
+  // post-rename state.
   const updated = await db.query.submittedPets.findFirst({
     where: eq(schema.submittedPets.id, id),
   });

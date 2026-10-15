@@ -918,7 +918,7 @@ async function findMetadataMatches(
       });
     }
   }
-  return { matches: out, complete };
+  return { matches: out.slice(0, SUBMISSION_SIMILARITY_MAX_RESULTS), complete };
 }
 
 async function findSemanticMatches(
