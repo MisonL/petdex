@@ -94,7 +94,11 @@ services:
         bun --conditions react-server scripts/bootstrap-pgvector.ts &&
         bun --conditions react-server scripts/seed-dev.ts
     environment:
-      DATABASE_URL: postgresql://petdex:petdex@postgres:5432/petdex
+      # Both services share one variable so pointing the app at an external
+      # database moves the migrations with it — a migrate service pinned to
+      # the built-in postgres while the app talks to a replaced DATABASE_URL
+      # would push the schema into a database nothing reads.
+      DATABASE_URL: ${PETDEX_DEPLOY_DATABASE_URL:-postgresql://petdex:petdex@postgres:5432/petdex}
       # `seed-dev.ts` imports only the DB client and the mock module, so it
       # needs neither Redis nor R2 — verified by running it against a bare
       # Postgres with none of those set.
@@ -117,12 +121,20 @@ services:
         # client identifier, and the mock auth alias means no secret key is
         # needed — but `NEXT_PUBLIC_*` is inlined at build time, so the build
         # needs a value here rather than at runtime.
+        #
+        # WARNING: PETDEX_MOCK_AUTH is baked in at BUILD time — next.config
+        # aliases @clerk/nextjs to the in-process mock during this build, and
+        # that alias survives any runtime env change. Swapping in real Clerk
+        # keys at runtime does NOT restore real authentication; a public
+        # deployment built from this file would treat every visitor as the
+        # same signed-in mock user. A real deployment needs a separate build
+        # with PETDEX_MOCK_AUTH unset (or empty) in the build args.
         NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:-pk_test_bWF4aW11bS1oZW4tNzIuY2xlcmsuYWNjb3VudHMuZGV2JA}
         PETDEX_MOCK_AUTH: "1"
     ports:
       - "127.0.0.1:3100:3000"
     environment:
-      DATABASE_URL: postgresql://petdex:petdex@postgres:5432/petdex
+      DATABASE_URL: ${PETDEX_DEPLOY_DATABASE_URL:-postgresql://petdex:petdex@postgres:5432/petdex}
       UPSTASH_REDIS_REST_URL: http://redis-rest:80
       UPSTASH_REDIS_REST_TOKEN: petdex-dev-token
       # The telemetry route hashes IPs with this before writing a rate-limit

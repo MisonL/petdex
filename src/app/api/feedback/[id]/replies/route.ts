@@ -129,7 +129,13 @@ export async function POST(
     return NextResponse.json({ error: "invalid_body" }, { status: 400 });
   }
 
-  const text = String(body.body ?? "").trim();
+  // Must be a string: String() would coerce an object to "[object Object]"
+  // or an array to its comma join, and either would land in the reply store
+  // and the notification email as garbage that looks accepted.
+  if (typeof body.body !== "string") {
+    return NextResponse.json({ error: "invalid_body" }, { status: 400 });
+  }
+  const text = body.body.trim();
   if (!text || text.length > 2000) {
     return NextResponse.json({ error: "invalid_body" }, { status: 400 });
   }

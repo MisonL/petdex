@@ -94,6 +94,11 @@ type VisualMatchScan = {
   scanned: number;
 };
 
+type MetadataMatchScan = {
+  matches: ReviewEvidenceMatch[];
+  complete: boolean;
+};
+
 async function getDbModule(): Promise<DbModule> {
   if (process.env.PETDEX_REVIEW_DB === "runtime") {
     const runtime = await import("@/lib/db/runtime");
@@ -595,7 +600,7 @@ async function analyzeDuplicates(
     incomplete = true;
   }
 
-  const [visualScan, metadataMatches] = await Promise.all([
+  const [visualScan, metadataScan] = await Promise.all([
     assets.dhash
       ? findVisualMatches(row, assets.dhash)
       : Promise.resolve({ matches: [], complete: true, scanned: 0 }),
@@ -605,6 +610,13 @@ async function analyzeDuplicates(
   if (!visualScan.complete) {
     reasons.push(
       `Visual duplicate check scanned ${visualScan.scanned} candidates and needs manual review.`,
+    );
+    incomplete = true;
+  }
+  const metadataMatches = metadataScan.matches;
+  if (!metadataScan.complete) {
+    reasons.push(
+      `Metadata duplicate check hit its ${METADATA_MATCH_SCAN_LIMIT}-row scan window and needs manual review.`,
     );
     incomplete = true;
   }
@@ -834,11 +846,14 @@ async function findVisualMatches(
 
 async function findMetadataMatches(
   row: SubmittedPet,
-): Promise<ReviewEvidenceMatch[]> {
+): Promise<MetadataMatchScan> {
   const { db, schema } = await getDbModule();
   // Bounded like the visual scan: without a limit this pulled every approved
   // pet into memory on every submission, so the cost grew with the catalog.
-  // The newest rows are the likeliest duplicates of a fresh submission.
+  // The newest rows are the likeliest duplicates of a fresh submission. The
+  // limit+1 probe tells the caller the scan was truncated — a pass on a
+  // truncated metadata scan must not auto-approve, because an older pet the
+  // window never reached may still be the duplicate.
   const rows = await db
     .select({
       id: schema.submittedPets.id,
@@ -860,12 +875,14 @@ async function findMetadataMatches(
       ),
     )
     .orderBy(desc(schema.submittedPets.createdAt))
-    .limit(METADATA_MATCH_SCAN_LIMIT);
+    .limit(METADATA_MATCH_SCAN_LIMIT + 1);
+  const complete = rows.length <= METADATA_MATCH_SCAN_LIMIT;
+  const window = complete ? rows : rows.slice(0, METADATA_MATCH_SCAN_LIMIT);
 
   const rowName = normalizeText(row.displayName);
   const rowCreditName = normalizeText(row.creditName ?? "");
   const out: ReviewEvidenceMatch[] = [];
-  for (const match of rows) {
+  for (const match of window) {
     const matchedFields: string[] = [];
     if (
       normalizeText(match.displayName) === rowName &&
@@ -901,7 +918,7 @@ async function findMetadataMatches(
       });
     }
   }
-  return out;
+  return { matches: out, complete };
 }
 
 async function findSemanticMatches(

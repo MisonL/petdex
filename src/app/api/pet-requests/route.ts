@@ -380,7 +380,12 @@ export async function POST(req: Request): Promise<Response> {
   if (imageUrl) {
     const key = keyFromR2Url(imageUrl);
     const check = key ? await checkR2ObjectSize(key, 4 * 1024 * 1024) : null;
-    if (!check || check.ok === false) {
+    // A missing object answers `{ ok: true, missing: true }`, so the ok
+    // check alone lets a well-formed URL whose upload never happened become
+    // a request row pointing at nothing. The size-guard callers keep the
+    // lenient policy — their retry flows treat a missing object as "not yet
+    // there" — but this row is written once.
+    if (!check || check.ok === false || check.missing) {
       return NextResponse.json(
         { error: "image_not_verifiable" },
         { status: 422, headers: PRIVATE_HEADERS },

@@ -79,8 +79,8 @@ export function keyFromR2Url(url: string | null | undefined): string | null {
 }
 
 export type R2ObjectSizeCheck =
-  | { ok: true; bytes: number | null }
-  | { ok: false; bytes: number; maxBytes: number };
+  | { ok: true; bytes: number | null; missing: boolean }
+  | { ok: false; bytes: number; maxBytes: number; missing: false };
 
 /**
  * Confirm an already-uploaded object is within `maxBytes` before its URL is
@@ -96,8 +96,10 @@ export type R2ObjectSizeCheck =
  * `bytes: null` means R2 returned no ContentLength; the caller lets it
  * through, because every object R2 stores carries a length and refusing on a
  * stripped header would reject an upload the presign already bounded. A
- * missing object (NotFound) is likewise not this check's concern — there is
- * no oversized body to reject.
+ * missing object (NotFound) is also not oversized, so it answers ok — but
+ * it sets `missing`, so a caller whose contract needs the object to exist
+ * (a reference image a request row will point at) can refuse it without
+ * re-running the HEAD.
  */
 export async function checkR2ObjectSize(
   key: string,
@@ -111,13 +113,15 @@ export async function checkR2ObjectSize(
     contentLength =
       typeof head.ContentLength === "number" ? head.ContentLength : null;
   } catch (error) {
-    if (isR2MissingObjectError(error)) return { ok: true, bytes: null };
+    if (isR2MissingObjectError(error)) {
+      return { ok: true, bytes: null, missing: true };
+    }
     throw error;
   }
   if (contentLength !== null && contentLength > maxBytes) {
-    return { ok: false, bytes: contentLength, maxBytes };
+    return { ok: false, bytes: contentLength, maxBytes, missing: false };
   }
-  return { ok: true, bytes: contentLength };
+  return { ok: true, bytes: contentLength, missing: false };
 }
 
 function isR2MissingObjectError(error: unknown): boolean {

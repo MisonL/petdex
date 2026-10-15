@@ -90,7 +90,21 @@ export async function findChannel(
   client: Client,
   name: string,
 ): Promise<TextChannel | null> {
-  for (const guild of client.guilds.cache.values()) {
+  // The startup warning covers the misconfiguration, but the leak itself is
+  // what matters: with no scope and more than one joined guild, the lookup
+  // would post into whichever server happens to hold the first channel of
+  // this name. Fail closed in that shape — a single-guild bot stays valid,
+  // a multi-guild bot must set DISCORD_GUILD_ID to announce at all.
+  const guilds = [...client.guilds.cache.values()];
+  if (!GUILD_ID && guilds.length > 1) {
+    console.warn(
+      "[webhook] DISCORD_GUILD_ID is unset and the bot is in " +
+        `${guilds.length} guilds — refusing to pick a channel by name ` +
+        "across servers.",
+    );
+    return null;
+  }
+  for (const guild of guilds) {
     if (GUILD_ID && guild.id !== GUILD_ID) continue;
     const channel = guild.channels.cache.find(
       (c) => c.isTextBased() && c.name === name,

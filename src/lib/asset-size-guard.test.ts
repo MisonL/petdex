@@ -63,6 +63,7 @@ describe("checkR2ObjectSize", () => {
     expect(await checkR2ObjectSize(KEY, PET_ASSET_MAX_BYTES)).toEqual({
       ok: true,
       bytes: PET_ASSET_MAX_BYTES,
+      missing: false,
     });
   });
 
@@ -72,14 +73,18 @@ describe("checkR2ObjectSize", () => {
       ok: false,
       bytes: PET_ASSET_MAX_BYTES + 1,
       maxBytes: PET_ASSET_MAX_BYTES,
+      missing: false,
     });
   });
 
-  it("lets a missing object through — there is no oversized body", async () => {
-    // No entry seeded: the stub throws NotFound.
+  it("lets a missing object through, flagged as missing", async () => {
+    // No entry seeded: the stub throws NotFound. The check itself is not
+    // oversized's concern, but the flag lets a caller whose contract needs
+    // the object to exist refuse it.
     expect(await checkR2ObjectSize(KEY, PET_ASSET_MAX_BYTES)).toEqual({
       ok: true,
       bytes: null,
+      missing: true,
     });
   });
 
@@ -88,6 +93,7 @@ describe("checkR2ObjectSize", () => {
     expect(await checkR2ObjectSize(KEY, PET_ASSET_MAX_BYTES)).toEqual({
       ok: true,
       bytes: null,
+      missing: false,
     });
   });
 

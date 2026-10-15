@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import {
   mkdir,
   readdir,
@@ -566,21 +567,46 @@ async function installOne(pet: ManifestPet): Promise<void> {
   // lands before pet.json so an interrupted install never pairs new
   // metadata with the old image.
   const otherExt: "png" | "webp" = ext === "png" ? "webp" : "png";
-  const writeAtomic = async (target: string, data: Buffer) => {
+  // Stage all four temps first and only then rename: the two install
+  // directories commit back-to-back instead of the second directory's
+  // downloads waiting on the first's renames, shrinking the window where
+  // ~/.petdex/pets and ~/.codex/pets describe different installs. Each
+  // rename is still atomic (a crash can interleave the two directories,
+  // but never expose a half-written file), and within each directory the
+  // sprite renames before pet.json so new metadata never pairs with the
+  // old image.
+  const staged: Array<{ tmp: string; target: string }> = [];
+  const stage = async (dir: string, name: string, data: Buffer) => {
+    const target = path.join(dir, name);
     const tmp = `${target}.${process.pid}.tmp`;
     await writeFile(tmp, data);
-    await rename(tmp, target);
+    staged.push({ tmp, target });
   };
+  try {
+    await Promise.all(
+      [petdexDir, codexDir].flatMap((dir) => [
+        stage(dir, `spritesheet.${ext}`, spritesheet),
+        stage(dir, "pet.json", petJson),
+      ]),
+    );
+    for (const { tmp, target } of staged) {
+      await rename(tmp, target);
+    }
+  } finally {
+    await Promise.all(
+      staged
+        .filter(({ tmp }) => existsSync(tmp))
+        .map(({ tmp }) => rm(tmp, { force: true })),
+    );
+  }
   await Promise.all(
-    [petdexDir, codexDir].map(async (dir) => {
-      await writeAtomic(path.join(dir, `spritesheet.${ext}`), spritesheet);
-      await writeAtomic(path.join(dir, "pet.json"), petJson);
+    [petdexDir, codexDir].map((dir) =>
       // The desktop loader takes the first of spritesheet.webp /
       // spritesheet.png that exists, so a leftover file in the other
       // extension from an earlier install shadows the one just written
       // and the pet keeps rendering the old art. Drop it.
-      await rm(path.join(dir, `spritesheet.${otherExt}`), { force: true });
-    }),
+      rm(path.join(dir, `spritesheet.${otherExt}`), { force: true }),
+    ),
   );
 
   // Fire-and-forget install metric so the gallery counter ticks up. The
