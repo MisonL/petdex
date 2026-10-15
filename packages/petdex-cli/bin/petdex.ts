@@ -575,26 +575,41 @@ async function installOne(pet: ManifestPet): Promise<void> {
   // but never expose a half-written file), and within each directory the
   // sprite renames before pet.json so new metadata never pairs with the
   // old image.
-  const staged: Array<{ tmp: string; target: string }> = [];
-  const stage = async (dir: string, name: string, data: Buffer) => {
+  // Staging is completion-ordered, so the rename list is built per phase:
+  // all sprites rename before any pet.json, keeping the
+  // sprite-before-metadata order the comment promises regardless of which
+  // writeFile finished first.
+  const spriteStaged: Array<{ tmp: string; target: string }> = [];
+  const jsonStaged: Array<{ tmp: string; target: string }> = [];
+  const stage = async (
+    list: Array<{ tmp: string; target: string }>,
+    dir: string,
+    name: string,
+    data: Buffer,
+  ) => {
     const target = path.join(dir, name);
     const tmp = `${target}.${process.pid}.tmp`;
     await writeFile(tmp, data);
-    staged.push({ tmp, target });
+    list.push({ tmp, target });
   };
+  const staged = () => [...spriteStaged, ...jsonStaged];
   try {
     await Promise.all(
-      [petdexDir, codexDir].flatMap((dir) => [
-        stage(dir, `spritesheet.${ext}`, spritesheet),
-        stage(dir, "pet.json", petJson),
-      ]),
+      [petdexDir, codexDir].map((dir) =>
+        stage(spriteStaged, dir, `spritesheet.${ext}`, spritesheet),
+      ),
     );
-    for (const { tmp, target } of staged) {
+    await Promise.all(
+      [petdexDir, codexDir].map((dir) =>
+        stage(jsonStaged, dir, "pet.json", petJson),
+      ),
+    );
+    for (const { tmp, target } of staged()) {
       await rename(tmp, target);
     }
   } finally {
     await Promise.all(
-      staged
+      staged()
         .filter(({ tmp }) => existsSync(tmp))
         .map(({ tmp }) => rm(tmp, { force: true })),
     );
