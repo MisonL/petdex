@@ -7,7 +7,6 @@ import {
   invalidatePetCaches,
   LEADERBOARD_CACHE_KEYS,
 } from "@/lib/db/cached-aggregates";
-import { executeAtomicReturning } from "@/lib/db/client";
 import type { SubmittedPet } from "@/lib/db/schema";
 import * as schema from "@/lib/db/schema";
 import { emailEnv, sendEmail } from "@/lib/email-send";
@@ -178,7 +177,7 @@ export async function applySubmissionAction(
         ([col, value]) => sql`${sql.identifier(col)} = ${value}`,
       ),
       sql`, `,
-    )} WHERE "id" = ${id}`,
+    )} WHERE "id" = ${id} RETURNING *`,
   ];
   if (slugChanged) {
     const oldSlug = current.slug;
@@ -197,8 +196,16 @@ export async function applySubmissionAction(
       ) WHERE "featured_pet_slugs" @> to_jsonb(${oldSlug}::text)`,
     );
   }
-  const batchRows = await executeAtomicReturning(renameStatements);
-  const updated = batchRows[0] as unknown as SubmittedPet | undefined;
+  const { executeAtomicReturning } = await import("@/lib/db/client");
+  await executeAtomicReturning(renameStatements);
+  // Re-read the row after the batch: RETURNING * yields snake_case keys the
+  // downstream code (and runPostApprovalEffects) cannot consume, and the
+  // update's rows are the only trustworthy existence signal inside the
+  // batch. A fresh read is safe here — the batch has committed, so this
+  // snapshot sees the post-rename state.
+  const updated = await db.query.submittedPets.findFirst({
+    where: eq(schema.submittedPets.id, id),
+  });
   if (!updated) {
     return { ok: false, status: 404, body: { error: "not_found" } };
   }

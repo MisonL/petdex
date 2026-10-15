@@ -194,6 +194,16 @@ describe("the slug rename moves the main row and every reference in one batch", 
       slug: "new-slug",
     });
     expect(result.ok).toBe(true);
+    // The batch's pets UPDATE must RETURN the row: approve-with-rename feeds
+    // this value into runPostApprovalEffects (row.id, displayName, tags),
+    // so an empty first-statement result here would silently break the
+    // approve path downstream of every assertion below.
+    const renamed = (
+      result as { row?: { id: unknown; slug: unknown; displayName: unknown } }
+    ).row;
+    expect(renamed?.id).toBe("1");
+    expect(renamed?.slug).toBe("new-slug");
+    expect(renamed?.displayName).toBe("Old");
 
     const pet = await testDb.execute(
       sql`SELECT slug FROM "submitted_pets" WHERE id = '1'`,
