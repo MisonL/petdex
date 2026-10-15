@@ -8,6 +8,7 @@ Pick the one that matches what you want to change.
 |---|---|---|
 | Local full stack | `bun run dev:docker` | Docker Desktop or Podman, ~30s |
 | Run against real petdex services | `bun run dev` | `.env.local` filled in (maintainers only) |
+| Self-contained deployment | `docker compose -f docker-compose.deploy.yml up --build` | Docker only, no credentials (auth runs on in-process mocks) |
 
 `dev:docker` is the recommended path for almost everyone. It boots
 a real Postgres + Redis + Clerk dev instance so the app behaves the

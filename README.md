@@ -129,6 +129,7 @@ Two paths are supported.
 | --- | --- | --- |
 | Local full stack | `bun run dev:docker` | Docker or Podman, ~30s warm-up. |
 | Run against real services | `bun run dev` | `.env.local` filled (maintainers only). |
+| Self-contained deployment | `docker compose -f docker-compose.deploy.yml up --build` | Docker only, no credentials — serves [127.0.0.1:3100](http://127.0.0.1:3100) with in-process auth mocks. |
 
 ```sh
 git clone https://github.com/crafter-station/petdex.git
