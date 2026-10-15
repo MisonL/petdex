@@ -230,6 +230,26 @@ describe("the slug rename moves the main row and every reference in one batch", 
     ).toBe(0);
   });
 
+  it("maps camelCase update keys to snake_case columns on a status action", async () => {
+    // approve/reject/pending carry approvedAt/rejectedAt/rejectionReason —
+    // TS property names whose database columns are snake_case. The batch
+    // builds its SET list with sql.identifier, so a quoted "approvedAt"
+    // would not exist; the mapping must go through the schema.
+    const result = await applySubmissionAction("1", { action: "pending" });
+    expect(result.ok).toBe(true);
+    const status = await testDb.execute(
+      sql`SELECT status, approved_at, rejected_at, rejection_reason FROM "submitted_pets" WHERE id = '1'`,
+    );
+    const row = status.rows[0] as {
+      status: string;
+      approved_at: string | null;
+      rejected_at: string | null;
+      rejection_reason: string | null;
+    };
+    expect(row.status).toBe("pending");
+    expect(row.approved_at).toBeNull();
+  });
+
   it("keeps the pets UPDATE inside the same batch as the reference migration", async () => {
     // Source guard: the earlier revision issued the pets UPDATE through
     // db.update before the batch, so a mid-batch failure left a renamed row

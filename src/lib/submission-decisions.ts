@@ -1,4 +1,4 @@
-import { eq, type SQLWrapper, sql } from "drizzle-orm";
+import { eq, getTableColumns, type SQLWrapper, sql } from "drizzle-orm";
 import { Resend } from "resend";
 
 import {
@@ -171,10 +171,16 @@ export async function applySubmissionAction(
   const slugChanged =
     Boolean(editPatch.slug) && current.slug !== editPatch.slug;
   const newSlug = slugChanged ? (editPatch.slug as string) : current.slug;
+  // Column names must come from the schema's own mapping: the update keys
+  // are the TS property names (approvedAt, rejectionReason...), while the
+  // database columns are snake_case — sql.identifier("approvedAt") renders
+  // a quoted case-sensitive identifier the table does not have.
+  const petColumns = getTableColumns(schema.submittedPets);
   const renameStatements: [SQLWrapper, ...SQLWrapper[]] = [
     sql`UPDATE "submitted_pets" SET ${sql.join(
       Object.entries(update).map(
-        ([col, value]) => sql`${sql.identifier(col)} = ${value}`,
+        ([col, value]) =>
+          sql`${sql.identifier(petColumns[col as keyof typeof petColumns].name)} = ${value}`,
       ),
       sql`, `,
     )} WHERE "id" = ${id} RETURNING *`,
