@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { eq, type SQLWrapper, sql } from "drizzle-orm";
 import { Resend } from "resend";
 
 import {
@@ -7,6 +7,7 @@ import {
   invalidatePetCaches,
   LEADERBOARD_CACHE_KEYS,
 } from "@/lib/db/cached-aggregates";
+import { executeAtomicReturning } from "@/lib/db/client";
 import type { SubmittedPet } from "@/lib/db/schema";
 import * as schema from "@/lib/db/schema";
 import { emailEnv, sendEmail } from "@/lib/email-send";
@@ -156,41 +157,53 @@ export async function applySubmissionAction(
     return { ok: false, status: 404, body: { error: "not_found" } };
   }
 
-  const [updated] = await db
-    .update(schema.submittedPets)
-    .set(update)
-    .where(eq(schema.submittedPets.id, id))
-    .returning();
-
-  if (!updated) {
-    return { ok: false, status: 404, body: { error: "not_found" } };
-  }
-
-  // A rename frees the old slug for the next submitter. Every table keyed by
-  // pet_slug — collection items, covers, likes, metrics, collection
-  // requests, featured lists — must move with the pet in one transaction,
-  // otherwise the pet silently vanishes from each of them and a submitter
-  // claiming the freed slug inherits the rows (a pet that was never added
-  // appearing in collections it does not belong to, likes reset to zero).
+  // A rename must move the main row and every slug-keyed reference in one
+  // transaction. Issuing the pets UPDATE as its own statement first (as an
+  // earlier revision did) committed the rename before the reference
+  // migration ran: a failure past that point left the row renamed while
+  // collections/likes/metrics/requests still pointed at the old slug, and a
+  // collection holding both the old and the new slug tripped the
+  // (collection_id, pet_slug) primary key mid-migration. The main-row
+  // UPDATE is therefore the batch's first statement, followed by every
+  // table keyed by pet_slug — collection items, covers, likes, metrics,
+  // collection requests, fulfilled-request links, featured lists.
   // Separate statements in one batch, per the executeAtomicReturning
   // invariant; the cache revalidations below read the post-rename state.
-  if (editPatch.slug && current.slug !== updated.slug) {
-    const { executeAtomicReturning } = await import("@/lib/db/client");
+  const slugChanged =
+    Boolean(editPatch.slug) && current.slug !== editPatch.slug;
+  const newSlug = slugChanged ? (editPatch.slug as string) : current.slug;
+  const renameStatements: [SQLWrapper, ...SQLWrapper[]] = [
+    sql`UPDATE "submitted_pets" SET ${sql.join(
+      Object.entries(update).map(
+        ([col, value]) => sql`${sql.identifier(col)} = ${value}`,
+      ),
+      sql`, `,
+    )} WHERE "id" = ${id}`,
+  ];
+  if (slugChanged) {
     const oldSlug = current.slug;
-    const newSlug = updated.slug;
-    await executeAtomicReturning([
+    renameStatements.push(
       sql`UPDATE "pet_collection_items" SET "pet_slug" = ${newSlug} WHERE "pet_slug" = ${oldSlug}`,
       sql`UPDATE "pet_collections" SET "cover_pet_slug" = ${newSlug} WHERE "cover_pet_slug" = ${oldSlug}`,
       sql`UPDATE "pet_likes" SET "pet_slug" = ${newSlug} WHERE "pet_slug" = ${oldSlug}`,
       sql`UPDATE "pet_metrics" SET "pet_slug" = ${newSlug} WHERE "pet_slug" = ${oldSlug}`,
       sql`UPDATE "pet_collection_requests" SET "pet_slug" = ${newSlug} WHERE "pet_slug" = ${oldSlug}`,
+      sql`UPDATE "pet_requests" SET "fulfilled_pet_slug" = ${newSlug} WHERE "fulfilled_pet_slug" = ${oldSlug}`,
       sql`UPDATE "user_profiles" SET "featured_pet_slugs" = (
         SELECT COALESCE(jsonb_agg(
           CASE WHEN elem = to_jsonb(${oldSlug}::text) THEN to_jsonb(${newSlug}::text) ELSE elem END
         ), '[]'::jsonb)
         FROM jsonb_array_elements("featured_pet_slugs") AS elem
       ) WHERE "featured_pet_slugs" @> to_jsonb(${oldSlug}::text)`,
-    ]);
+    );
+  }
+  const batchRows = await executeAtomicReturning(renameStatements);
+  const updated = batchRows[0] as unknown as SubmittedPet | undefined;
+  if (!updated) {
+    return { ok: false, status: 404, body: { error: "not_found" } };
+  }
+  if (slugChanged) {
+    const oldSlug = current.slug;
     const { revalidateCollectionTags } = await import(
       "@/lib/db/cached-aggregates"
     );

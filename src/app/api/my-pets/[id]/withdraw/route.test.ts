@@ -44,6 +44,10 @@ let petDeleted = true;
 // rows and the guard would deny a withdraw that in fact succeeded. The stub
 // below cannot model that (it fabricates rows), so assert on the SQL instead.
 let atomicStatements: string[] = [];
+// The reference-protection SELECTs the cleanup issues. Its rendered SQL is
+// what exposed the format mismatch: the keyList carried `pets/...` while the
+// URL columns reduced to `/pets/...`, so the guard never matched anything.
+let referenceStatements: string[] = [];
 
 function statementText(query: unknown): string {
   const chunks = (
@@ -69,7 +73,10 @@ mock.module("@/lib/ratelimit", () => ({
 mock.module("@/lib/db/client", () => ({
   db: {
     query: { submittedPets: { findFirst: async () => row } },
-    execute: async () => (referenced ? [{ "?column?": 1 }] : []),
+    execute: async (query: unknown) => {
+      referenceStatements.push(statementText(query));
+      return referenced ? [{ "?column?": 1 }] : [];
+    },
   },
   schema,
   // Statement order is [pet delete, reviews delete]; only the pet delete's
@@ -109,6 +116,7 @@ beforeEach(() => {
   deletedBatches = 0;
   petDeleted = true;
   atomicStatements = [];
+  referenceStatements = [];
 });
 
 /**
@@ -178,6 +186,21 @@ describe("withdraw asset cleanup", () => {
     expect(res.status).toBe(200);
     await quiesce();
     expect(deletedBatches).toBe(0);
+  });
+
+  it("compares reference keys in the same format on both sides", async () => {
+    // keyFromR2PublicUrl() yields `pets/...` (no leading slash) while the
+    // URL columns reduced by the SQL regexp keep theirs (`/pets/...`); a
+    // bare IN between the two never matched, so the reference guard was
+    // silently inert and the cleanup deleted keys another row pointed at.
+    // The SQL must strip the leading slash before comparing.
+    await withdraw();
+    await quiesce();
+    expect(referenceStatements.length).toBeGreaterThan(0);
+    for (const stmt of referenceStatements) {
+      expect(stmt).toContain("ltrim(");
+    }
+    await quiesce();
   });
 
   it("does NOT delete a live pet key the row merely points at", async () => {

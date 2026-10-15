@@ -139,12 +139,16 @@ export async function POST(
           SELECT 1 FROM "submitted_pets"
           WHERE "id" <> ${id}
             AND (
-              split_part(regexp_replace("spritesheet_url", '^https?://[^/]+', ''), '?', 1) IN (${keyList})
-              OR split_part(regexp_replace("pet_json_url", '^https?://[^/]+', ''), '?', 1) IN (${keyList})
-              OR split_part(regexp_replace("zip_url", '^https?://[^/]+', ''), '?', 1) IN (${keyList})
-              OR split_part(regexp_replace("pending_spritesheet_url", '^https?://[^/]+', ''), '?', 1) IN (${keyList})
-              OR split_part(regexp_replace("pending_pet_json_url", '^https?://[^/]+', ''), '?', 1) IN (${keyList})
-              OR split_part(regexp_replace("pending_zip_url", '^https?://[^/]+', ''), '?', 1) IN (${keyList})
+              -- The keyList entries come from keyFromR2PublicUrl(), which
+              -- strips the leading slash; the regexp_replace result keeps it
+              -- ("/pets/..."), so a bare IN never matched and the reference
+              -- guard was silently inert. lstrip both to the same shape.
+              split_part(ltrim(regexp_replace("spritesheet_url", '^https?://[^/]+', ''), '/'), '?', 1) IN (${keyList})
+              OR split_part(ltrim(regexp_replace("pet_json_url", '^https?://[^/]+', ''), '/'), '?', 1) IN (${keyList})
+              OR split_part(ltrim(regexp_replace("zip_url", '^https?://[^/]+', ''), '/'), '?', 1) IN (${keyList})
+              OR split_part(ltrim(regexp_replace("pending_spritesheet_url", '^https?://[^/]+', ''), '/'), '?', 1) IN (${keyList})
+              OR split_part(ltrim(regexp_replace("pending_pet_json_url", '^https?://[^/]+', ''), '/'), '?', 1) IN (${keyList})
+              OR split_part(ltrim(regexp_replace("pending_zip_url", '^https?://[^/]+', ''), '/'), '?', 1) IN (${keyList})
             )
           LIMIT 1
         `),
